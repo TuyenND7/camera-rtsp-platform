@@ -479,6 +479,50 @@ tbody tr:last-child td { border-bottom: 0; }
 .simple-shell .playback-heading h2 { font-size: 15px; }
 .simple-shell .playback-player { max-height: 60vh; }
 .simple-shell .timeline-help > span:last-child { margin-left: 0; }
+
+/* Live view uses the available window height instead of growing with video aspect ratios. */
+.simple-shell.live-shell { height: 100dvh; min-height: 0; overflow: hidden; }
+.live-shell .app-body { height: 100%; min-height: 0; }
+.simple-shell.live-shell .app-topbar { flex-shrink: 0; }
+.simple-shell.live-shell .app-main { display: flex; flex-direction: column; max-width: none; min-height: 0; padding: 20px 24px; overflow: hidden; }
+.live-shell .mi-live-page { display: flex; flex: 1; flex-direction: column; gap: 14px; min-width: 0; min-height: 0; }
+.simple-shell.live-shell .page-heading { flex-shrink: 0; margin: 0; }
+.live-shell .mi-camera-grid { flex: 1; min-height: 0; gap: 12px; grid-template-columns: repeat(var(--live-grid-size), minmax(0, 1fr)); grid-template-rows: repeat(var(--live-grid-size), minmax(0, 1fr)); }
+.live-shell .layout-4 { --live-grid-size: 2; }
+.live-shell .layout-9 { --live-grid-size: 3; }
+.live-shell .layout-16 { --live-grid-size: 4; }
+.live-shell .mi-camera-card, .live-shell .mi-featured-camera { display: flex; flex-direction: column; min-height: 0; }
+.live-shell .mi-camera-grid .mi-camera-video, .live-shell .mi-featured-video { flex: 1; min-height: 0; height: 100%; aspect-ratio: auto; }
+.live-shell .empty-camera-tile { min-width: 0; min-height: 0; aspect-ratio: auto; overflow: hidden; }
+.live-shell .mi-camera-overlay > div:first-child { flex: 1; min-width: 0; grid-template-columns: 6px minmax(0, 1fr); }
+.live-shell .mi-camera-overlay strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-shell .mi-live-focus { flex: 1; min-height: 0; grid-template-columns: minmax(0, 1fr) 250px; align-items: stretch; }
+.live-shell .mi-device-panel { min-height: 0; overflow-y: auto; }
+.live-shell .mi-camera-carousel { flex-shrink: 0; min-width: 0; margin: 0; padding: 9px 12px; }
+.live-shell .mi-carousel-items { flex-wrap: nowrap; min-width: 0; overflow-x: auto; }
+.live-shell .mi-carousel-items button { flex-shrink: 0; }
+.live-shell .mi-camera-picker[open] > div { max-height: min(300px, calc(100dvh - 145px)); }
+@media (max-height: 600px) {
+  .live-shell .app-sidebar { padding-top: 16px; }
+  .simple-shell.live-shell .app-brand { margin-bottom: 16px; }
+  .simple-shell.live-shell .app-nav { gap: 4px; }
+  .live-shell .app-nav > a { min-height: 36px; padding-top: 7px; padding-bottom: 7px; }
+  .simple-shell.live-shell .sidebar-bottom { padding-top: 8px; }
+  .live-shell .account { margin-top: 8px; padding-top: 10px; padding-bottom: 10px; }
+  .simple-shell.live-shell .app-main { padding: 12px 18px; }
+  .live-shell .mi-live-page { gap: 10px; }
+}
+@media (max-width: 760px) {
+  .simple-shell.live-shell .app-main { padding: 12px; }
+  .live-shell .mi-camera-grid { gap: 8px; }
+  .live-shell .mi-live-focus { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .live-shell .mi-device-panel { max-height: 28dvh; }
+}
+@media (max-width: 480px) {
+  .simple-shell.live-shell .page-heading { gap: 8px; }
+  .simple-shell.live-shell .mi-live-page .page-actions { padding: 0; }
+  .live-shell .mi-camera-card { padding: 3px; border-radius: 8px; }
+}
 .recording-table { padding: 10px 20px; }
 .recording-table td { font-size: 12px; }
 .recording-table .button { min-height: 34px; font-size: 11px; }

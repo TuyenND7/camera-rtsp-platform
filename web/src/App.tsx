@@ -50,7 +50,7 @@ function Layout({ children, user: sessionUser }: { children: React.ReactNode; us
     finally { setLoggingOut(false); }
   }
 
-  return <div className="app-shell simple-shell">
+  return <div className={`app-shell simple-shell${location.pathname === '/live' ? ' live-shell' : ''}`}>
     {mobileOpen && <button className="sidebar-shade" aria-label="Đóng điều hướng" onClick={() => setMobileOpen(false)} />}
     <aside className={`app-sidebar ${mobileOpen ? 'open' : ''}`}>
       <Link to="/live" className="app-brand" aria-label="Camera Station"><img className="brand-image" src="/brand/camera-mark.png" alt="" width="42" height="42" /><strong>Camera Station</strong></Link>

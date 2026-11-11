@@ -10,18 +10,19 @@ type LayoutSize = 1 | 4 | 9 | 16;
 
 export default function Grid() {
   const [searchParams] = useSearchParams();
+  const focusedCameraId = Number(searchParams.get('camera'));
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [layout, setLayout] = useState<LayoutSize>(1);
+  const [layout, setLayout] = useState<LayoutSize>(focusedCameraId > 0 ? 1 : 4);
   const [featuredCameraId, setFeaturedCameraId] = useState<number | null>(null);
   const [err, setErr] = useState('');
-  const focusedCameraId = Number(searchParams.get('camera'));
 
   useEffect(() => {
     api.listCameras().then((items) => {
       setCameras(items);
       const enabled = items.filter((camera) => camera.enabled);
       const focused = enabled.find((camera) => camera.id === focusedCameraId);
+      setLayout(focused ? 1 : 4);
       setSelected(new Set((focused ? [focused] : enabled.slice(0, 16)).map((camera) => camera.id)));
       setFeaturedCameraId((focused ?? enabled[0])?.id ?? null);
     }).catch((error) => setErr(error.message));

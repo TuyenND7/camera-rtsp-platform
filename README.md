@@ -32,7 +32,7 @@ NVR sub-stream ──> AI worker (YOLO) ─────> event + snapshot
 Web admin dùng giao diện sáng, tiếng Việt, font Be Vietnam Pro được đóng gói cục bộ để không phụ thuộc dịch vụ font bên ngoài.
 Logo và icon ứng dụng được tạo bằng Imagegen, dùng cùng một biểu tượng ở sidebar, trang đăng nhập và favicon. Bản gốc nằm trong `design/camera-logo-master.png`, prompt trong `design/camera-logo-prompt.txt`; các PNG đã thu nhỏ và giữ alpha nằm trong `web/public/brand/`.
 
-- **Live view:** xem một camera hoặc chia lưới 2×2, 3×3, 4×4; chọn thiết bị, tải lại, tạm dừng, toàn màn hình và điều khiển PTZ nếu camera hỗ trợ.
+- **Live view:** mặc định chia lưới 2×2; các ô tự co theo kích thước cửa sổ để không phải cuộn trang, giữ nguyên tỷ lệ video. Có thể chuyển sang một camera, 3×3 hoặc 4×4; chọn thiết bị, tải lại, tạm dừng, toàn màn hình và điều khiển PTZ nếu camera hỗ trợ. Link mở riêng một camera vẫn dùng chế độ một ô.
 - **Playback:** chọn camera/ngày, kéo hoặc nhấn dòng thời gian để tua; dùng ←/→ để tua 10 giây, Shift để tua 1 phút, Home/End để đến đầu/cuối recording. Có ảnh preview, tốc độ 1×/2×/4×/8× và thông tin lưu trữ, lịch sử dọn dữ liệu.
 - **Thiết bị:** danh sách camera, tìm theo tên/IP và lọc trạng thái. Bấm **Dò thiết bị** để tìm camera/NVR trong mạng; **Thêm thủ công** khi đã có RTSP hoặc URL ONVIF. Các tùy chọn codec, PTZ và AI nằm trong **Nâng cao**.
 - **Dò thiết bị:** tự đề xuất dải mạng nội bộ /24 từ địa chỉ máy chủ hoặc camera đã lưu. Dò WS-Discovery đồng thời kiểm tra RTSP/ONVIF bằng kết nối trực tiếp để dùng được cả trong Docker Desktop. Có tiến độ, nút Dừng và đánh dấu thiết bị đã thêm. Một lượt tối đa 254 địa chỉ, giới hạn 40 giây; không tự lưu camera, đổi cấu hình hay khởi động lại luồng hiện có.
@@ -173,6 +173,12 @@ New-NetFirewallRule -Name CameraRTSP-Web-LAN -DisplayName 'Camera RTSP Platform 
 ```
 
 Mở `http://<IP-may-Windows>:8080` từ máy cùng LAN và đăng nhập bằng `ADMIN_USERNAME`/`ADMIN_PASSWORD` trong `.env`. Không public cổng này trực tiếp ra Internet; dùng VPN như WireGuard/Tailscale nếu cần truy cập ngoài site.
+
+### Truy cập bằng tên máy trong LAN
+
+Khi các thiết bị trong LAN hỗ trợ mDNS, có thể dùng tên máy thay cho IP DHCP. Xem tên hiện tại bằng `hostname`. Ví dụ máy tên `CAMERA`, cấu hình `HTTP_PORT=8081` thì mở `http://camera.local:8081/live` từ máy tính/tablet cùng mạng.
+
+Để đổi tên máy, chạy PowerShell Administrator: `Rename-Computer -NewName CAMERA`. Tên mới có hiệu lực sau khi khởi động lại Windows; chọn thời điểm phù hợp vì ghi hình sẽ tạm ngắt. Sau khi máy khởi động lại, kiểm tra Docker Desktop đang chạy, `docker compose ps` và `/api/health` trước khi mở Live. Không cần sửa RTSP camera khi chỉ đổi tên máy chủ. Nếu thiết bị không phân giải được `.local`, dùng DHCP reservation trên router để giữ IP máy chủ cố định.
 
 ## Triển khai production trên Windows Server
 
