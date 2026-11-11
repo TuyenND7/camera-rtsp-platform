@@ -1,0 +1,8 @@
+Tool: built-in image_gen (transparent_background=true).
+Original output: 01a0a35a-a2de-7f53-b988-23c39049f2d2/exec-4d1de028-3185-48b6-95aa-5f6ca444f17d.png
+Master: design/camera-logo-master.png
+Web assets: web/public/brand/camera-mark.png (256px), favicon.png (48px), apple-touch-icon.png (180px).
+Asset preparation: copy original into project; proportionally downscale with macOS sips, preserving alpha. No visual reconstruction or redrawing.
+
+Prompt:
+Use case: logo-brand. Asset type: production logo symbol and app icon for Camera Station, a Vietnamese self-hosted CCTV live-view and playback web application. Create ONE original, polished, compact camera/lens brand mark, centered in a cobalt-blue rounded-square tile. A bold white geometric lens/aperture with a subtle negative-space C should communicate camera vision and careful control, with a tiny restrained cyan accent at most. Palette matches the existing interface: cobalt #1769FF and deep navy #17365E. Style: premium flat vector-like digital identity, precise geometry, thick clear shapes, no gradients that obscure edges, elegant balanced proportions, excellent legibility at 24-40px. The tile occupies 86% of the square canvas; transparent pixels outside the rounded tile. No letters, words, typography, tagline, borders, mockups, scenery, 3D, bevels, shadows, grain, or watermarks. This is the final standalone symbol, not a sheet of concepts.

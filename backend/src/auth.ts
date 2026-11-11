@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'crypto';
 import { config } from './config';
 
 export interface JwtPayload {
@@ -9,10 +10,20 @@ export interface JwtPayload {
 
 export function signToken(payload: JwtPayload): string {
   return jwt.sign(payload, config.jwtSecret, {
+    algorithm: 'HS256',
+    jwtid: randomUUID(),
+    issuer: 'camera-station',
+    audience: 'camera-station',
     expiresIn: config.jwtExpiresIn,
   } as jwt.SignOptions);
 }
 
 export function verifyToken(token: string): JwtPayload {
-  return jwt.verify(token, config.jwtSecret) as unknown as JwtPayload;
+  const claims = jwt.verify(token, config.jwtSecret, {
+    algorithms: ['HS256'], issuer: 'camera-station', audience: 'camera-station',
+  });
+  if (typeof claims === 'string' || !Number.isInteger(claims.sub) || typeof claims.username !== 'string' || typeof claims.role !== 'string' || !claims.jti || !claims.exp) {
+    throw new Error('Invalid session claims');
+  }
+  return claims as unknown as JwtPayload;
 }

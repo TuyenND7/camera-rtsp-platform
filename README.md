@@ -27,6 +27,75 @@ NVR sub-stream ──> AI worker (YOLO) ─────> event + snapshot
 | `nginx` | Cổng web/API và phân phối HLS/recording/snapshot |
 | `ai` | Python + YOLO, nhận dạng từ sub-stream |
 
+## Giao diện Camera Station
+
+Web admin dùng giao diện sáng, tiếng Việt, font Be Vietnam Pro được đóng gói cục bộ để không phụ thuộc dịch vụ font bên ngoài.
+Logo và icon ứng dụng được tạo bằng Imagegen, dùng cùng một biểu tượng ở sidebar, trang đăng nhập và favicon. Bản gốc nằm trong `design/camera-logo-master.png`, prompt trong `design/camera-logo-prompt.txt`; các PNG đã thu nhỏ và giữ alpha nằm trong `web/public/brand/`.
+
+- **Live view:** xem một camera hoặc chia lưới 2×2, 3×3, 4×4; chọn thiết bị, tải lại, tạm dừng, toàn màn hình và điều khiển PTZ nếu camera hỗ trợ.
+- **Playback:** chọn camera/ngày, kéo hoặc nhấn dòng thời gian để tua; dùng ←/→ để tua 10 giây, Shift để tua 1 phút, Home/End để đến đầu/cuối recording. Có ảnh preview, tốc độ 1×/2×/4×/8× và thông tin lưu trữ, lịch sử dọn dữ liệu.
+- **Thiết bị:** danh sách camera, tìm theo tên/IP và lọc trạng thái. Bấm **Dò thiết bị** để tìm camera/NVR trong mạng; **Thêm thủ công** khi đã có RTSP hoặc URL ONVIF. Các tùy chọn codec, PTZ và AI nằm trong **Nâng cao**.
+- **Dò thiết bị:** tự đề xuất dải mạng nội bộ /24 từ địa chỉ máy chủ hoặc camera đã lưu. Dò WS-Discovery đồng thời kiểm tra RTSP/ONVIF bằng kết nối trực tiếp để dùng được cả trong Docker Desktop. Có tiến độ, nút Dừng và đánh dấu thiết bị đã thêm. Một lượt tối đa 254 địa chỉ, giới hạn 40 giây; không tự lưu camera, đổi cấu hình hay khởi động lại luồng hiện có.
+- **ONVIF:** chọn thiết bị tìm thấy, nhập tài khoản/mật khẩu của **camera hoặc NVR**, bấm **Lấy luồng video**, chọn profile rồi **Thêm**. Cảnh báo và chặn thêm lại cùng RTSP trong giao diện. NVR có thể thêm từng kênh từ các profile trả về; chưa có thao tác nhập hàng loạt tất cả kênh.
+- **Sự kiện nhận dạng:** lọc theo camera và loại đối tượng, xem ảnh và mở recording của ngày phát hiện. Nếu chưa bật AI, trang hiển thị hướng dẫn cấu hình.
+
+Sau khi chỉ thay đổi giao diện, build và cập nhật riêng web để không ngắt tiến trình ghi hình:
+
+```powershell
+docker compose build web
+docker compose up -d --no-deps --force-recreate web
+docker compose exec -T nginx nginx -s reload
+```
+
+Tải lại trang bằng `Ctrl + Shift + R` nếu trình duyệt vẫn giữ giao diện cũ. URL đăng nhập và tài khoản trong `.env` được giữ nguyên.
+
+Nếu cập nhật cả API dò thiết bị, build và khởi động lại `backend web`, rồi reload nginx. Việc khởi động lại backend khiến các camera kết nối lại trong chốc lát:
+
+```powershell
+docker compose build backend web
+docker compose up -d --no-deps --force-recreate backend web
+docker compose exec -T nginx nginx -s reload
+```
+
+Kiểm tra code sau khi cài dependency: `npm run build --prefix backend`, `node --test backend/test/*.test.cjs`, `npm run build --prefix web`.
+
+## Bảo mật và phiên đăng nhập
+
+- Nginx kiểm tra phiên với backend cho **từng playlist, đoạn video, ảnh sự kiện và ảnh preview** tại `/live/`, `/rec/`, `/playback/`, `/events/`, `/thumbs/`. Biết URL hoặc ở cùng LAN không đủ quyền truy cập. Không có ngoại lệ cho IP Docker/LAN, không truyền token trong URL, không cache kết quả xác thực.
+- Trình duyệt dùng cookie **HttpOnly, SameSite=Strict**; không lưu token vào localStorage. Phiên được ký HS256 và lưu SHA-256 của token trong bảng `auth_sessions`. Đăng xuất thu hồi phiên trên máy chủ, nên bản sao cookie hoặc bearer token của phiên đó cũng bị từ chối. Các token của bản cũ không còn dùng được; cập nhật xong cần đăng nhập lại.
+- Mỗi thao tác thay đổi dùng token CSRF gắn với phiên. API từ chối Origin khác và không cung cấp CORS công khai. Đăng nhập giới hạn 10 lần/IP/phút; tên tài khoản không tồn tại cũng trả cùng lỗi đăng nhập. Cấu hình thiết bị, dò mạng và PTZ chỉ dành cho admin.
+- Production từ chối khởi động với JWT secret mặc định hoặc ngắn hơn 32 ký tự. Không đưa `.env`, chứng chỉ riêng hay dữ liệu recording lên Git. Thay đổi `ADMIN_PASSWORD` trong `.env` chỉ có tác dụng **khởi tạo user mới**, không tự đổi mật khẩu user đã có trong DB.
+- AI dùng RTSP sub-stream có tài khoản hoặc đọc `/storage/live/...` qua volume nội bộ; không cần bỏ xác thực web để AI hoạt động.
+
+Đây là bảo vệ quyền truy cập của ứng dụng. **HTTP vẫn không mã hóa mật khẩu/video trên đường truyền.** Chỉ dùng HTTP trong mạng tin cậy hoặc bên trong VPN; dùng HTTPS cho truy cập thường xuyên và không mở cổng web/camera trực tiếp ra Internet. Bật xác thực ONVIF/RTSP, mật khẩu riêng mạnh và firmware mới trên từng camera/NVR. Dò mạng vẫn có thể thấy IP/dịch vụ; muốn hạn chế máy khác chạm tới camera cần tách VLAN và cấu hình firewall chỉ cho máy chủ kết nối.
+
+### Bật HTTPS khi đã có chứng chỉ tin cậy
+
+1. Đặt chứng chỉ cho **đúng hostname truy cập** tại `certs/server.crt` (full chain) và khóa riêng tại `certs/server.key`. Có thể dùng CA nội bộ đã được máy khách tin cậy hoặc chứng chỉ hợp lệ cho tên miền của bạn; không tải khóa riêng lên Git.
+2. Đặt `COOKIE_SECURE=true` trong `.env`. DNS của hostname phải trỏ đến máy chủ. Cổng HTTPS của cấu hình này là 443; HTTP cũ sẽ chuyển sang HTTPS.
+3. Trong PowerShell tại thư mục project, chạy:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.https.yml up -d --build backend web ai nginx
+docker compose -f docker-compose.yml -f docker-compose.https.yml exec -T nginx nginx -t
+```
+
+Từ lúc bật HTTPS, các lệnh cập nhật/khởi chạy phải giữ cả hai `-f` ở trên. Đăng xuất các phiên HTTP cũ và đăng nhập lại bằng `https://<hostname>` để nhận cookie Secure. Không bỏ qua cảnh báo chứng chỉ của trình duyệt. Không bật `COOKIE_SECURE=true` khi vẫn dùng HTTP vì trình duyệt sẽ không gửi cookie phiên.
+
+### Cập nhật bản bảo mật trên Windows
+
+Sao lưu `.env`, DB và recording trước khi cập nhật. Giữ nguyên `.env` hiện có. Bản này thêm volume `nginx/app.inc`, vì vậy phải tạo lại cả nginx, không chỉ reload cấu hình cũ:
+
+```powershell
+docker compose build backend web ai
+docker compose up -d --no-deps --force-recreate backend web ai nginx
+docker compose exec -T nginx nginx -t
+docker compose cp backend/test backend:/app/test
+docker compose exec -T backend node --test test/security.test.cjs
+```
+
+Các kiểm thử dùng DB giả trong bộ nhớ, không sửa DB camera thật. Backend khởi động lại làm RTSP kết nối lại trong chốc lát. Truy cập ẩn danh một URL Live đã biết phải trả `401`; đăng nhập thì phát được, đăng xuất rồi dùng lại cookie cũ phải tiếp tục bị chặn. Kiểm thử API `/api/cameras` đơn lẻ chưa đủ xác nhận video đã được bảo vệ.
+
 ## Triển khai trên Windows 11 Pro với Docker Desktop
 
 Đây là cách phù hợp khi máy chủ camera chạy Windows 10/11 Pro. Docker Desktop phải dùng **Linux containers** và WSL 2; không chuyển sang Windows containers vì stack này dùng Alpine/Node/Python Linux.
@@ -53,7 +122,7 @@ Trong Docker Desktop > Settings > General, bật **Start Docker Desktop when you
 Dùng ổ còn nhiều dung lượng cho recording (ví dụ `D:` nếu có). Ví dụ dưới đặt code ở `C:\CameraRTSP` và dữ liệu video ở **Documents** của tài khoản Windows đang chạy Docker Desktop:
 
 ```powershell
-git clone https://github.com/ToesTuyen/camera-rtsp-platform.git C:\CameraRTSP
+git clone https://github.com/TuyenND7/camera-rtsp-platform.git C:\CameraRTSP
 Set-Location C:\CameraRTSP
 Copy-Item .env.example .env
 $StorageDir = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'CameraRTSP\storage'
@@ -171,7 +240,7 @@ Không lưu recording dài hạn vào disk hệ điều hành. Ví dụ đã mou
 sudo mkdir -p /srv/camera-rtsp-platform /srv/camera-data/{storage,models}
 sudo chown -R "$USER":"$USER" /srv/camera-rtsp-platform /srv/camera-data
 cd /srv/camera-rtsp-platform
-git clone https://github.com/ToesTuyen/camera-rtsp-platform.git .
+git clone https://github.com/TuyenND7/camera-rtsp-platform.git .
 ln -s /srv/camera-data/storage storage
 ln -s /srv/camera-data/models models
 ```
@@ -236,7 +305,7 @@ sudo ufw enable
 sudo ufw status
 ```
 
-Nginx phân phối HLS/recording/snapshot để player chạy được, nên hãy xem cổng web là dữ liệu nhạy cảm: giới hạn firewall/VPN, không public trực tiếp lên Internet. Khi camera ở site khác, ưu tiên WireGuard hoặc Tailscale giữa NVR và VM thay vì port-forward RTSP.
+Nginx yêu cầu phiên đăng nhập cho HLS/recording/snapshot. Vẫn phải giới hạn firewall/VPN và dùng HTTPS theo phần bảo mật ở trên. Khi camera ở site khác, ưu tiên WireGuard hoặc Tailscale giữa NVR và VM thay vì port-forward RTSP.
 
 ## Kết nối NVR từ đầu đến cuối
 
@@ -295,6 +364,7 @@ docker compose ps
 docker compose logs -f backend ai
 
 # Cập nhật code rồi build lại
+git remote set-url origin https://github.com/TuyenND7/camera-rtsp-platform.git
 git pull --ff-only
 docker compose up -d --build
 
@@ -314,9 +384,15 @@ Backup `storage/` bằng công cụ backup filesystem/NAS theo lịch; không d�
 ## API
 
 - `POST /api/auth/login`
+- `GET /api/auth/session` — kiểm tra cookie và lấy user/token CSRF
+- `POST /api/auth/logout` — thu hồi phiên hiện tại
 - `GET/POST /api/cameras`, `GET/PUT/DELETE /api/cameras/:id`
 - `POST /api/cameras/:id/start|stop`
 - `POST /api/cameras/onvif/probe` — dò thông tin thiết bị, profile và RTSP URI qua ONVIF
+- `GET /api/cameras/discovery/options` — dải mạng nội bộ được đề xuất
+- `POST /api/cameras/discovery` — bắt đầu dò, body `{ "subnet": "192.168.0.0/24" }`
+- `GET /api/cameras/discovery/:scanId` — tiến độ và các thiết bị tìm thấy
+- `DELETE /api/cameras/discovery/:scanId` — dừng lượt dò, không xóa thiết bị
 - `GET /api/recordings/:cameraId/days`
 - `GET /api/recordings/:cameraId/:day`
 - `GET /api/recordings/:cameraId/:day/playlist?from=<segment>` — playlist playback bắt đầu từ một mốc đã chọn
@@ -324,6 +400,8 @@ Backup `storage/` bằng công cụ backup filesystem/NAS theo lịch; không d�
 - `GET /api/recordings/storage` — dung lượng volume storage và chính sách tự dọn
 - `GET /api/events?cameraId=&from=&to=&label=&limit=`
 - `GET /api/health`
+
+Login dùng JSON và header `X-Requested-With: CameraStation`. Trình duyệt tự gửi cookie; thao tác thay đổi thêm `X-CSRF-Token` từ login/session. Client API có thể dùng `Authorization: Bearer <token>` được trả khi login; bearer cũng được kiểm tra trong DB và bị thu hồi khi logout. Không đặt token trong query string, URL video hoặc log.
 
 ## Cấu trúc dữ liệu
 

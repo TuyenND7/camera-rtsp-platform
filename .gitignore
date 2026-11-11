@@ -9,6 +9,7 @@ web/dist/
 
 # env
 .env
+certs/
 
 # storage (recordings/live) - không commit dữ liệu
 storage/

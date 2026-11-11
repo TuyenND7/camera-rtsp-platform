@@ -1,24 +1,30 @@
+import './threadpool'; // phải đứng đầu: đặt UV_THREADPOOL_SIZE trước khi libuv khởi tạo
 import express from 'express';
-import cors from 'cors';
 import { config } from './config';
 import { initDb, waitForDb } from './db';
 import { streamManager } from './stream/manager';
 import { startRetentionJob } from './stream/retention';
+import { startThumbnailJob } from './stream/thumbnails';
 import authRoutes from './routes/auth';
 import cameraRoutes from './routes/cameras';
+import ptzRoutes from './routes/ptz';
 import recordingRoutes from './routes/recordings';
 import eventRoutes from './routes/events';
+import { browserRequestGuard } from './middleware/security';
 
 async function main() {
   await waitForDb();
   await initDb();
 
   const app = express();
-  app.use(cors());
-  app.use(express.json());
+  app.disable('x-powered-by');
+  app.set('trust proxy', 1); // backend is private; nginx overwrites forwarded headers
+  app.use('/api', browserRequestGuard);
+  app.use(express.json({ limit: '16kb' }));
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.use('/api/auth', authRoutes);
+  app.use('/api/cameras/:id/ptz', ptzRoutes);
   app.use('/api/cameras', cameraRoutes);
   app.use('/api/recordings', recordingRoutes);
   app.use('/api/events', eventRoutes);
@@ -26,6 +32,7 @@ async function main() {
   // Khởi động worker cho các camera đang bật
   await streamManager.bootstrap();
   const retentionTimer = startRetentionJob();
+  const thumbnailJob = startThumbnailJob();
 
   const server = app.listen(config.port, () => {
     console.log(`[backend] listening on :${config.port}`);
@@ -34,6 +41,7 @@ async function main() {
   const shutdown = () => {
     console.log('[backend] shutting down...');
     clearInterval(retentionTimer);
+    thumbnailJob.stop();
     streamManager.stopAll();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 5000);

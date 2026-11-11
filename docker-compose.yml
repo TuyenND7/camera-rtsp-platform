@@ -27,6 +27,7 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       ADMIN_USERNAME: ${ADMIN_USERNAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       STORAGE_ROOT: ${STORAGE_ROOT}
@@ -63,7 +64,6 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       STORAGE_ROOT: /storage
-      AI_HLS_BASE_URL: ${AI_HLS_BASE_URL}
       AI_MODEL: ${AI_MODEL}
       AI_DEVICE: ${AI_DEVICE}
       AI_SYNC_SECONDS: ${AI_SYNC_SECONDS}
@@ -91,6 +91,7 @@ services:
       - "${HTTP_PORT:-8080}:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/app.inc:/etc/nginx/camera-app.inc:ro
       - type: bind
         source: ${STORAGE_HOST_DIR:-./storage}
         target: /storage

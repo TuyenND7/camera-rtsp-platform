@@ -2,61 +2,30 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, Camera, StorageStatus } from '../api';
 import Icon from '../Icon';
+import { cameraHost, EmptyState, formatBytes, PageHeader } from '../ui';
 
 export default function Storage() {
   const [status, setStatus] = useState<StorageStatus | null>(null);
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [daysByCamera, setDaysByCamera] = useState<Record<number, string[]>>({});
   const [err, setErr] = useState('');
-
+  const [loading, setLoading] = useState(true);
   async function load() {
+    setLoading(true);
     try {
-      setErr('');
       const [nextStatus, nextCameras] = await Promise.all([api.storageStatus(), api.listCameras()]);
-      setStatus(nextStatus);
-      setCameras(nextCameras);
-      const dayLists = await Promise.all(nextCameras.map(async (camera) => [camera.id, await api.recordingDays(camera.id)] as const));
-      setDaysByCamera(Object.fromEntries(dayLists));
-    } catch (error: any) {
-      setErr(error.message);
-    }
+      setStatus(nextStatus); setCameras(nextCameras);
+      const lists = await Promise.all(nextCameras.map(async (camera) => [camera.id, await api.recordingDays(camera.id)] as const));
+      setDaysByCamera(Object.fromEntries(lists)); setErr('');
+    } catch (error: any) { setErr(error.message); }
+    finally { setLoading(false); }
   }
-
   useEffect(() => { void load(); }, []);
   const warning = status && status.used_percent >= status.cleanup_threshold_percent;
-
-  return (
-    <section className="page-card storage-page">
-      <div className="page-heading">
-        <div><span className="eyebrow">Video đã lưu</span><h2>Playback</h2><p>Chọn camera có recording để xem lại video đã lưu tại <b>{status?.label ?? 'storage'}</b>.</p></div>
-        <button className="dark-button" onClick={() => void load()}><Icon name="rewind" size={17} />Làm mới</button>
-      </div>
-      {err && <p className="form-error">{err}</p>}
-      {status && <>
-        <div className="storage-summary">
-          <div className="storage-donut" style={{ '--usage': `${Math.min(100, status.used_percent)}%` } as React.CSSProperties}><span>{status.used_percent}%<small>đã dùng</small></span></div>
-          <div className="storage-numbers"><strong>{formatBytes(status.used_bytes)} <span>/ {formatBytes(status.total_bytes)}</span></strong><p>Còn trống {formatBytes(status.free_bytes)} · recording đang chiếm {formatBytes(status.recording_bytes)}</p><div className={`storage-bar ${warning ? 'warning' : ''}`}><span style={{ width: `${Math.min(100, status.used_percent)}%` }} /></div></div>
-          <div className="storage-policy"><Icon name="clock" size={21} /><div><b>Tự dọn ở {status.cleanup_threshold_percent}%</b><span>Khi ổ chứa storage đạt ngưỡng, hệ thống xoá từng ngày recording cũ nhất đến {status.cleanup_target_percent}%. Không xoá live, snapshot AI hoặc ngày đang ghi.</span></div></div>
-        </div>
-        {warning && <div className="storage-alert">Dung lượng đã chạm ngưỡng. Job dọn dẹp đang kiểm tra các ngày recording đã hoàn tất; làm mới sau vài phút để xem số liệu mới.</div>}
-        <div className="recording-library-header"><div><h3>Camera có recording</h3><p>{status.recording_days} ngày recording đang sẵn sàng xem lại.</p></div><span>{cameras.length} camera</span></div>
-      </>}
-      <div className="recording-library">
-        {cameras.map((camera) => {
-          const days = daysByCamera[camera.id] ?? [];
-          return <article className="recording-camera" key={camera.id}><div><Icon name="video" size={20} /><div><strong>{camera.name}</strong><span>{days.length ? `${days.length} ngày có recording` : 'Chưa có recording'}</span></div></div>{days[0] ? <Link to={`/playback/${camera.id}`} className="row-link">Xem lại <Icon name="play" size={15} /></Link> : <span className="row-muted">Chờ ghi hình</span>}</article>;
-        })}
-        {cameras.length === 0 && <p className="empty-library">Chưa có camera. Vào <Link to="/cameras">Camera</Link> để thêm RTSP hoặc dò ONVIF.</p>}
-      </div>
-    </section>
-  );
+  return <section className="storage-page"><PageHeader title="Playback" actions={<button type="button" onClick={() => void load()} disabled={loading}><Icon name="refresh" size={16} />Làm mới</button>} />
+    {err && <div className="notice error" role="alert">{err}</div>}
+    <section className="panel recording-table"><div className="table-scroll"><table><thead><tr><th>Camera</th><th>Ngày có video</th><th>Mới nhất</th><th /></tr></thead><tbody>{cameras.map((camera) => { const days = daysByCamera[camera.id] ?? []; return <tr key={camera.id}><td><div className="device-cell"><span className="device-icon"><Icon name="camera" size={21} /></span><span><strong>{camera.name}</strong><small>{cameraHost(camera.rtsp_url)}</small></span></div></td><td>{days.length || '—'}</td><td>{days[0] ? displayDay(days[0]) : 'Chưa có recording'}</td><td className="align-right">{days[0] ? <Link to={`/playback/${camera.id}`} className="button"><Icon name="play" size={14} />Xem lại</Link> : <span className="muted">Chờ ghi hình</span>}</td></tr>; })}</tbody></table></div>{loading && !cameras.length ? <div className="loading-state">Đang tải recording…</div> : !cameras.length && <EmptyState icon="folder" title="Chưa có recording" action={<Link to="/cameras" className="button">Thêm thiết bị</Link>}>Kết nối camera và bật ghi hình để lưu video.</EmptyState>}</section>
+    {status && <details className="storage-disclosure"><summary><Icon name="database" size={17} /><span>Lưu trữ máy chủ</span><b className={warning ? 'storage-warning' : ''}>{status.used_percent}%</b><small>Còn {formatBytes(status.free_bytes)}</small><Icon name="chevronDown" size={15} /></summary><div><div className={`usage-track ${warning ? 'warning' : ''}`}><span style={{ width: `${status.used_percent}%` }} /></div><p>{status.label} · {formatBytes(status.recording_bytes)} video đã lưu</p><p>Tự xóa ngày cũ từ {status.cleanup_threshold_percent}% đến {status.cleanup_target_percent}%. Giữ lại ngày đang ghi.</p>{warning && <p className="storage-warning">Ổ gần đầy. Nếu không còn ngày cũ để dọn, cần giải phóng dung lượng hoặc mở rộng ổ.</p>}{!!status.recent_cleanups?.length && <div className="compact-cleanups"><h3>Dọn gần đây</h3>{status.recent_cleanups.filter((item) => item.bytes > 0).slice(0, 4).map((item) => <p key={`${item.at}-${item.camera_id}-${item.day}`}><span>{displayDay(item.day)} · Camera #{item.camera_id}</span><span>{formatBytes(item.bytes)}</span></p>)}</div>}</div></details>}
+  </section>;
 }
-
-function formatBytes(value: number): string {
-  if (value < 1024) return `${value} B`;
-  const units = ['KB', 'MB', 'GB', 'TB'];
-  let size = value / 1024;
-  let unit = 0;
-  while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit++; }
-  return `${size.toFixed(size >= 100 ? 0 : 1)} ${units[unit]}`;
-}
+function displayDay(day: string) { return `${day.slice(6, 8)}/${day.slice(4, 6)}/${day.slice(0, 4)}`; }

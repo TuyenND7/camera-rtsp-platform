@@ -1,4 +1,8 @@
 const API_BASE = (import.meta as any).env?.VITE_API_BASE ?? '/api';
+export interface SessionUser { id: number; username: string; role: string }
+let csrf = '';
+// Retire browser-readable bearer credentials from older builds.
+localStorage.removeItem('token'); localStorage.removeItem('user');
 
 export interface Camera {
   id: number;
@@ -12,9 +16,30 @@ export interface Camera {
   ai_fps?: number;
   ai_confidence?: number;
   ai_labels?: string[];
+  onvif_url?: string | null;
   status: string;
   last_error?: string | null;
   updated_at?: string;
+}
+
+export interface DiscoveredDevice {
+  ip: string;
+  name: string;
+  onvif_url: string | null;
+  rtsp_port: number | null;
+  protocols: Array<'onvif' | 'rtsp'>;
+  added_cameras: Array<{ id: number; name: string }>;
+}
+
+export interface DiscoveryState {
+  id: string;
+  subnet: string;
+  status: 'running' | 'complete' | 'cancelled' | 'error';
+  scanned_hosts: number;
+  total_hosts: number;
+  progress_percent: number;
+  devices: DiscoveredDevice[];
+  error: string | null;
 }
 
 export interface DetectionEvent {
@@ -56,8 +81,26 @@ export interface RecordingSegment {
   url: string;
   size: number;
   mtime: string;
+  /** ISO UTC ('Z'), null nếu tên file không đúng mẫu. */
   started_at: string | null;
   duration_s: number;
+  /** Vị trí (giây) trong playlist gốc cả ngày; null = đang ghi dở. */
+  offset_s: number | null;
+  /** Vị trí (giây) trong archive H.264 cả ngày (camera HEVC). */
+  archive_offset_s: number | null;
+  thumb_url: string | null;
+  thumb_tiles: number;
+}
+
+export interface RecordingDay {
+  playlist: string | null;
+  day_playback?: {
+    original: string | null;
+    archive: string | null;
+    duration_s: number;
+  };
+  thumb?: { width: number; height: number; interval_s: number };
+  segments: RecordingSegment[];
 }
 
 export interface BrowserPlaybackState {
@@ -65,6 +108,19 @@ export interface BrowserPlaybackState {
   playlist: string | null;
   error: string | null;
   start_position: number | null;
+}
+
+export interface PtzPreset {
+  token: string;
+  name: string;
+}
+
+export interface PtzInfo {
+  supported: boolean;
+  reason?: string;
+  position?: { x: number; y: number; zoom: number } | null;
+  moving?: boolean;
+  presets?: PtzPreset[];
 }
 
 export interface StorageStatus {
@@ -77,16 +133,16 @@ export interface StorageStatus {
   recording_days: number;
   cleanup_threshold_percent: number;
   cleanup_target_percent: number;
+  recent_cleanups?: Array<{ at: string; camera_id: number; day: string; bytes: number; reason: string; used_percent: number | null }>;
 }
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  return { 'X-Requested-With': 'CameraStation', ...(csrf ? { 'X-CSRF-Token': csrf } : {}) };
 }
 
 async function handle<T>(res: Response): Promise<T> {
   if (res.status === 401) {
-    localStorage.removeItem('token');
+    csrf = '';
     window.location.href = '/login';
     throw new Error('Unauthorized');
   }
@@ -99,13 +155,43 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 export const api = {
+  async session(): Promise<SessionUser | null> {
+    const response = await fetch(`${API_BASE}/auth/session`, { cache: 'no-store' });
+    if (response.status === 401) { csrf = ''; return null; }
+    const data = await handle<{ user: SessionUser; csrf: string }>(response);
+    csrf = data.csrf; return data.user;
+  },
+  async logout() {
+    await handle<void>(await fetch(`${API_BASE}/auth/logout`, { method: 'POST', headers: authHeaders() }));
+    csrf = '';
+  },
+  async health() {
+    return handle<{ ok: boolean }>(await fetch(`${API_BASE}/health`));
+  },
+  async discoveryOptions() {
+    return handle<{ subnets: string[]; default_subnet: string }>(await fetch(`${API_BASE}/cameras/discovery/options`, { headers: authHeaders() }));
+  },
+
+  async discoverDevices(subnet: string) {
+    return handle<DiscoveryState>(await fetch(`${API_BASE}/cameras/discovery`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ subnet }) }));
+  },
+
+  async discoveryStatus(id: string) {
+    return handle<DiscoveryState>(await fetch(`${API_BASE}/cameras/discovery/${encodeURIComponent(id)}`, { headers: authHeaders() }));
+  },
+
+  async cancelDiscovery(id: string) {
+    return handle<DiscoveryState>(await fetch(`${API_BASE}/cameras/discovery/${encodeURIComponent(id)}`, { method: 'DELETE', headers: authHeaders() }));
+  },
   async login(username: string, password: string) {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ username, password }),
     });
-    return handle<{ token: string; user: any }>(res);
+    if (res.status === 401) throw new Error('Tài khoản hoặc mật khẩu không đúng.');
+    const data = await handle<{ csrf: string; user: SessionUser }>(res);
+    csrf = data.csrf; return data;
   },
 
   async listCameras() {
@@ -164,7 +250,7 @@ export const api = {
     const res = await fetch(`${API_BASE}/recordings/${cameraId}/${day}`, {
       headers: authHeaders(),
     });
-    return handle<{ playlist: string | null; segments: RecordingSegment[] }>(res);
+    return handle<RecordingDay>(res);
   },
 
   async storageStatus() {
@@ -184,6 +270,56 @@ export const api = {
       body: JSON.stringify(from ? { from } : {}),
     });
     return handle<BrowserPlaybackState>(res);
+  },
+
+  /** Quét lại IP (nếu camera đổi IP) và khởi động lại luồng ngay. */
+  async reconnectCamera(id: number) {
+    const res = await fetch(`${API_BASE}/cameras/${id}/reconnect`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    return handle<{ ok: boolean; moved: { from: string; to: string } | null }>(res);
+  },
+
+  async ptzInfo(cameraId: number) {
+    const res = await fetch(`${API_BASE}/cameras/${cameraId}/ptz`, { headers: authHeaders() });
+    return handle<PtzInfo>(res);
+  },
+
+  /** keepalive: vẫn gửi được lệnh dừng khi người dùng đóng tab/chuyển trang. */
+  async ptzCommand(cameraId: number, command: 'move' | 'stop' | 'home', body?: { x: number; y: number; zoom: number }) {
+    const res = await fetch(`${API_BASE}/cameras/${cameraId}/ptz/${command}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(body ?? {}),
+      keepalive: true,
+    });
+    return handle<{ ok: boolean }>(res);
+  },
+
+  async ptzSavePreset(cameraId: number, name: string) {
+    const res = await fetch(`${API_BASE}/cameras/${cameraId}/ptz/presets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ name }),
+    });
+    return handle<PtzInfo>(res);
+  },
+
+  async ptzGotoPreset(cameraId: number, token: string) {
+    const res = await fetch(`${API_BASE}/cameras/${cameraId}/ptz/presets/${encodeURIComponent(token)}/goto`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    return handle<{ ok: boolean }>(res);
+  },
+
+  async ptzDeletePreset(cameraId: number, token: string) {
+    const res = await fetch(`${API_BASE}/cameras/${cameraId}/ptz/presets/${encodeURIComponent(token)}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    return handle<PtzInfo>(res);
   },
 
   async listEvents(filters: { cameraId?: number; from?: string; to?: string; label?: string; limit?: number } = {}) {

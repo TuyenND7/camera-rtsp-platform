@@ -1,25 +1,38 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyToken, JwtPayload } from '../auth';
+import { JwtPayload } from '../auth';
+import { requestToken, sessionUser, validCsrf } from '../sessions';
+import { isWrite } from './security';
 
 export interface AuthedRequest extends Request {
   user?: JwtPayload;
+  sessionToken?: string;
 }
 
-export function requireAuth(
+export async function requireAuth(
   req: AuthedRequest,
   res: Response,
   next: NextFunction
-): void {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Missing or invalid Authorization header' });
+): Promise<void> {
+  res.setHeader('Cache-Control', 'private, no-store');
+  const credential = requestToken(req);
+  if (!credential) {
+    res.status(401).json({ error: 'Authentication required' });
     return;
   }
-  const token = header.slice('Bearer '.length);
   try {
-    req.user = verifyToken(token);
+    const user = await sessionUser(credential.token);
+    if (!user) { res.status(401).json({ error: 'Invalid or expired session' }); return; }
+    if (!credential.bearer && isWrite(req.method) && !validCsrf(credential.token, req.get('X-CSRF-Token'))) {
+      res.status(403).json({ error: 'Invalid CSRF token' }); return;
+    }
+    req.user = user; req.sessionToken = credential.token;
     next();
   } catch {
-    res.status(401).json({ error: 'Invalid or expired token' });
+    res.status(503).json({ error: 'Session verification unavailable' });
   }
+}
+
+export function requireAdmin(req: AuthedRequest, res: Response, next: NextFunction): void {
+  if (req.user?.role !== 'admin') { res.status(403).json({ error: 'Administrator access required' }); return; }
+  next();
 }

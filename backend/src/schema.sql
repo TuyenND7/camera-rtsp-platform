@@ -6,6 +6,15 @@ CREATE TABLE IF NOT EXISTS users (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Store only a SHA-256 digest. Deleting a session revokes API and media access.
+CREATE TABLE IF NOT EXISTS auth_sessions (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_expiry ON auth_sessions (expires_at);
+
 CREATE TABLE IF NOT EXISTS cameras (
   id           SERIAL PRIMARY KEY,
   name         TEXT NOT NULL,
@@ -31,6 +40,20 @@ ALTER TABLE cameras ADD COLUMN IF NOT EXISTS ai_rtsp_url TEXT;
 ALTER TABLE cameras ADD COLUMN IF NOT EXISTS ai_fps REAL NOT NULL DEFAULT 2;
 ALTER TABLE cameras ADD COLUMN IF NOT EXISTS ai_confidence REAL NOT NULL DEFAULT 0.5;
 ALTER TABLE cameras ADD COLUMN IF NOT EXISTS ai_labels TEXT[] NOT NULL DEFAULT ARRAY['person', 'car', 'motorcycle'];
+-- PTZ qua ONVIF. NULL = http://<host RTSP>/onvif/device_service, dùng tài khoản RTSP.
+ALTER TABLE cameras ADD COLUMN IF NOT EXISTS onvif_url TEXT;
+-- Serial ONVIF: nhận ra camera khi DHCP đổi IP để tự cập nhật địa chỉ.
+ALTER TABLE cameras ADD COLUMN IF NOT EXISTS device_serial TEXT;
+
+-- Tên preset PTZ do người dùng đặt. Nhiều camera (vd Tenda) không lưu tên hoặc
+-- không nhận tên có dấu, nên camera chỉ giữ token còn tên nằm ở đây.
+CREATE TABLE IF NOT EXISTS ptz_presets (
+  camera_id   INTEGER NOT NULL REFERENCES cameras(id) ON DELETE CASCADE,
+  token       TEXT NOT NULL,
+  name        TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (camera_id, token)
+);
 
 -- Metadata cho từng file recording segment
 CREATE TABLE IF NOT EXISTS recordings (

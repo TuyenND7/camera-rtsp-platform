@@ -1,10 +1,26 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { api, Camera, RecordingSegment } from '../api';
-import HlsPlayer from '../HlsPlayer';
+import { api, Camera, RecordingDay } from '../api';
+import HlsPlayer, { HlsPlayerHandle } from '../HlsPlayer';
 import Icon from '../Icon';
+import PlaybackTimeline from '../PlaybackTimeline';
+import { dayStartMs, formatClock, formatShortClock, segmentAt, toTimedSegments } from '../playbackTime';
+import { PageHeader } from '../ui';
 
-/** Giao diện Playback kiểu đầu ghi: chọn camera + ngày + mốc trên timeline. */
+type OffsetKey = 'offset_s' | 'archive_offset_s';
+
+/**
+ * Nguồn phát:
+ * - day: một playlist VOD cả ngày; tua = đổi currentTime, không tải lại player.
+ * - segment: camera HEVC chưa có archive H.264 đầy đủ — chuẩn bị từng segment.
+ */
+type Source =
+  | { mode: 'day'; url: string; key: OffsetKey; start: number; coverage: number }
+  | { mode: 'segment'; url: string; file: string; base: number; start: number };
+
+const SPEEDS = [1, 2, 4, 8];
+const DEFAULT_THUMB = { width: 160, height: 90, interval_s: 10 };
+
 export default function Playback() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -15,77 +31,151 @@ export default function Playback() {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [days, setDays] = useState<string[]>([]);
   const [day, setDay] = useState('');
-  const [originalPlaylist, setOriginalPlaylist] = useState<string | null>(null);
-  const [playlist, setPlaylist] = useState<string | null>(null);
-  const [segments, setSegments] = useState<RecordingSegment[]>([]);
-  const [active, setActive] = useState('');
-  const [requestedSegment, setRequestedSegment] = useState('');
-  const [startPosition, setStartPosition] = useState(-1);
-  const [preparing, setPreparing] = useState(false);
+  const [dayData, setDayData] = useState<RecordingDay | null>(null);
+  const [source, setSource] = useState<Source | null>(null);
+  const [pendingSegment, setPendingSegment] = useState<{ file: string; offsetSec: number } | null>(null);
+  const [positionMs, setPositionMs] = useState<number | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [waiting, setWaiting] = useState(false);
+  const [speed, setSpeed] = useState(1);
   const [err, setErr] = useState('');
+  const playerRef = useRef<HlsPlayerHandle>(null);
+  const playerWrapRef = useRef<HTMLDivElement>(null);
+  const advancing = useRef(false);
 
+  const segments = useMemo(() => toTimedSegments(dayData?.segments ?? []), [dayData]);
+  const thumb = dayData?.thumb ?? DEFAULT_THUMB;
+  const archiveUrl = dayData?.day_playback?.archive ?? null;
+  const originalUrl = dayData?.day_playback?.original ?? null;
+  // Archive chỉ tồn tại cho camera HEVC; không có archive thì chỉ phát thẳng khi nguồn là H.264.
+  const dayMode: { url: string; key: OffsetKey } | null = archiveUrl
+    ? { url: archiveUrl, key: 'archive_offset_s' }
+    : cam && cam.codec !== 'h265' && originalUrl ? { url: originalUrl, key: 'offset_s' } : null;
+
+  // ---- Tải camera + danh sách ngày ----
   useEffect(() => {
     if (!Number.isFinite(cameraId)) return;
     api.getCamera(cameraId).then(setCam).catch((error) => setErr(error.message));
     api.listCameras().then(setCameras).catch(() => setCameras([]));
     api.recordingDays(cameraId).then((availableDays) => {
       setDays(availableDays);
-      if (availableDays.includes(requestedDay)) setDay(requestedDay);
-      else if (availableDays[0]) setDay(availableDays[0]);
+      setDay(availableDays.includes(requestedDay) ? requestedDay : availableDays[0] ?? '');
     }).catch((error) => setErr(error.message));
   }, [cameraId, requestedDay]);
 
+  // ---- Tải segment của ngày; ngày mới nhất làm mới mỗi phút để timeline có đoạn vừa ghi ----
   useEffect(() => {
     if (!day) return;
+    let cancelled = false;
     setErr('');
-    setActive('');
-    setRequestedSegment('');
-    setStartPosition(-1);
-    setOriginalPlaylist(null);
-    setPlaylist(null);
-    api.recordingDay(cameraId, day).then((recording) => {
-      setOriginalPlaylist(recording.playlist);
-      setSegments(recording.segments);
-      const selected = recording.segments.find((segment) => segment.file === requestedFile);
-      if (selected) {
-        setActive(selected.file);
-        setRequestedSegment(selected.file);
-      }
-    }).catch((error) => setErr(error.message));
-  }, [cameraId, day, requestedFile]);
+    setDayData(null);
+    setSource(null);
+    setPendingSegment(null);
+    setPositionMs(null);
+    const load = () => api.recordingDay(cameraId, day)
+      .then((data) => { if (!cancelled) setDayData(data); })
+      .catch((error) => { if (!cancelled) setErr(error.message); });
+    void load();
+    const timer = day === days[0] ? window.setInterval(load, 60_000) : undefined;
+    return () => {
+      cancelled = true;
+      if (timer) window.clearInterval(timer);
+    };
+  }, [cameraId, day, days]);
 
-  useEffect(() => {
-    if (!day || !originalPlaylist) return;
-    if (cam?.codec !== 'h265') {
-      setPreparing(false);
-      setPlaylist(requestedSegment ? api.recordingPlaylist(cameraId, day, requestedSegment) : originalPlaylist);
+  // ---- Đổi mốc thời gian <-> vị trí video ----
+  const playable = useCallback((key: OffsetKey) => segments.filter((segment) => segment[key] !== null), [segments]);
+
+  const wallToTime = useCallback((ms: number, key: OffsetKey): number | null => {
+    const list = playable(key);
+    const hit = segmentAt(list, ms);
+    if (!hit) return null;
+    const offset = hit.segment[key] as number;
+    if (!hit.inside) return ms > hit.segment.endMs ? offset + hit.segment.duration_s - 1 : offset;
+    return offset + (ms - hit.segment.startMs) / 1000;
+  }, [playable]);
+
+  const timeToWall = useCallback((t: number, key: OffsetKey): number | null => {
+    const list = playable(key);
+    let lo = 0;
+    let hi = list.length - 1;
+    let found = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if ((list[mid][key] as number) <= t) { found = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    if (found < 0) return list[0]?.startMs ?? null;
+    const segment = list[found];
+    return Math.min(segment.endMs, segment.startMs + (t - (segment[key] as number)) * 1000);
+  }, [playable]);
+
+  const coverageOf = useCallback((key: OffsetKey) => {
+    const list = playable(key);
+    const last = list[list.length - 1];
+    return last ? (last[key] as number) + last.duration_s : 0;
+  }, [playable]);
+
+  // ---- Seek ----
+  const seek = useCallback((ms: number) => {
+    setPositionMs(ms);
+    if (dayMode) {
+      const t = wallToTime(ms, dayMode.key);
+      if (t === null) return;
+      if (source?.mode === 'day' && source.key === dayMode.key && t < source.coverage - 1) {
+        playerRef.current?.seek(t);
+        playerRef.current?.play();
+        return;
+      }
+      // Mốc nằm sau phần playlist đã tải (đoạn mới ghi): tải lại playlist VOD mới.
+      const separator = dayMode.url.includes('?') ? '&' : '?';
+      setSource({ mode: 'day', url: `${dayMode.url}${separator}r=${Date.now()}`, key: dayMode.key, start: t, coverage: coverageOf(dayMode.key) });
       return;
     }
-    // HEVC không seek ổn định trên Chrome/Edge; chỉ chuẩn bị segment local đang chọn.
-    const segment = requestedSegment || segments[segments.length - 1]?.file;
-    if (!segment) return;
-    if (!requestedSegment) setActive(segment);
+    const hit = segmentAt(segments, ms);
+    if (!hit) return;
+    const offsetSec = hit.inside ? (ms - hit.segment.startMs) / 1000 : 0;
+    if (source?.mode === 'segment' && source.file === hit.segment.file) {
+      playerRef.current?.seek(source.base + offsetSec);
+      return;
+    }
+    setSource(null);
+    setPendingSegment({ file: hit.segment.file, offsetSec });
+  }, [coverageOf, dayMode, segments, source, wallToTime]);
+
+  // ---- Mốc bắt đầu khi mở ngày ----
+  useEffect(() => {
+    if (!cam || !dayData || source || pendingSegment || segments.length === 0 || positionMs !== null) return;
+    const requested = segments.find((segment) => segment.file === requestedFile);
+    const latest = [...segments].reverse().find((segment) => segment.offset_s !== null) ?? segments[segments.length - 1];
+    seek((requested ?? latest).startMs);
+  }, [cam, dayData, pendingSegment, positionMs, requestedFile, seek, segments, source]);
+
+  // ---- Chế độ segment: chuẩn bị HLS H.264 cho segment HEVC đã chọn ----
+  useEffect(() => {
+    if (!pendingSegment || !day) return;
     let cancelled = false;
     let timer: number | undefined;
     const prepare = async () => {
       try {
-        setPreparing(true);
-        const state = await api.prepareBrowserPlayback(cameraId, day, segment);
+        const state = await api.prepareBrowserPlayback(cameraId, day, pendingSegment.file);
         if (cancelled) return;
-        if (state.playlist) {
-          setPlaylist(state.playlist);
-          setStartPosition(state.start_position ?? -1);
-        }
         if (state.status === 'processing') {
-          timer = window.setTimeout(prepare, 3000);
+          timer = window.setTimeout(prepare, 2000);
           return;
         }
-        setPreparing(false);
-        if (state.status === 'error') setErr(state.error ?? 'Không thể chuyển recording H.265 cho browser');
+        if (state.status === 'error' || !state.playlist) {
+          setErr(state.error ?? 'Không thể chuyển recording H.265 cho browser');
+          setPendingSegment(null);
+          return;
+        }
+        const base = state.start_position ?? 0;
+        advancing.current = false;
+        setSource({ mode: 'segment', url: state.playlist, file: pendingSegment.file, base, start: base + pendingSegment.offsetSec });
+        setPendingSegment(null);
       } catch (error: any) {
         if (!cancelled) {
-          setPreparing(false);
           setErr(error.message);
+          setPendingSegment(null);
         }
       }
     };
@@ -94,35 +184,50 @@ export default function Playback() {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [cam?.codec, cameraId, day, originalPlaylist, requestedSegment, segments]);
+  }, [cameraId, day, pendingSegment]);
 
-  const activeIndex = useMemo(() => segments.findIndex((segment) => segment.file === active), [active, segments]);
-  const activeSegment = activeIndex >= 0 ? segments[activeIndex] : undefined;
-
-  function playFrom(segment: RecordingSegment) {
-    setActive(segment.file);
-    if (cam?.codec === 'h265') {
-      setStartPosition(-1);
-      setPlaylist(null);
-      setRequestedSegment(segment.file);
+  // ---- Vị trí video -> mốc trên timeline ----
+  const onTime = useCallback((t: number) => {
+    if (!source) return;
+    if (source.mode === 'day') {
+      const wall = timeToWall(t, source.key);
+      if (wall !== null) setPositionMs(wall);
       return;
     }
-    setStartPosition(-1);
-    setRequestedSegment(segment.file);
-    setPlaylist(api.recordingPlaylist(cameraId, day, segment.file));
+    const index = segments.findIndex((segment) => segment.file === source.file);
+    const segment = segments[index];
+    if (!segment) return;
+    const within = t - source.base;
+    setPositionMs(segment.startMs + within * 1000);
+    // Playlist một segment: hết đoạn thì tự chuyển sang đoạn kế tiếp.
+    const next = segments[index + 1];
+    if (source.base === 0 && next && within >= segment.duration_s - 0.3 && !advancing.current) {
+      advancing.current = true;
+      seek(next.startMs);
+    }
+  }, [seek, segments, source, timeToWall]);
+
+  useEffect(() => { playerRef.current?.setRate(speed); }, [speed, source]);
+
+  function jump(seconds: number) {
+    if (positionMs !== null) seek(positionMs + seconds * 1000);
   }
 
-  function selectOffset(offset: number) {
-    const base = activeIndex >= 0 ? activeIndex : segments.length - 1;
-    const next = segments[Math.min(segments.length - 1, Math.max(0, base + offset))];
-    if (next) playFrom(next);
+  function toggleFullscreen() {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void playerWrapRef.current?.requestFullscreen().catch(() => undefined);
   }
+
+  const latestSegment = segments[segments.length - 1];
+  const preparing = pendingSegment !== null;
+  const totalBytes = segments.reduce((total, segment) => total + segment.size, 0);
 
   return (
     <section className="page-card playback-page">
-      <div className="playback-shell">
-        <aside className="playback-camera-rail" aria-label="Chọn camera playback">
-          <div className="playback-rail-heading"><Icon name="video" size={19} /><span>Camera</span></div>
+      <PageHeader title="Playback" actions={<Link to="/playback" className="button"><Icon name="folder" size={16} />Chọn camera</Link>} />
+      <div className={`playback-shell ${cameras.length <= 1 ? 'single-camera' : ''}`}>
+        {cameras.length > 1 && <aside className="playback-camera-rail" aria-label="Chọn camera playback">
+          <div className="playback-rail-heading"><Icon name="video" size={19} /><span>Thiết bị</span><small>{cameras.length}</small></div>
           <div className="playback-camera-list">
             {cameras.map((camera) => (
               <Link key={camera.id} to={`/playback/${camera.id}`} className={camera.id === cameraId ? 'active' : ''}>
@@ -134,16 +239,14 @@ export default function Playback() {
             {cameras.length === 0 && <span className="rail-empty">Chưa có camera.</span>}
           </div>
           <Link to="/playback" className="rail-back">← Danh sách recording</Link>
-        </aside>
+        </aside>}
 
         <div className="playback-workspace">
           <div className="playback-heading cctv-playback-heading">
             <div>
-              <span className="eyebrow">Playback local</span>
               <h2>{cam?.name ?? `Camera ${id}`}</h2>
-              <p>Video đọc từ recording đã lưu. Dùng timeline để chọn mốc; thanh điều khiển trên video dùng để play, pause và seek.</p>
             </div>
-            <div className="playback-day-picker"><Icon name="clock" size={18} /><select value={day} onChange={(event) => setDay(event.target.value)} disabled={days.length === 0}>
+            <div className="playback-day-picker"><Icon name="clock" size={18} /><select value={day} onChange={(event) => setDay(event.target.value)} disabled={days.length === 0} aria-label="Chọn ngày">
               {days.length === 0 && <option>Chưa có recording</option>}
               {days.map((value) => <option key={value} value={value}>{formatDay(value)}</option>)}
             </select></div>
@@ -157,34 +260,58 @@ export default function Playback() {
           {days.length === 0 && !err && <div className="playback-empty"><Icon name="clock" size={30} /><h3>Chưa có video đã ghi</h3><p>Hãy kiểm tra camera đang bật, trạng thái online và tùy chọn ghi hình.</p><Link to="/cameras">Mở cấu hình camera</Link></div>}
 
           {days.length > 0 && <>
-            <div className="playback-player cctv-playback-player">
-              {playlist ? <HlsPlayer key={`${playlist}-${startPosition}`} src={playlist} startPosition={startPosition} /> : <div className="playback-empty"><Icon name="video" size={30} /><p>{preparing ? 'Đang chuyển file local H.265 của mốc đã chọn sang H.264 để browser có thể phát và seek…' : 'Không có playlist cho ngày đã chọn.'}</p></div>}
+            <div className="playback-player cctv-playback-player pb-player" ref={playerWrapRef}>
+              {source ? (
+                <HlsPlayer
+                  key={source.url}
+                  ref={playerRef}
+                  src={source.url}
+                  startPosition={source.start}
+                  controls={false}
+                  onTime={onTime}
+                  onPlayingChange={setPlaying}
+                  onWaitingChange={setWaiting}
+                />
+              ) : (
+                <div className="playback-empty"><Icon name="video" size={30} /><p>{preparing ? 'Đang chuyển đoạn H.265 đã chọn sang H.264 để browser phát được…' : dayData ? 'Chọn một mốc trên timeline.' : 'Đang tải recording…'}</p></div>
+              )}
+              {source && waiting && <div className="pb-spinner" aria-label="Đang tải video" />}
+              {positionMs !== null && <div className="pb-clock">{formatDay(day)} · {formatClock(positionMs)}</div>}
             </div>
-            {preparing && <p className="playback-preparing"><Icon name="clock" size={16} />Đang xử lý file local, không kết nối lại RTSP/camera. Mốc này sẽ được cache để mở lại nhanh hơn.</p>}
+            {preparing && <p className="playback-preparing"><Icon name="clock" size={16} />Đang xử lý file local, không kết nối lại camera. Đoạn này sẽ được cache để mở lại nhanh hơn.</p>}
 
             <section className="recording-timeline cctv-timeline" aria-label="Timeline playback">
-              <div className="recording-timeline-header">
-                <div><h3>Dòng thời gian {formatDay(day)}</h3><p>{segments.length} segment · {formatBytes(segments.reduce((total, segment) => total + segment.size, 0))}</p></div>
-                <span className="cctv-time-readout">{activeSegment ? formatTime(activeSegment) : 'Chọn mốc thời gian'}</span>
+              <div className="pb-controls">
+                <div className="pb-controls-main">
+                  <button type="button" onClick={() => jump(-10)} disabled={positionMs === null} title="Lùi 10 giây (←)" aria-label="Lùi 10 giây"><Icon name="rewind" size={18} /><small>10</small></button>
+                  <button type="button" className="pb-play" onClick={() => playerRef.current?.togglePlay()} disabled={!source} title={playing ? 'Tạm dừng (Space)' : 'Phát (Space)'} aria-label={playing ? 'Tạm dừng' : 'Phát'}><Icon name={playing ? 'pause' : 'play'} size={20} stroke={2.4} /></button>
+                  <button type="button" onClick={() => jump(10)} disabled={positionMs === null} title="Tới 10 giây (→)" aria-label="Tới 10 giây"><small>10</small><Icon name="skipForward" size={18} /></button>
+                </div>
+                <div className="pb-controls-side">
+                  <label className="pb-speed">Tốc độ
+                    <select value={speed} onChange={(event) => setSpeed(Number(event.target.value))}>
+                      {SPEEDS.map((value) => <option key={value} value={value}>{value}×</option>)}
+                    </select>
+                  </label>
+                  <button type="button" onClick={() => latestSegment && seek(Math.max(latestSegment.startMs, latestSegment.endMs - 30_000))} disabled={!latestSegment} title="Tới đoạn mới nhất">Mới nhất</button>
+                  <button type="button" onClick={toggleFullscreen} title="Toàn màn hình" aria-label="Toàn màn hình"><Icon name="layout" size={17} /></button>
+                </div>
               </div>
-              <div className="cctv-playback-controls">
-                <button type="button" onClick={() => selectOffset(-segments.length)} disabled={segments.length === 0} title="Đầu ngày"><Icon name="skipBack" size={18} /></button>
-                <button type="button" onClick={() => selectOffset(-1)} disabled={activeIndex <= 0} title="Mốc trước"><Icon name="rewind" size={18} /></button>
-                <button type="button" onClick={() => activeSegment ? playFrom(activeSegment) : selectOffset(0)} disabled={segments.length === 0} title="Phát mốc đang chọn"><Icon name="play" size={19} /></button>
-                <button type="button" onClick={() => selectOffset(1)} disabled={activeIndex < 0 || activeIndex >= segments.length - 1} title="Mốc sau"><Icon name="skipForward" size={18} /></button>
-                <button type="button" onClick={() => selectOffset(segments.length)} disabled={segments.length === 0} title="Mốc mới nhất"><Icon name="skipForward" size={18} /></button>
-              </div>
-              <div className="segment-track cctv-segment-track" role="list" aria-label="Các đoạn recording">
-                {segments.map((segment, index) => <button key={segment.file} role="listitem" className={`recording-segment ${active === segment.file ? 'active' : ''}`} onClick={() => playFrom(segment)} title={`${formatTime(segment)} · ${formatBytes(segment.size)}`} style={{ '--segment-width': `${Math.max(3, 100 / Math.max(segments.length, 1))}%` } as React.CSSProperties}>
-                  <span>{index % Math.max(1, Math.ceil(segments.length / 8)) === 0 ? formatTime(segment) : ''}</span>
-                </button>)}
-              </div>
-              <p className="timeline-help">Bấm một block màu xanh để xem đúng mốc local. Với H.265, lần đầu hệ thống chuyển riêng đoạn chọn sang H.264; các lần sau dùng bản cache.</p>
+
+              <PlaybackTimeline
+                segments={segments}
+                dayStart={day ? dayStartMs(day) : 0}
+                positionMs={positionMs}
+                thumb={thumb}
+                onSeek={seek}
+                onTogglePlay={() => playerRef.current?.togglePlay()}
+              />
+              <p className="timeline-help"><span><i />Có ghi hình</span>{formatBytes(totalBytes)}</p>
             </section>
 
             <details className="segment-details">
-              <summary>Danh sách file ({segments.length}) <Icon name="chevronDown" size={17} /></summary>
-              <div>{segments.map((segment) => <button key={segment.file} onClick={() => playFrom(segment)}><span>{formatTime(segment)}</span><b>{segment.file}</b><small>{formatBytes(segment.size)}</small></button>)}</div>
+              <summary>Thông tin bản ghi · {segments.length} đoạn <Icon name="chevronDown" size={17} /></summary>
+              <div>{segments.map((segment) => <button key={segment.file} onClick={() => seek(segment.startMs)}><span>{formatShortClock(segment.startMs)}</span><b>{segment.file}</b><small>{formatBytes(segment.size)}</small></button>)}</div>
             </details>
           </>}
         </div>
@@ -202,11 +329,8 @@ function formatDayShort(value: string): string {
   return `${value.slice(6, 8)}/${value.slice(4, 6)}`;
 }
 
-function formatTime(segment: RecordingSegment): string {
-  return segment.started_at ? segment.started_at.slice(11, 16) : segment.file;
-}
-
 function formatBytes(value: number): string {
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(0)} KB`;
-  return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }

@@ -20,6 +20,7 @@ export const config = {
 
   jwtSecret: process.env.JWT_SECRET ?? 'dev_insecure_secret_change_me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '12h',
+  cookieSecure: process.env.COOKIE_SECURE === 'true',
 
   adminUsername: process.env.ADMIN_USERNAME ?? 'admin',
   adminPassword: process.env.ADMIN_PASSWORD ?? 'admin',
@@ -50,3 +51,7 @@ export const config = {
 };
 
 export type AppConfig = typeof config;
+
+if (config.nodeEnv === 'production' && (config.jwtSecret.length < 32 || /change_me|dev_insecure/i.test(config.jwtSecret))) {
+  throw new Error('JWT_SECRET must be a unique random secret of at least 32 characters in production');
+}

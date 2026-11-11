@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import Icon from '../Icon';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -11,36 +10,15 @@ export default function Login() {
   const navigate = useNavigate();
 
   async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    setErr('');
-    setLoading(true);
+    event.preventDefault(); setErr(''); setLoading(true);
     try {
-      const { token } = await api.login(username, password);
-      localStorage.setItem('token', token);
+      await api.login(username, password);
       navigate('/live');
-    } catch (error: any) {
-      setErr(error.message ?? 'Không thể đăng nhập');
-    } finally {
-      setLoading(false);
-    }
+    } catch (error: any) { setErr(error.message === 'Failed to fetch' ? 'Không thể kết nối máy chủ. Kiểm tra mạng và thử lại.' : error.message ?? 'Không thể đăng nhập'); }
+    finally { setLoading(false); }
   }
 
-  return (
-    <main className="mi-login">
-      <section className="mi-login-intro">
-        <div className="mi-login-brand"><span><Icon name="camera" size={26} stroke={2.2} /></span>MiHome</div>
-        <p>Every corner, closer to home.</p>
-        <div className="mi-login-orbit mi-login-orbit-one" /><div className="mi-login-orbit mi-login-orbit-two" />
-      </section>
-      <section className="mi-login-card">
-        <div><span className="eyebrow">Chào mừng trở lại</span><h1>Đăng nhập</h1><p>Quản lý camera và không gian của bạn.</p></div>
-        <form onSubmit={submit}>
-          <label>Tài khoản<input value={username} onChange={(event) => setUsername(event.target.value)} autoFocus autoComplete="username" /></label>
-          <label>Mật khẩu<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" /></label>
-          {err && <p className="mi-login-error">{err}</p>}
-          <button type="submit" disabled={loading}>{loading ? 'Đang đăng nhập…' : 'Vào không gian của bạn'} <Icon name="play" size={14} /></button>
-        </form>
-      </section>
-    </main>
-  );
+  return <main className="login-simple">
+    <form className="login-form" onSubmit={submit}><img className="login-brand-image" src="/brand/camera-mark.png" alt="" width="72" height="72" /><h2>Camera Station</h2><p>Đăng nhập quản trị</p><label>Tài khoản<input value={username} onChange={(event) => setUsername(event.target.value)} autoFocus autoComplete="username" required /></label><label>Mật khẩu<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>{err && <div className="notice error" role="alert">{err}</div>}<button className="button primary" type="submit" disabled={loading}>{loading ? 'Đang đăng nhập…' : 'Đăng nhập'}</button></form>
+  </main>;
 }

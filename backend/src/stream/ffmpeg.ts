@@ -86,6 +86,11 @@ function buildArgs(
   const args: string[] = [
     '-hide_banner',
     '-loglevel', 'warning',
+    // Với loglevel warning, FFmpeg ẩn dòng "frame=" (mức info). Ghi tiến trình
+    // key=value ra stdout mỗi 5s để backend biết đã nhận frame và báo online.
+    '-nostats',
+    '-progress', 'pipe:1',
+    '-stats_period', '5',
     // Ưu tiên TCP cho RTSP qua internet (ổn định hơn UDP khi qua NAT)
     '-rtsp_transport', 'tcp',
     '-timeout', '10000000', // 10s (micro giây) chờ kết nối
@@ -102,6 +107,9 @@ function buildArgs(
       '-tune', 'zerolatency',
       '-b:v', config.transcodeBitrate,
       '-pix_fmt', 'yuv420p',
+      // Keyframe đúng mỗi HLS_SEGMENT_SECONDS để segment live dài đúng cấu hình
+      // (trước là -g 48 = 2,4s ở 20fps), giảm độ trễ khi xem/điều khiển PTZ.
+      '-force_key_frames', `expr:gte(t,n_forced*${config.hlsSegmentSeconds})`,
       '-g', '48'
     );
   } else {
@@ -161,7 +169,10 @@ function buildArgs(
         '-hls_time', String(config.browserPlaybackSegmentSeconds),
         '-hls_list_size', '0',
         '-hls_flags', 'append_list+independent_segments',
-        '-hls_segment_filename', path.join(playbackDayDir, 'play_%06d.ts'),
+        // Tên theo giờ UTC (spawn TZ=UTC) để API ghép chính xác mốc thời gian
+        // giữa recording gốc và archive, kể cả khi camera mất kết nối nhiều lần.
+        '-strftime', '1',
+        '-hls_segment_filename', path.join(playbackDayDir, 'play_%Y%m%d_%H%M%S.ts'),
         path.join(playbackDayDir, 'index.m3u8')
       );
     }
@@ -194,7 +205,12 @@ export async function startFfmpeg(
 
   const liveCodec = await resolveLiveCodec(rtspUrl, codec);
   const args = buildArgs(rtspUrl, record, paths, liveCodec);
-  const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  // Tên file recording (-strftime) luôn theo UTC để API đổi ra giờ chính xác;
+  // thư mục ngày vẫn theo RECORD_TIMEZONE (tính ở buildArgs).
+  const proc = spawn('ffmpeg', args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, TZ: 'UTC' },
+  });
 
   proc.stderr?.on('data', (d: Buffer) => onLog(d.toString().trim()));
   proc.stdout?.on('data', (d: Buffer) => onLog(d.toString().trim()));

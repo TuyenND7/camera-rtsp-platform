@@ -30,7 +30,6 @@ log = logging.getLogger("camera-ai")
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 STORAGE_ROOT = Path(os.getenv("STORAGE_ROOT", "/storage"))
-HLS_BASE_URL = os.getenv("AI_HLS_BASE_URL", "http://nginx").rstrip("/")
 MODEL_PATH = os.getenv("AI_MODEL", "/models/yolov8n.pt")
 DEVICE = os.getenv("AI_DEVICE", "cpu")
 SYNC_SECONDS = float(os.getenv("AI_SYNC_SECONDS", "15"))
@@ -48,7 +47,8 @@ class CameraConfig:
 
     @property
     def source_url(self) -> str:
-        return self.ai_rtsp_url or f"{HLS_BASE_URL}/live/{self.id}/index.m3u8"
+        # Trusted worker already has the storage mount. Public HLS requires login.
+        return self.ai_rtsp_url or str(STORAGE_ROOT / "live" / str(self.id) / "index.m3u8")
 
 
 class Detector:

@@ -1,0 +1,8 @@
+# Use with a valid certificate for your server's hostname. See README security setup.
+services:
+  nginx:
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.https.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/tls:ro

@@ -1,6 +1,7 @@
 import { pool } from '../db';
 import { startFfmpeg, FfmpegHandle, CodecMode } from './ffmpeg';
 import { config } from '../config';
+import { rediscoverCamera, rememberSerial } from '../discovery';
 
 export interface CameraRow {
   id: number;
@@ -17,7 +18,11 @@ interface Worker {
   restartTimer?: NodeJS.Timeout;
   stopping: boolean;
   backoffMs: number;
+  online: boolean;
 }
+
+/** Số lần kết nối hỏng liên tiếp trước khi quét LAN tìm IP mới của camera. */
+const FAILURES_BEFORE_REDISCOVERY = 3;
 
 /**
  * Quản lý một FFmpeg process cho mỗi camera đang bật.
@@ -25,6 +30,8 @@ interface Worker {
  */
 class StreamManager {
   private workers = new Map<number, Worker>();
+  /** Số lần FFmpeg thoát liên tiếp mà chưa nhận được frame nào. */
+  private failures = new Map<number, number>();
   private recordDay = this.currentRecordDay();
   private recordDayTimer?: NodeJS.Timeout;
 
@@ -82,7 +89,7 @@ class StreamManager {
     void this.setStatus(cam.id, 'connecting');
 
     // Đăng ký worker placeholder ngay để stop() có thể hủy trong lúc probe
-    const worker: Worker = { stopping: false, backoffMs };
+    const worker: Worker = { stopping: false, backoffMs, online: false };
     this.workers.set(cam.id, worker);
 
     startFfmpeg(
@@ -91,9 +98,13 @@ class StreamManager {
       cam.record,
       cam.codec ?? 'auto',
       (line) => {
-        // ffmpeg xuất thông tin frame => coi như online
-        if (/frame=|Opening|Stream mapping/i.test(line)) {
+        // -progress ghi "frame=N" ra stdout khi FFmpeg đã nhận frame thật.
+        // Chỉ UPDATE DB một lần mỗi lần spawn thay vì mỗi báo cáo tiến trình.
+        if (!worker.online && /(^|\n)frame=\d+/.test(line)) {
+          worker.online = true;
+          this.failures.delete(cam.id);
           void this.setStatus(cam.id, 'online', null);
+          void rememberSerial(cam.id).catch(() => undefined);
         }
         if (/error|failed|refused|timed out|Connection/i.test(line)) {
           console.warn(`[cam ${cam.id}] ${line}`);
@@ -140,6 +151,20 @@ class StreamManager {
       this.workers.delete(cam.id);
       this.spawn(cam, nextBackoff);
     }, worker.backoffMs);
+
+    // Không lên hình nhiều lần liên tiếp: có thể DHCP đã đổi IP camera.
+    const failures = worker.online ? 0 : (this.failures.get(cam.id) ?? 0) + 1;
+    this.failures.set(cam.id, failures);
+    if (failures >= FAILURES_BEFORE_REDISCOVERY) {
+      void rediscoverCamera(cam.id)
+        .then((moved) => {
+          if (!moved) return;
+          this.failures.delete(cam.id);
+          // restart đọc lại rtsp_url mới từ DB.
+          return this.restart(cam.id);
+        })
+        .catch((error) => console.error(`[cam ${cam.id}] rediscovery failed:`, error));
+    }
   }
 
   stop(id: number): void {
