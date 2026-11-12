@@ -18,6 +18,44 @@ export default function Grid() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSlot, setPickerSlot] = useState<number | null>(null);
   const [err, setErr] = useState('');
+  const livePage = useRef<HTMLElement>(null);
+  const [nativeFullscreen, setNativeFullscreen] = useState(false);
+  const [expandedView, setExpandedView] = useState(false);
+  const fullscreen = nativeFullscreen || expandedView;
+
+  useEffect(() => {
+    const element = livePage.current;
+    const update = () => setNativeFullscreen(document.fullscreenElement === element);
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setExpandedView(false); };
+    document.addEventListener('fullscreenchange', update);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('fullscreenchange', update);
+      document.removeEventListener('keydown', escape);
+      if (document.fullscreenElement === element) void document.exitFullscreen().catch(() => undefined);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!fullscreen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, [fullscreen]);
+
+  async function toggleFullscreen() {
+    if (document.fullscreenElement === livePage.current) {
+      await document.exitFullscreen().catch(() => undefined);
+    } else if (expandedView) {
+      setExpandedView(false);
+    } else {
+      try {
+        if (!livePage.current?.requestFullscreen) { setExpandedView(true); return; }
+        await livePage.current.requestFullscreen({ navigationUI: 'hide' });
+      } catch { setExpandedView(true); }
+    }
+  }
+
   useEffect(() => {
     api.listCameras().then((items) => {
       setCameras(items);
@@ -70,12 +108,13 @@ export default function Grid() {
     setPickerOpen(false);
   }
   return (
-    <section className="mi-live-page">
+    <section className={`mi-live-page${fullscreen ? ' is-fullscreen' : ''}`} ref={livePage}>
       <PageHeader title="Live view" actions={<div className="mi-live-actions">
           <button type="button" className="mi-camera-picker-button" onClick={() => openPicker()} aria-label="Chọn camera Live view"><Icon name="video" size={18} />{selected.size} camera <Icon name="chevronDown" size={15} /></button>
           <div className="mi-layout-picker" role="group" aria-label="Bố cục camera">
             {([1, 4, 9, 16] as LayoutSize[]).map((size) => <button key={size} className={layout === size ? 'active' : ''} type="button" onClick={() => changeLayout(size)} title={`Bố cục ${size} camera`}>{size === 1 ? '1' : size === 4 ? '2×2' : size === 9 ? '3×3' : '4×4'}</button>)}
           </div>
+          <button type="button" className="mi-live-fullscreen-button" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen} aria-label={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'} title={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'}><Icon name={fullscreen ? 'minimize' : 'maximize'} size={20} /></button>
         </div>} />
 
       {err && <div className="notice error">Không tải được camera: {err}</div>}
@@ -121,10 +160,9 @@ function cameraHost(url: string): string {
 function CameraTile({ camera, onClose }: { camera: Camera; onClose: () => void }) {
   return (
     <article className="mi-camera-card">
-      <LiveVideo camera={camera} className="mi-camera-video" offlineLabel={camera.status === 'connecting' ? 'Đang kết nối' : 'Camera chưa online'} onClose={onClose}>
+      <LiveVideo camera={camera} className="mi-camera-video" offlineLabel={camera.status === 'connecting' ? 'Đang kết nối' : 'Camera chưa online'} onClose={onClose} actions={<><Link className="mi-camera-control" to={`/live?camera=${camera.id}`} title="Chỉ xem camera này" aria-label={`Chỉ xem ${camera.name}`}><Icon name="monitor" size={20} /></Link><Link className="mi-camera-control" to={`/playback/${camera.id}`} title="Xem Playback" aria-label={`Xem lại ${camera.name}`}><Icon name="clock" size={20} /></Link></>}>
         <div className="mi-camera-overlay">
           <div><i className={`status-dot ${camera.status}`} /><strong>{camera.name}</strong><small>{statusLabels[camera.status] ?? camera.status}</small></div>
-          <div className="mi-camera-card-actions"><Link to={`/live?camera=${camera.id}`} title="Chỉ xem camera này"><Icon name="monitor" size={17} /></Link><Link to={`/playback/${camera.id}`} title="Xem Playback"><Icon name="clock" size={17} /></Link></div>
         </div>
       </LiveVideo>
     </article>
@@ -135,12 +173,35 @@ function CameraTile({ camera, onClose }: { camera: Camera; onClose: () => void }
  * Tự tải lại player khi camera chuyển sang online sau khi mất kết nối.
  * Nút kết nối lại chỉ hiện khi camera offline để tìm lại IP nếu DHCP đã đổi.
  */
-function LiveVideo({ camera, className, offlineLabel, children, onClose }: { camera: Camera; className: string; offlineLabel: string; children: React.ReactNode; onClose: () => void }) {
+function LiveVideo({ camera, className, offlineLabel, children, actions, onClose }: { camera: Camera; className: string; offlineLabel: string; children: React.ReactNode; actions?: React.ReactNode; onClose: () => void }) {
+  const container = useRef<HTMLDivElement>(null);
+  const controls = useRef<HTMLDivElement>(null);
   const player = useRef<HlsPlayerHandle>(null);
   const previousStatus = useRef(camera.status);
   const [reconnecting, setReconnecting] = useState(false);
   const [notice, setNotice] = useState('');
+  const [controlsVisible, setControlsVisible] = useState(false);
   const offline = camera.status !== 'online';
+
+  useEffect(() => { setControlsVisible(false); }, [camera.id]);
+
+  useEffect(() => {
+    if (!controlsVisible) return;
+    const timer = window.setTimeout(() => {
+      if (!controls.current?.contains(document.activeElement)) setControlsVisible(false);
+    }, 5000);
+    const outside = (event: PointerEvent) => {
+      if (!container.current?.contains(event.target as Node)) setControlsVisible(false);
+    };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setControlsVisible(false); };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [controlsVisible]);
 
   useEffect(() => {
     if (camera.status === 'online' && previousStatus.current !== 'online') player.current?.reload();
@@ -172,7 +233,11 @@ function LiveVideo({ camera, className, offlineLabel, children, onClose }: { cam
   }
 
   return (
-    <div className={className}>
+    <div ref={container} className={`${className}${controlsVisible ? ' controls-visible' : ''}`} tabIndex={0} role="group" aria-label={`${camera.name}, nhấn Enter để hiện hoặc ẩn điều khiển`} onClick={event => {
+      if (!(event.target as Element).closest('button, a')) setControlsVisible(value => !value);
+    }} onKeyDown={event => {
+      if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setControlsVisible(value => !value); }
+    }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setControlsVisible(false); }}>
       <HlsPlayer ref={player} src={`/live/${camera.id}/index.m3u8`} live controls={false} />
       {offline && (
         <div className="mi-stream-state">
@@ -182,7 +247,7 @@ function LiveVideo({ camera, className, offlineLabel, children, onClose }: { cam
       )}
       {notice && <div className="mi-live-notice" role="status">{notice}</div>}
       {children}
-      <button type="button" className="mi-camera-close" onClick={onClose} aria-label={`Bỏ ${camera.name} khỏi Live view`} title="Bỏ camera khỏi ô này"><Icon name="close" size={19} /></button>
+      <div ref={controls} className="mi-camera-controls" hidden={!controlsVisible}>{actions}<button type="button" className="mi-camera-control mi-camera-close" onClick={onClose} aria-label={`Bỏ ${camera.name} khỏi Live view`} title="Bỏ camera khỏi ô này"><Icon name="close" size={20} /></button></div>
     </div>
   );
 }

@@ -211,12 +211,15 @@ tbody tr:last-child td { border-bottom: 0; }
 .live-toolbar h2 { font-size: 13px; }
 .live-indicator { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; font-size: 8px; font-weight: 600; letter-spacing: 1px; color: #36a390; }
 .mi-live-actions { display: flex; align-items: center; gap: 13px; }
-.mi-layout-picker { display: flex; gap: 3px; padding: 3px; border: 1px solid #e4ecf7; border-radius: 7px; background: #f7f9fd; }
+.mi-layout-picker { display: flex; align-items: stretch; gap: 3px; height: 44px; padding: 3px; border: 1px solid #e4ecf7; border-radius: 7px; background: #f7f9fd; }
 .mi-layout-picker button { min-width: 38px; min-height: 30px; padding: 5px 9px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: #8a9db7; font-size: 10px; }
 .mi-layout-picker button.active { color: var(--blue); border-color: #dce7f7; background: #fff; box-shadow: 0 2px 4px #243c5805; }
-.mi-camera-picker-button { min-height: 35px; padding: 5px 11px; color: #728aa8; font-size: 11px; }
-.mi-camera-close { position: absolute; top: 8px; right: 8px; z-index: 3; width: 36px; height: 36px; min-height: 36px; padding: 0; border: 1px solid #ffffff22; border-radius: 6px; color: #e5edf8; background: #10243eaa; }
-.mi-camera-close:hover { color: #fff; border-color: #ffffff55; background: #244868; }
+.mi-camera-picker-button { min-height: 44px; padding: 5px 11px; color: #728aa8; font-size: 11px; }
+.mi-camera-controls { position: absolute; top: 8px; right: 8px; z-index: 3; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 16px); }
+.mi-camera-controls[hidden] { display: none; }
+.mi-camera-controls .mi-camera-control { display: inline-flex; flex: 0 0 44px; align-items: center; justify-content: center; width: 44px; height: 44px; min-height: 44px; padding: 0; border: 1px solid #ffffff33; border-radius: 7px; color: #e5edf8; background: #10243ecc; }
+.mi-camera-controls .mi-camera-control:hover { color: #fff; border-color: #ffffff66; background: #244868; }
+.controls-visible .mi-camera-overlay, .controls-visible .mi-featured-title { visibility: hidden; }
 .live-device-dialog { width: min(640px, calc(100vw - 24px)); }
 .live-device-dialog[open] { display: flex; flex-direction: column; }
 .live-device-dialog .dialog-heading { padding: 22px 24px 18px; }
@@ -272,13 +275,11 @@ tbody tr:last-child td { border-bottom: 0; }
 .mi-camera-grid.layout-9 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .mi-camera-grid.layout-16 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .mi-camera-video { aspect-ratio: 16 / 10; }
-.mi-camera-overlay { position: absolute; top: 13px; right: 52px; left: 13px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; pointer-events: none; }
+.mi-camera-overlay { position: absolute; top: 13px; right: 13px; left: 13px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; pointer-events: none; }
 .mi-camera-overlay > div:first-child { display: grid; grid-template-columns: 6px 1fr; gap: 2px 8px; color: #fff; }
 .mi-camera-overlay .status-dot { align-self: center; }
 .mi-camera-overlay strong { font-size: 11px; font-weight: 500; }
 .mi-camera-overlay small { grid-column: 2; color: #c4d1e2; font-size: 8px; }
-.mi-camera-card-actions { display: flex; gap: 5px; pointer-events: auto; }
-.mi-camera-card-actions a { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #ffffff22; border-radius: 5px; background: #10243e99; color: #c6d8ef; }
 .empty-camera-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; aspect-ratio: 16 / 10; border: 1px dashed #cedff3; border-radius: 11px; color: #a1b7d2; background: #f0f5fc; }
 .empty-camera-tile > span { font-size: 11px; }
 .empty-camera-tile > small { color: #a2b4cb; font-size: 9px; }
@@ -499,6 +500,9 @@ tbody tr:last-child td { border-bottom: 0; }
 .simple-shell.live-shell .mi-live-page > .page-heading { flex-wrap: wrap; gap: 10px; }
 .mi-live-page .page-actions { max-width: 100%; }
 .mi-live-page .mi-live-actions { flex-wrap: wrap; gap: 8px; }
+.mi-live-fullscreen-button { flex-shrink: 0; width: 44px; height: 44px; min-height: 44px; padding: 0; color: #728aa8; }
+.mi-live-page:fullscreen, .live-shell .mi-live-page.is-fullscreen { position: fixed; inset: 0; z-index: 60; flex: none; width: 100%; height: 100dvh; max-width: none; padding: 16px; background: #f5f8fc; overflow: hidden; }
+.mi-live-page.is-fullscreen .sidebar-visibility-toggle { display: none; }
 @media (min-width: 761px) {
   .simple-shell.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
   .sidebar-collapsed .app-sidebar { display: none; }
@@ -542,7 +546,6 @@ tbody tr:last-child td { border-bottom: 0; }
   .simple-shell.live-shell .page-heading { gap: 8px; }
   .simple-shell.live-shell .mi-live-page .page-actions { padding: 0; }
   .live-shell .mi-camera-card { padding: 3px; border-radius: 8px; }
-  .live-shell .mi-camera-grid .mi-camera-overlay { right: 52px; }
 }
 .recording-table { padding: 10px 20px; }
 .recording-table td { font-size: 12px; }

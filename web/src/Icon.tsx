@@ -5,7 +5,7 @@ export type IconName =
   | 'monitor' | 'pause' | 'play' | 'refresh' | 'rewind' | 'search' | 'settings'
   | 'skipBack' | 'skipForward' | 'user' | 'video' | 'zoomIn' | 'zoomOut'
   | 'server' | 'shield' | 'plus' | 'close' | 'logout' | 'chevronRight'
-  | 'database' | 'bell' | 'check' | 'edit' | 'trash' | 'menu' | 'network';
+  | 'database' | 'bell' | 'check' | 'edit' | 'trash' | 'menu' | 'network' | 'maximize' | 'minimize';
 
 export default function Icon({ name, size = 20, stroke = 1.8, className }: { name: IconName; size?: number; stroke?: number; className?: string }) {
   const common = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: stroke, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true };
@@ -14,6 +14,8 @@ export default function Icon({ name, size = 20, stroke = 1.8, className }: { nam
     shield: <><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z"/><path d="m8 12 3 3 5-6"/></>,
     plus: <path d="M12 5v14M5 12h14"/>,
     close: <path d="m6 6 12 12M6 18 18 6"/>,
+    maximize: <path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"/>,
+    minimize: <path d="M3 8h5V3M16 3v5h5M21 16h-5v5M8 21v-5H3"/>,
     logout: <><path d="M10 4H5v16h5M9 12h12m-4-4 4 4-4 4"/></>,
     chevronRight: <path d="m9 6 6 6-6 6"/>,
     database: <><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/></>,
