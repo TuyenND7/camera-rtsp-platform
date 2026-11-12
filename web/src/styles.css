@@ -580,6 +580,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .discovery-dialog .dialog-footer { padding: 15px 24px; }
 .discovery-dialog .dialog-footer > span { font-size: 10px; }
 .login-simple { display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; min-height: 100dvh; padding: 24px; }
+.ui-preview-entry { width: 100%; margin: 16px 0 8px; }
 .login-simple .login-form { width: 390px; padding: 32px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
 .login-simple .login-lock { width: 45px; height: 45px; margin-bottom: 21px; border-radius: 11px; }
 .login-simple .login-form h2 { font-size: 22px; }

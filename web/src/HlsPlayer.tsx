@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import Hls from 'hls.js';
+import { isUiPreview } from './preview';
 
 interface Props {
   src: string; // .m3u8 url
@@ -58,6 +59,22 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    if (isUiPreview) {
+      const ready = () => {
+        if (startPosition > 0) video.currentTime = Math.min(startPosition, Math.max(0, video.duration - 0.1));
+        video.play().catch(() => undefined);
+      };
+      video.loop = live;
+      video.addEventListener('loadedmetadata', ready);
+      video.src = '/__ui-preview__/sample.mp4';
+      return () => {
+        video.removeEventListener('loadedmetadata', ready);
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      };
+    }
 
     let hls: Hls | null = null;
     let retryTimer: number | undefined;

@@ -47,6 +47,14 @@ adb -s <SERIAL_LENOVO> reverse tcp:18173 tcp:18173
 
 Trong app, mở **⋮ → Địa chỉ máy chủ**, nhập `http://127.0.0.1:18173/login`. Đây là trang đăng nhập từ source trên máy phát triển, có HMR khi sửa `web/src`. Muốn đăng nhập, xem Live/Playback và dữ liệu thật, cấu hình proxy trong `web/vite.config.ts` tới backend/nginx truy cập được; một frontend chạy riêng không thay thế máy chủ camera. Đổi địa chỉ app về `http://camera.local:8081/live` khi dùng máy chủ thật.
 
+### Xem đầy đủ UI khi không có máy chủ
+
+Thay lệnh `npm run dev` ở trên bằng `npm run dev:ui`. Giữ chuyển tiếp ADB cổng 18173 và mở `http://127.0.0.1:18173/live` trong app; không cần tài khoản/mật khẩu. Trang đăng nhập cũng có nút **Vào bản xem trước UI**.
+
+Chế độ này có camera, video thử 120 giây, recording/timeline, dung lượng, sự kiện, ONVIF/PTZ mẫu. Các thao tác thêm/sửa/xóa chỉ thay đổi dữ liệu trong bộ nhớ của Vite; khởi động lại server sẽ reset. Nhãn **Xem trước UI · dữ liệu mẫu** phân biệt với camera thật. Mọi API được xử lý cục bộ, kể cả khi đã cấu hình `VITE_API_BASE` khác. Không gọi RTSP/ONVIF thật và không đọc DB hay `.env` của máy chủ Windows.
+
+Đây là chế độ **development-only**, không triển khai lên máy chủ camera. `npm run build` giữ xác thực như bình thường; build với `--mode ui-preview` bị chặn. Khi trở lại máy chủ thật, đăng nhập bằng tài khoản web như trước.
+
 Kết thúc phiên phát triển, dừng Vite và gỡ chuyển tiếp USB:
 
 ```bash

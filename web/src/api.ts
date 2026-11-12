@@ -1,4 +1,6 @@
-const API_BASE = (import.meta as any).env?.VITE_API_BASE ?? '/api';
+import { isUiPreview } from './preview';
+
+const API_BASE = isUiPreview ? '/api' : (import.meta as any).env?.VITE_API_BASE ?? '/api';
 export interface SessionUser { id: number; username: string; role: string }
 let csrf = '';
 // Retire browser-readable bearer credentials from older builds.

@@ -8,6 +8,7 @@ import Events from './pages/Events';
 import Storage from './pages/Storage';
 import { api, SessionUser, StorageStatus } from './api';
 import Icon from './Icon';
+import { isUiPreview } from './preview';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SessionUser | null | undefined>();
@@ -55,9 +56,9 @@ function Layout({ children, user: sessionUser }: { children: React.ReactNode; us
     <aside className={`app-sidebar ${mobileOpen ? 'open' : ''}`}>
       <Link to="/live" className="app-brand" aria-label="Camera Station"><img className="brand-image" src="/brand/camera-mark.png" alt="" width="42" height="42" /><strong>Camera Station</strong></Link>
       <nav className="app-nav" aria-label="Điều hướng chính"><NavLink to="/live"><Icon name="monitor" /><span>Live view</span></NavLink><NavLink to="/playback"><Icon name="clock" /><span>Playback</span></NavLink><NavLink to="/cameras"><Icon name="settings" /><span>Thiết bị</span></NavLink><NavLink to="/events"><Icon name="bell" /><span>Sự kiện</span></NavLink></nav>
-      <div className="sidebar-bottom"><span className="sidebar-server"><i className={`status-dot ${connected ? 'online' : 'error'}`} />{connected ? 'Máy chủ trực tuyến' : 'Mất kết nối máy chủ'}</span><Link to="/playback" className={`simple-storage-link ${storage && storage.used_percent >= storage.cleanup_threshold_percent ? 'warning' : ''}`}><Icon name="database" size={16} /><span>Lưu trữ</span><b>{storage ? `${storage.used_percent}%` : '—'}</b></Link><div className="account"><span className="account-avatar">{user.slice(0, 1).toUpperCase()}</span><span><b>{user}</b></span><button type="button" onClick={() => void logout()} disabled={loggingOut} title="Đăng xuất" aria-label="Đăng xuất"><Icon name="logout" size={18} /></button></div></div>
+      <div className="sidebar-bottom"><span className="sidebar-server"><i className={`status-dot ${connected ? 'online' : 'error'}`} />{isUiPreview ? 'Xem trước UI · dữ liệu mẫu' : connected ? 'Máy chủ trực tuyến' : 'Mất kết nối máy chủ'}</span><Link to="/playback" className={`simple-storage-link ${storage && storage.used_percent >= storage.cleanup_threshold_percent ? 'warning' : ''}`}><Icon name="database" size={16} /><span>Lưu trữ</span><b>{storage ? `${storage.used_percent}%` : '—'}</b></Link><div className="account"><span className="account-avatar">{user.slice(0, 1).toUpperCase()}</span><span><b>{user}</b></span><button type="button" onClick={() => void logout()} disabled={loggingOut} title="Đăng xuất" aria-label="Đăng xuất"><Icon name="logout" size={18} /></button></div></div>
     </aside>
-    <div className="app-body"><header className="app-topbar"><button type="button" className="icon-button nav-toggle" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Mở điều hướng" aria-expanded={mobileOpen}><Icon name="menu" /></button><span>{page}</span></header><main className="app-main">{logoutError && <div className="notice error" role="alert">{logoutError}</div>}{children}</main></div>
+    <div className="app-body"><header className="app-topbar"><button type="button" className="icon-button nav-toggle" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Mở điều hướng" aria-expanded={mobileOpen}><Icon name="menu" /></button><span>{page}{isUiPreview ? ' · UI mẫu' : ''}</span></header><main className="app-main">{logoutError && <div className="notice error" role="alert">{logoutError}</div>}{children}</main></div>
   </div>;
 }
 
