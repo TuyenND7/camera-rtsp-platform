@@ -227,12 +227,9 @@ tbody tr:last-child td { border-bottom: 0; }
 .mi-featured-title { position: absolute; top: 16px; left: 17px; display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid #ffffff1a; border-radius: 7px; color: #fff; background: #10243e99; pointer-events: none; }
 .mi-featured-title span { display: block; color: #bbcce2; font-size: 7px; font-weight: 500; letter-spacing: 1px; }
 .mi-featured-title strong { display: block; margin-top: 1px; font-size: 12px; font-weight: 500; }
-.mi-live-reload { position: absolute; top: 14px; right: 14px; z-index: 2; width: 32px; min-height: 32px; padding: 0; color: #cfdbec; border-color: #ffffff20; background: #10243e99; }
-.mi-live-reload:hover:not(:disabled) { color: #fff; border-color: #ffffff40; background: #203f63; }
-.live-media-bar { position: absolute; inset: auto 0 0; display: flex; align-items: center; gap: 10px; height: 45px; padding: 5px 10px; background: linear-gradient(transparent, #0a192bd9); color: #c9d7e9; }
-.live-media-bar > button { width: 30px; min-height: 30px; padding: 0; border: 0; color: #dbe7f7; background: transparent; }
-.live-media-bar > button:hover { color: #fff; background: #ffffff16; }
-.live-media-bar > span { display: flex; align-items: center; gap: 7px; font-size: 9px; }
+.live-media-bar { position: absolute; inset: auto 0 0; z-index: 2; display: flex; align-items: center; height: 44px; padding: 6px 8px; pointer-events: none; }
+.live-media-bar > button { width: 32px; min-height: 32px; padding: 0; border: 1px solid #ffffff20; border-radius: 6px; color: #dbe7f7; background: #10243e99; pointer-events: auto; }
+.live-media-bar > button:hover { color: #fff; background: #203f63; }
 .live-media-bar > button:last-child { margin-left: auto; }
 .mi-stream-state { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: #a8bbd3; background: #101d30d9; font-size: 13px; }
 .mi-stream-state button { color: #b7d0f5; border-color: #3d587b; background: #1b3555; }
@@ -271,7 +268,6 @@ tbody tr:last-child td { border-bottom: 0; }
 .mi-camera-overlay small { grid-column: 2; color: #c4d1e2; font-size: 8px; }
 .mi-camera-card-actions { display: flex; gap: 5px; pointer-events: auto; }
 .mi-camera-card-actions a { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #ffffff22; border-radius: 5px; background: #10243e99; color: #c6d8ef; }
-.mi-camera-video .mi-live-reload { top: auto; right: 50px; bottom: 7px; z-index: 3; min-height: 28px; width: 28px; border: 0; background: transparent; }
 .empty-camera-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; aspect-ratio: 16 / 10; border: 1px dashed #cedff3; border-radius: 11px; color: #a1b7d2; background: #f0f5fc; }
 .empty-camera-tile > span { font-size: 11px; }
 .empty-camera-tile > small { color: #a2b4cb; font-size: 9px; }
@@ -492,9 +488,6 @@ tbody tr:last-child td { border-bottom: 0; }
 .simple-shell.live-shell .mi-live-page > .page-heading { flex-wrap: wrap; gap: 10px; }
 .mi-live-page .page-actions { max-width: 100%; }
 .mi-live-page .mi-live-actions { flex-wrap: wrap; gap: 8px; }
-.mi-live-fullscreen-button { min-height: 37px; padding: 6px 10px; font-size: 11px; }
-.live-shell .mi-live-page:fullscreen, .live-shell .mi-live-page.is-fullscreen { position: fixed; inset: 0; z-index: 60; flex: none; width: 100%; height: 100dvh; max-width: none; padding: 16px; background: #f5f8fc; overflow: hidden; }
-.mi-live-page:fullscreen .sidebar-visibility-toggle, .mi-live-page.is-fullscreen .sidebar-visibility-toggle { display: none; }
 @media (min-width: 761px) {
   .simple-shell.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
   .sidebar-collapsed .app-sidebar { display: none; }
@@ -535,8 +528,6 @@ tbody tr:last-child td { border-bottom: 0; }
   .live-shell .mi-device-panel { max-height: 28dvh; }
 }
 @media (max-width: 480px) {
-  .mi-live-fullscreen-button { width: 37px; padding: 0; }
-  .mi-live-fullscreen-button > span { display: none; }
   .simple-shell.live-shell .page-heading { gap: 8px; }
   .simple-shell.live-shell .mi-live-page .page-actions { padding: 0; }
   .live-shell .mi-camera-card { padding: 3px; border-radius: 8px; }

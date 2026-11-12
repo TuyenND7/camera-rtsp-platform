@@ -6,7 +6,7 @@ App Android mở web Camera Station trọn khung, không có thanh tiêu đề r
 - Mặc định mở `http://camera.local:8081/live`.
 - Nhấn giữ biểu tượng **Camera Station** trong launcher → **Máy chủ** để thay URL LAN/VPN hoặc HTTPS. URL được giữ lại khi mở app lần sau.
 - Nhấn giữ biểu tượng app → **Tải lại** để tải lại trang. Khi mất kết nối, màn hình lỗi cũng có nút thử lại và đổi máy chủ. Hỗ trợ nút Back và video toàn màn hình.
-- Trong web, dùng nút menu cạnh tiêu đề để ẩn/hiện điều hướng. Nút **Toàn màn hình** của Live view mở cả lưới camera; **Thu nhỏ** hoặc Back để thoát.
+- Trong web, dùng nút menu cạnh tiêu đề để ẩn/hiện điều hướng. Live view giữ các nút điều khiển dạng biểu tượng gọn trong từng ô camera.
 - Dùng logo hiện có của web. Đăng nhập bằng tài khoản web; APK không chứa mật khẩu camera hay tài khoản quản trị.
 - Cookie phiên nằm trong dữ liệu riêng của app, không cho cookie bên thứ ba; không bật file access hoặc JavaScript bridge. Không bỏ qua lỗi chứng chỉ HTTPS. WebView debugging chỉ bật ở bản debug để chỉnh UI qua USB.
 
