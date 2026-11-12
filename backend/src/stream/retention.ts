@@ -83,8 +83,11 @@ let cleanupRunning = false;
  *   cho tới mức target. Không chạm live stream, snapshot AI, hay ngày đang ghi.
  */
 export function startRetentionJob(): NodeJS.Timeout {
+  let lastStarted = Number.NEGATIVE_INFINITY;
   const run = async () => {
-    if (cleanupRunning) return;
+    const now = Date.now();
+    if (cleanupRunning || now - lastStarted < config.storageCleanupIntervalMinutes * 60_000) return;
+    lastStarted = now;
     cleanupRunning = true;
     try {
       await cleanup();
@@ -95,7 +98,7 @@ export function startRetentionJob(): NodeJS.Timeout {
     }
   };
   void run();
-  return setInterval(() => void run(), config.storageCleanupIntervalMinutes * 60 * 1000);
+  return setInterval(() => void run(), 60_000);
 }
 
 /**
@@ -120,10 +123,13 @@ export async function getStorageStatus(): Promise<StorageStatus> {
 }
 
 async function cleanup(): Promise<void> {
+  const retentionHours = config.recordRetentionHours;
+  const thresholdPercent = config.storageCleanupThresholdPercent;
+  const targetPercent = cleanupTargetPercent();
   let days = await scanRecordingDays();
   const today = currentRecordDay();
-  const cutoff = config.recordRetentionHours > 0
-    ? Date.now() - config.recordRetentionHours * 3600 * 1000
+  const cutoff = retentionHours > 0
+    ? Date.now() - retentionHours * 3600 * 1000
     : null;
   let removed = 0;
   let removedBytes = 0;
@@ -154,15 +160,14 @@ async function cleanup(): Promise<void> {
   }
 
   let disk = diskUsage();
-  if (disk.usedPercent >= config.storageCleanupThresholdPercent) {
-    const targetPercent = cleanupTargetPercent();
+  if (disk.usedPercent >= thresholdPercent) {
     const bytesToFree = Math.max(0, disk.used - Math.floor(disk.total * targetPercent / 100));
     let quotaFreed = 0;
     const candidates = days.filter((day) => day.day < today).sort((a, b) => a.day.localeCompare(b.day));
     const removedDays = new Set<RecordingDay>();
 
     console.warn(
-      `[retention] storage is ${disk.usedPercent}% full (threshold ${config.storageCleanupThresholdPercent}%); freeing old recording days toward ${targetPercent}%`
+      `[retention] storage is ${disk.usedPercent}% full (threshold ${thresholdPercent}%); freeing old recording days toward ${targetPercent}%`
     );
     for (const day of candidates) {
       if (quotaFreed >= bytesToFree) break;
@@ -175,7 +180,7 @@ async function cleanup(): Promise<void> {
     }
     days = days.filter((day) => !removedDays.has(day));
     disk = diskUsage();
-    if (disk.usedPercent >= config.storageCleanupThresholdPercent) {
+    if (disk.usedPercent >= thresholdPercent) {
       console.warn(`[retention] storage is still ${disk.usedPercent}% full; no older completed recording day remains to remove`);
     }
   }

@@ -238,7 +238,7 @@ export default function Playback() {
             ))}
             {cameras.length === 0 && <span className="rail-empty">Chưa có camera.</span>}
           </div>
-          <Link to="/playback" className="rail-back">← Danh sách recording</Link>
+          <Link to="/playback" className="rail-back"><Icon name="chevronRight" size={14} className="icon-back" />Danh sách recording</Link>
         </aside>}
 
         <div className="playback-workspace">

@@ -7,11 +7,11 @@ type Vector = { x: number; y: number; zoom: number };
 /** Gửi lại lệnh quay khi đang giữ nút; backend đặt timeout 2s để camera tự dừng nếu mất kết nối. */
 const HEARTBEAT_MS = 1000;
 
-const DIRECTIONS: Array<{ key: string; label: string; x: number; y: number; area: string; arrow: string }> = [
-  { key: 'up', label: 'Lên', x: 0, y: 1, area: 'up', arrow: '▲' },
-  { key: 'left', label: 'Trái', x: -1, y: 0, area: 'left', arrow: '◀' },
-  { key: 'right', label: 'Phải', x: 1, y: 0, area: 'right', arrow: '▶' },
-  { key: 'down', label: 'Xuống', x: 0, y: -1, area: 'down', arrow: '▼' },
+const DIRECTIONS: Array<{ key: string; label: string; x: number; y: number; area: string }> = [
+  { key: 'up', label: 'Lên', x: 0, y: 1, area: 'up' },
+  { key: 'left', label: 'Trái', x: -1, y: 0, area: 'left' },
+  { key: 'right', label: 'Phải', x: 1, y: 0, area: 'right' },
+  { key: 'down', label: 'Xuống', x: 0, y: -1, area: 'down' },
 ];
 
 const KEY_VECTORS: Record<string, Vector> = {
@@ -168,9 +168,9 @@ export default function PtzPanel({ cameraId }: { cameraId: number }) {
             aria-label={`Quay ${dir.label.toLowerCase()} (giữ)`}
             title={`Giữ để quay ${dir.label.toLowerCase()}`}
             {...holdProps(dir.key, { x: dir.x, y: dir.y, zoom: 0 })}
-          >{dir.arrow}</button>
+          ><Icon name="chevronRight" size={20} className={`ptz-arrow ${dir.key}`} /></button>
         ))}
-        <button type="button" className="ptz-center" onClick={stop} aria-label="Dừng" title="Dừng">■</button>
+        <button type="button" className="ptz-center" onClick={stop} aria-label="Dừng" title="Dừng"><Icon name="pause" size={17} /></button>
       </div>
 
       <div className="ptz-zoom-row">
@@ -193,7 +193,7 @@ export default function PtzPanel({ cameraId }: { cameraId: number }) {
               <button type="button" className="ptz-preset-go" onClick={() => void run(() => api.ptzGotoPreset(cameraId, preset.token))} disabled={busy} title={`Quay tới "${preset.name}"`}>
                 <Icon name="play" size={12} />{preset.name}
               </button>
-              <button type="button" className="ptz-preset-delete" onClick={() => { if (confirm(`Xoá preset "${preset.name}"?`)) void run(async () => setInfo(await api.ptzDeletePreset(cameraId, preset.token))); }} disabled={busy} aria-label={`Xoá preset ${preset.name}`} title="Xoá">×</button>
+              <button type="button" className="ptz-preset-delete" onClick={() => { if (confirm(`Xoá preset "${preset.name}"?`)) void run(async () => setInfo(await api.ptzDeletePreset(cameraId, preset.token))); }} disabled={busy} aria-label={`Xoá preset ${preset.name}`} title="Xoá"><Icon name="close" size={14} /></button>
             </li>
           ))}
         </ul>

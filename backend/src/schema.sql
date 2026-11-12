@@ -15,6 +15,14 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_expiry ON auth_sessions (expires_at);
 
+-- Global web settings, applied after .env defaults on every backend startup.
+CREATE TABLE IF NOT EXISTS application_settings (
+  id SMALLINT PRIMARY KEY CHECK (id = 1),
+  value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS cameras (
   id           SERIAL PRIMARY KEY,
   name         TEXT NOT NULL,

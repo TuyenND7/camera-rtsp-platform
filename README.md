@@ -36,6 +36,7 @@ Logo và icon ứng dụng được tạo bằng Imagegen, dùng cùng một bi�
 - **Điều khiển ô camera:** các nút mặc định ẩn, chạm/nhấn ô để hiện; chạm lại, chạm bên ngoài hoặc chờ 5 giây để ẩn. Các nút cùng kích thước 44×44, icon 20px. Với bàn phím, Tab tới ô rồi nhấn Enter/Space để hiện nút; nút đang được bàn phím chọn không tự ẩn.
 - **Chọn camera vào ô:** chạm ô để hiện **×** ở góc phải, bấm để bỏ camera khỏi ô xem, giữ nguyên vị trí các ô còn lại và không dừng ghi hình. Bấm **+** ở ô trống để mở danh sách tất cả camera; camera đang hiển thị có nhãn **Đang xem**, camera chưa chọn có nút **Chọn** để đưa vào đúng ô vừa bấm. Có tìm kiếm theo tên/IP. Đóng hết camera vẫn giữ các ô trống để chọn lại; khi giảm bố cục, camera ngoài các ô còn hiển thị được bỏ khỏi lựa chọn.
 - **Không gian xem:** nút menu cạnh tiêu đề ẩn/hiện thanh điều hướng và ghi nhớ lựa chọn trên trình duyệt.
+- **Cài đặt:** trang `/settings` nằm trên web, sử dụng được từ máy tính, tablet và trình duyệt điện thoại. Có chuyển Sáng/Tối (ghi nhớ trên từng trình duyệt), kiểm tra máy chủ hiện tại và cấu hình lưu trữ dùng chung. App Android tiếp tục chỉ hiển thị web.
 - **Bố cục chung:** Live view, Playback, Thiết bị và Sự kiện dùng chung lề nội dung, hàng tiêu đề và khoảng cách tới nội dung. Tiêu đề chính 24px trên desktop/tablet, 22px trên màn hình nhỏ; nút menu và hàng thao tác cao 44px. Các panel nội dung dùng đệm 12px, riêng ô video không có đệm để tối đa diện tích xem.
 - **Playback:** chọn camera/ngày, kéo hoặc nhấn dòng thời gian để tua; dùng ←/→ để tua 10 giây, Shift để tua 1 phút, Home/End để đến đầu/cuối recording. Có ảnh preview, tốc độ 1×/2×/4×/8× và thông tin lưu trữ, lịch sử dọn dữ liệu.
 - **Thiết bị:** danh sách camera, tìm theo tên/IP và lọc trạng thái. Bấm **Dò thiết bị** để tìm camera/NVR trong mạng; **Thêm thủ công** khi đã có RTSP hoặc URL ONVIF. Các tùy chọn codec, PTZ và AI nằm trong **Nâng cao**.
@@ -62,6 +63,22 @@ docker compose exec -T nginx nginx -s reload
 ```
 
 Kiểm tra code sau khi cài dependency: `npm run build --prefix backend`, `node --test backend/test/*.test.cjs`, `npm run build --prefix web`.
+
+### Cài đặt máy chủ trên web
+
+Quản trị viên mở **Cài đặt** để sửa địa chỉ web dùng chia sẻ trong LAN/VPN, tên ổ lưu trữ, số giờ giữ bản ghi (0 = chỉ dọn theo dung lượng), ngưỡng bắt đầu dọn (mặc định 90%), mức dung lượng sau khi dọn (85%) và chu kỳ kiểm tra. Nút **Kiểm tra kết nối** kiểm tra backend của trang đang mở; địa chỉ chia sẻ không thay đổi IP, DNS hay cổng lắng nghe của máy chủ.
+
+Cấu hình được lưu vào bảng `application_settings` của PostgreSQL, tự nạp khi backend khởi động lại và ghi nhận tài khoản sửa gần nhất. `.env` cung cấp giá trị ban đầu; cấu hình đã lưu trên web được ưu tiên. Chính sách mới có hiệu lực ở các lần kiểm tra tiếp theo, không khởi động lại camera. Job kiểm tra lại chu kỳ mỗi phút, chỉ xóa các ngày cũ đã kết thúc, giữ ngày đang ghi. API `GET/PUT /api/settings` yêu cầu phiên admin; thao tác lưu giữ bảo vệ CSRF và cùng nguồn như các API khác.
+
+Thư mục gốc hiển thị trong Cài đặt là volume đang được gắn. Đổi ổ/thư mục vật lý vẫn thực hiện qua `STORAGE_HOST_DIR`/Docker khi triển khai theo hướng dẫn Windows bên dưới; trang web không tự di chuyển recording. Không lưu khóa JWT, mật khẩu DB hay mật khẩu camera trong cấu hình này.
+
+Sau khi cập nhật source, build lại `backend web` và reload nginx theo lệnh ở trên. Schema mới tự tạo bảng cài đặt khi backend khởi động, không cần xóa DB.
+
+### Giao diện và icon
+
+Chế độ Sáng/Tối áp dụng trên Live, Playback, Thiết bị, Sự kiện, Cài đặt và popup. Lựa chọn nằm ở localStorage của từng trình duyệt, được áp dụng trước lần render đầu tiên và giữ khi tải lại/chuyển trang; không cần đổi app Android.
+
+Bộ 36 icon nét mảnh được tạo bằng **Imagegen tích hợp**, giữ màu xanh xám/xanh dương theo trạng thái hiện có bằng CSS alpha mask. File gốc: [`design/camera-icons-master.png`](design/camera-icons-master.png); atlas dùng trong web: [`web/public/brand/camera-icons.png`](web/public/brand/camera-icons.png); prompt đầy đủ: [`design/camera-icons-prompt.txt`](design/camera-icons-prompt.txt). `web/src/iconAtlas.ts` lưu giới hạn nét để các hình có kích thước nhìn đồng đều.
 
 ## App Android cho tablet
 

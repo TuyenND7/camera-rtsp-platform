@@ -2,6 +2,15 @@ import { isUiPreview } from './preview';
 
 const API_BASE = isUiPreview ? '/api' : (import.meta as any).env?.VITE_API_BASE ?? '/api';
 export interface SessionUser { id: number; username: string; role: string }
+export interface ServerSettings {
+  public_base_url: string;
+  storage_label: string;
+  record_retention_hours: number;
+  cleanup_threshold_percent: number;
+  cleanup_target_percent: number;
+  cleanup_interval_minutes: number;
+}
+export interface SettingsInfo { settings: ServerSettings; storage_root: string; record_timezone: string }
 let csrf = '';
 // Retire browser-readable bearer credentials from older builds.
 localStorage.removeItem('token'); localStorage.removeItem('user');
@@ -331,5 +340,15 @@ export const api = {
     });
     const res = await fetch(`${API_BASE}/events?${query.toString()}`, { headers: authHeaders() });
     return handle<DetectionEvent[]>(res);
+  },
+
+  async getSettings() {
+    return handle<SettingsInfo>(await fetch(`${API_BASE}/settings`, { headers: authHeaders() }));
+  },
+
+  async saveSettings(settings: ServerSettings) {
+    return handle<{ settings: ServerSettings }>(await fetch(`${API_BASE}/settings`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(settings),
+    }));
   },
 };

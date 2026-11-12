@@ -6,10 +6,11 @@ import Playback from './pages/Playback';
 import Grid from './pages/Grid';
 import Events from './pages/Events';
 import Storage from './pages/Storage';
+import Settings from './pages/Settings';
 import { api, SessionUser, StorageStatus } from './api';
 import Icon from './Icon';
 import { isUiPreview } from './preview';
-import { NavigationContext } from './ui';
+import { NavigationContext, SessionContext } from './ui';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SessionUser | null | undefined>();
@@ -39,15 +40,16 @@ function Layout({ children, user: sessionUser }: { children: React.ReactNode; us
   const user = sessionUser.username;
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState('');
-  const page = location.pathname.startsWith('/playback') ? 'Playback' : location.pathname === '/cameras' ? 'Thiết bị' : location.pathname === '/events' ? 'Sự kiện' : 'Live view';
+  const page = location.pathname.startsWith('/playback') ? 'Playback' : location.pathname === '/cameras' ? 'Thiết bị' : location.pathname === '/events' ? 'Sự kiện' : location.pathname === '/settings' ? 'Cài đặt' : 'Live view';
   useEffect(() => {
     let cancelled = false;
     const ping = () => api.health().then((value) => { if (!cancelled) setConnected(value.ok); }).catch(() => { if (!cancelled) setConnected(false); });
     const loadStorage = () => api.storageStatus().then((value) => { if (!cancelled) setStorage(value); }).catch(() => undefined);
     void ping(); void loadStorage();
+    window.addEventListener('camera-station.settings-updated', loadStorage);
     const timer = window.setInterval(ping, 15_000);
     const storageTimer = window.setInterval(loadStorage, 60_000);
-    return () => { cancelled = true; clearInterval(timer); clearInterval(storageTimer); };
+    return () => { cancelled = true; clearInterval(timer); clearInterval(storageTimer); window.removeEventListener('camera-station.settings-updated', loadStorage); };
   }, []);
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
   useEffect(() => {
@@ -72,15 +74,15 @@ function Layout({ children, user: sessionUser }: { children: React.ReactNode; us
     finally { setLoggingOut(false); }
   }
 
-  return <NavigationContext.Provider value={{ expanded: navigationExpanded, toggle: toggleNavigation }}><div className={`app-shell simple-shell${location.pathname === '/live' ? ' live-shell' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+  return <SessionContext.Provider value={sessionUser}><NavigationContext.Provider value={{ expanded: navigationExpanded, toggle: toggleNavigation }}><div className={`app-shell simple-shell${location.pathname === '/live' ? ' live-shell' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
     {isMobile && mobileOpen && <button className="sidebar-shade" aria-label="Đóng điều hướng" onClick={() => setMobileOpen(false)} />}
     <aside id="app-navigation" className={`app-sidebar ${mobileOpen ? 'open' : ''}`} aria-hidden={!navigationExpanded}>
       <Link to="/live" className="app-brand" aria-label="Camera Station"><img className="brand-image" src="/brand/camera-mark.png" alt="" width="42" height="42" /><strong>Camera Station</strong></Link>
-      <nav className="app-nav" aria-label="Điều hướng chính"><NavLink to="/live"><Icon name="monitor" /><span>Live view</span></NavLink><NavLink to="/playback"><Icon name="clock" /><span>Playback</span></NavLink><NavLink to="/cameras"><Icon name="settings" /><span>Thiết bị</span></NavLink><NavLink to="/events"><Icon name="bell" /><span>Sự kiện</span></NavLink></nav>
+      <nav className="app-nav" aria-label="Điều hướng chính"><NavLink to="/live"><Icon name="monitor" /><span>Live view</span></NavLink><NavLink to="/playback"><Icon name="clock" /><span>Playback</span></NavLink><NavLink to="/cameras"><Icon name="camera" /><span>Thiết bị</span></NavLink><NavLink to="/events"><Icon name="bell" /><span>Sự kiện</span></NavLink><NavLink to="/settings"><Icon name="settings" /><span>Cài đặt</span></NavLink></nav>
       <div className="sidebar-bottom"><span className="sidebar-server"><i className={`status-dot ${connected ? 'online' : 'error'}`} />{isUiPreview ? 'Xem trước UI · dữ liệu mẫu' : connected ? 'Máy chủ trực tuyến' : 'Mất kết nối máy chủ'}</span><Link to="/playback" className={`simple-storage-link ${storage && storage.used_percent >= storage.cleanup_threshold_percent ? 'warning' : ''}`}><Icon name="database" size={16} /><span>Lưu trữ</span><b>{storage ? `${storage.used_percent}%` : '—'}</b></Link><div className="account"><span className="account-avatar">{user.slice(0, 1).toUpperCase()}</span><span><b>{user}</b></span><button type="button" onClick={() => void logout()} disabled={loggingOut} title="Đăng xuất" aria-label="Đăng xuất"><Icon name="logout" size={18} /></button></div></div>
     </aside>
     <div className="app-body"><header className="app-topbar"><button type="button" className="icon-button nav-toggle" onClick={toggleNavigation} aria-controls="app-navigation" aria-label={navigationExpanded ? 'Ẩn menu' : 'Hiện menu'} aria-expanded={navigationExpanded}><Icon name="menu" /></button><span>{page}{isUiPreview ? ' · UI mẫu' : ''}</span></header><main className="app-main">{logoutError && <div className="notice error" role="alert">{logoutError}</div>}{children}</main></div>
-  </div></NavigationContext.Provider>;
+  </div></NavigationContext.Provider></SessionContext.Provider>;
 }
 
 export default function App() {
@@ -88,6 +90,7 @@ export default function App() {
     <Route path="/login" element={<Login />} /><Route path="/" element={<Navigate to="/live" replace />} />
     <Route path="/cameras" element={<Protected><Cameras /></Protected>} /><Route path="/live" element={<Protected><Grid /></Protected>} /><Route path="/live/:id" element={<Navigate to="/live" replace />} />
     <Route path="/playback" element={<Protected><Storage /></Protected>} /><Route path="/playback/:id" element={<Protected><Playback /></Protected>} /><Route path="/events" element={<Protected><Events /></Protected>} />
+    <Route path="/settings" element={<Protected><Settings /></Protected>} />
     <Route path="/grid" element={<Navigate to="/live" replace />} /><Route path="/storage" element={<Navigate to="/playback" replace />} /><Route path="*" element={<Navigate to="/live" replace />} />
   </Routes></BrowserRouter>;
 }

@@ -1,7 +1,9 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import Icon, { IconName } from './Icon';
+import type { SessionUser } from './api';
 
 export const NavigationContext = createContext<{ expanded: boolean; toggle: () => void } | null>(null);
+export const SessionContext = createContext<SessionUser | null>(null);
 
 export function PageHeader({ title, description, actions, eyebrow }: { title: string; description?: string; actions?: ReactNode; eyebrow?: string }) {
   const navigation = useContext(NavigationContext);

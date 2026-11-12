@@ -10,11 +10,14 @@ import cameraRoutes from './routes/cameras';
 import ptzRoutes from './routes/ptz';
 import recordingRoutes from './routes/recordings';
 import eventRoutes from './routes/events';
+import settingsRoutes from './routes/settings';
+import { loadSettings } from './settings';
 import { browserRequestGuard } from './middleware/security';
 
 async function main() {
   await waitForDb();
   await initDb();
+  await loadSettings();
 
   const app = express();
   app.disable('x-powered-by');
@@ -28,6 +31,7 @@ async function main() {
   app.use('/api/cameras', cameraRoutes);
   app.use('/api/recordings', recordingRoutes);
   app.use('/api/events', eventRoutes);
+  app.use('/api/settings', settingsRoutes);
 
   // Khởi động worker cho các camera đang bật
   await streamManager.bootstrap();

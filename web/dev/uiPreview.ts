@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
 import type { Camera, DetectionEvent, DiscoveryState, RecordingDay } from '../src/api';
+import { validateSettings } from '../../backend/src/settingsValidation';
 
 const MEDIA = '/__ui-preview__/sample.mp4';
 const SAMPLE_DURATION = 120;
@@ -55,6 +56,8 @@ async function body(req: IncomingMessage): Promise<Record<string, any>> {
 
 /** Installed only by `vite --mode ui-preview`; it has no database or network client. */
 export function uiPreviewPlugin(): Plugin {
+  let settings = { public_base_url: '', storage_label: 'Ổ lưu trữ mẫu', record_retention_hours: 0,
+    cleanup_threshold_percent: 90, cleanup_target_percent: 85, cleanup_interval_minutes: 10 };
   let cameras = [
     camera(1, 'Phòng khách · ONVIF mẫu'),
     camera(2, 'Sân trước · chỉ RTSP', { onvif_url: null }),
@@ -118,10 +121,18 @@ export function uiPreviewPlugin(): Plugin {
           }
           if (pathname === '/api/auth/logout') { req.resume(); json(res, null, 204); return; }
           if (pathname === '/api/health') { json(res, { ok: true, preview: true }); return; }
+          if (pathname === '/api/settings') {
+            if (method === 'PUT') {
+              try { settings = validateSettings(await body(req)); json(res, { settings }); }
+              catch (error) { json(res, { error: (error as Error).message }, 400); }
+            } else if (method === 'GET') json(res, { settings, storage_root: '/storage', record_timezone: 'Asia/Ho_Chi_Minh' });
+            else { req.resume(); json(res, { error: 'Phương thức không được hỗ trợ.' }, 405); }
+            return;
+          }
           if (pathname === '/api/recordings/storage') {
-            json(res, { label: 'Ổ lưu trữ mẫu', total_bytes: 1_000_000_000_000, used_bytes: 420_000_000_000,
+            json(res, { label: settings.storage_label, total_bytes: 1_000_000_000_000, used_bytes: 420_000_000_000,
               free_bytes: 580_000_000_000, used_percent: 42, recording_bytes: 300_000_000_000, recording_days: 5,
-              cleanup_threshold_percent: 90, cleanup_target_percent: 85,
+              cleanup_threshold_percent: settings.cleanup_threshold_percent, cleanup_target_percent: settings.cleanup_target_percent,
               recent_cleanups: [{ at: new Date().toISOString(), camera_id: 1, day: days()[4], bytes: 15_000_000_000, reason: 'quota', used_percent: 90 }] }); return;
           }
           if (pathname === '/api/cameras/discovery/options') { json(res, { subnets: ['192.168.50.0/24'], default_subnet: '192.168.50.0/24' }); return; }
