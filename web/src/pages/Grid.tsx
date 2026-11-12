@@ -136,7 +136,7 @@ function FocusView({ camera, cameras, onChoose, onClose }: { camera: Camera; cam
     <>
       <section className="mi-live-focus">
         <article className="mi-featured-camera">
-          <LiveVideo camera={camera} className="mi-featured-video" offlineLabel={camera.status === 'connecting' ? 'Đang kết nối camera' : 'Camera chưa online'} onClose={onClose}>
+          <LiveVideo camera={camera} className="mi-featured-video" offlineLabel={statusLabels[camera.status] ?? 'Camera chưa online'} onClose={onClose}>
             <div className="mi-featured-title"><i className={`status-dot ${camera.status}`} /><div><span>LIVE CAMERA</span><strong>{camera.name}</strong></div></div>
           </LiveVideo>
         </article>
@@ -160,7 +160,7 @@ function cameraHost(url: string): string {
 function CameraTile({ camera, onClose }: { camera: Camera; onClose: () => void }) {
   return (
     <article className="mi-camera-card">
-      <LiveVideo camera={camera} className="mi-camera-video" offlineLabel={camera.status === 'connecting' ? 'Đang kết nối' : 'Camera chưa online'} onClose={onClose} actions={<><Link className="mi-camera-control" to={`/live?camera=${camera.id}`} title="Chỉ xem camera này" aria-label={`Chỉ xem ${camera.name}`}><Icon name="monitor" size={20} /></Link><Link className="mi-camera-control" to={`/playback/${camera.id}`} title="Xem Playback" aria-label={`Xem lại ${camera.name}`}><Icon name="clock" size={20} /></Link></>}>
+      <LiveVideo camera={camera} className="mi-camera-video" offlineLabel={statusLabels[camera.status] ?? 'Camera chưa online'} onClose={onClose} actions={<><Link className="mi-camera-control" to={`/live?camera=${camera.id}`} title="Chỉ xem camera này" aria-label={`Chỉ xem ${camera.name}`}><Icon name="monitor" size={20} /></Link><Link className="mi-camera-control" to={`/playback/${camera.id}`} title="Xem Playback" aria-label={`Xem lại ${camera.name}`}><Icon name="clock" size={20} /></Link></>}>
         <div className="mi-camera-overlay">
           <div><i className={`status-dot ${camera.status}`} /><strong>{camera.name}</strong><small>{statusLabels[camera.status] ?? camera.status}</small></div>
         </div>
@@ -183,7 +183,7 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
   const [controlsVisible, setControlsVisible] = useState(false);
   const offline = camera.status !== 'online';
 
-  useEffect(() => { setControlsVisible(false); }, [camera.id]);
+  useEffect(() => { setControlsVisible(false); setNotice(''); }, [camera.id]);
 
   useEffect(() => {
     if (!controlsVisible) return;
@@ -204,15 +204,18 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
   }, [controlsVisible]);
 
   useEffect(() => {
-    if (camera.status === 'online' && previousStatus.current !== 'online') player.current?.reload();
+    if (camera.status === 'online' && previousStatus.current !== 'online') {
+      player.current?.reload();
+      setNotice('');
+    }
     previousStatus.current = camera.status;
   }, [camera.status]);
 
   useEffect(() => {
-    if (!notice) return;
+    if (!notice || offline) return;
     const timer = window.setTimeout(() => setNotice(''), 6000);
     return () => window.clearTimeout(timer);
-  }, [notice]);
+  }, [notice, offline]);
 
   async function reload() {
     player.current?.reload();
@@ -238,14 +241,15 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
     }} onKeyDown={event => {
       if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setControlsVisible(value => !value); }
     }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setControlsVisible(false); }}>
-      <HlsPlayer ref={player} src={`/live/${camera.id}/index.m3u8`} live controls={false} />
+      {!offline && <HlsPlayer ref={player} src={`/live/${camera.id}/index.m3u8`} live controls={false} />}
       {offline && (
         <div className="mi-stream-state">
-          <i className={`status-dot ${camera.status}`} />{offlineLabel}
+          <strong className="mi-stream-label"><i className={`status-dot ${camera.status}`} />{offlineLabel}</strong>
+          {notice && <p className="mi-stream-message" role="status">{notice}</p>}
           <button type="button" onClick={() => void reload()} disabled={reconnecting}>{reconnecting ? 'Đang tìm camera…' : 'Kết nối lại'}</button>
         </div>
       )}
-      {notice && <div className="mi-live-notice" role="status">{notice}</div>}
+      {notice && !offline && <div className="mi-live-notice" role="status">{notice}</div>}
       {children}
       <div ref={controls} className="mi-camera-controls" hidden={!controlsVisible}>{actions}<button type="button" className="mi-camera-control mi-camera-close" onClick={onClose} aria-label={`Bỏ ${camera.name} khỏi Live view`} title="Bỏ camera khỏi ô này"><Icon name="close" size={20} /></button></div>
     </div>

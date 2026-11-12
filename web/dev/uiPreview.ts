@@ -8,10 +8,11 @@ const MEDIA = '/__ui-preview__/sample.mp4';
 const SAMPLE_DURATION = 120;
 const user = { id: 1, username: 'UI Demo', role: 'admin' };
 
-function camera(id: number, name: string): Camera {
+function camera(id: number, name: string, overrides: Partial<Camera> = {}): Camera {
   return { id, name, rtsp_url: `rtsp://192.0.2.${10 + id}:554/preview`, enabled: true, record: true,
+    onvif_url: `http://192.0.2.${10 + id}/onvif/device_service`,
     codec: 'h264', status: 'online', ai_enabled: true, ai_fps: 2, ai_confidence: 0.5,
-    ai_labels: ['person', 'car'], last_error: null, updated_at: new Date().toISOString() };
+    ai_labels: ['person', 'car'], last_error: null, updated_at: new Date().toISOString(), ...overrides };
 }
 
 function days(): string[] {
@@ -54,13 +55,36 @@ async function body(req: IncomingMessage): Promise<Record<string, any>> {
 
 /** Installed only by `vite --mode ui-preview`; it has no database or network client. */
 export function uiPreviewPlugin(): Plugin {
-  let cameras = [camera(1, 'Phòng khách · mẫu'), camera(2, 'Sân trước · mẫu'), camera(3, 'Trong nhà · mẫu')];
-  let nextId = 4;
+  let cameras = [
+    camera(1, 'Phòng khách · ONVIF mẫu'),
+    camera(2, 'Sân trước · chỉ RTSP', { onvif_url: null }),
+    camera(3, 'Cổng chính · mất kết nối', { status: 'error', last_error: 'Camera chưa phản hồi. Kiểm tra nguồn điện và kết nối mạng rồi thử lại.' }),
+    camera(4, 'Hành lang · đang kết nối', { onvif_url: null, status: 'connecting', ai_enabled: false }),
+    camera(5, 'Kho · mẫu', { onvif_url: null, enabled: false, status: 'stopped', record: false, ai_enabled: false }),
+    camera(6, 'Cửa hàng · ONVIF cố định', { ai_enabled: false }),
+  ];
+  let nextId = 7;
   let discovery: DiscoveryState = { id: 'ui-preview', subnet: '192.168.50.0/24', status: 'complete',
     scanned_hosts: 254, total_hosts: 254, progress_percent: 100, error: null,
     devices: [{ ip: '192.168.50.20', name: 'Camera ONVIF mẫu', onvif_url: 'http://192.168.50.20/onvif/device_service',
-      rtsp_port: 554, protocols: ['onvif', 'rtsp'], added_cameras: [] }] };
+      rtsp_port: 554, protocols: ['onvif', 'rtsp'], added_cameras: [] },
+      { ip: '192.168.50.21', name: 'Camera chỉ RTSP mẫu', onvif_url: null,
+        rtsp_port: 554, protocols: ['rtsp'], added_cameras: [] }] };
   const presets = new Map<number, Array<{ token: string; name: string }>>();
+
+  function connect(cam: Camera) {
+    cam.enabled = true;
+    cam.status = cam.id === 3 ? 'error' : cam.id === 4 ? 'connecting' : 'online';
+    cam.last_error = cam.id === 3 ? 'Camera chưa phản hồi. Kiểm tra nguồn điện và kết nối mạng rồi thử lại.' : null;
+    cam.updated_at = new Date().toISOString();
+  }
+
+  function ptzUnavailable(cam: Camera): string | null {
+    if (!cam.enabled || cam.status !== 'online') return 'Thiết bị mẫu chưa trực tuyến.';
+    if (!cam.onvif_url) return 'Camera mẫu chỉ hỗ trợ RTSP, không có ONVIF.';
+    if (cam.id === 6) return 'Camera mẫu hỗ trợ ONVIF nhưng không có chức năng quay quét.';
+    return null;
+  }
 
   return {
     name: 'camera-ui-preview',
@@ -107,13 +131,19 @@ export function uiPreviewPlugin(): Plugin {
             json(res, discovery, method === 'POST' ? 202 : 200); return;
           }
           if (pathname === '/api/cameras/onvif/probe') {
-            req.resume(); const uri = 'rtsp://192.0.2.20:554/preview';
+            const data = await body(req); const host = new URL(String(data.url)).hostname;
+            const cam = cameras.find(value => new URL(value.rtsp_url).hostname === host);
+            if ((cam && !cam.onvif_url) || discovery.devices.some(device => device.ip === host && !device.onvif_url)) {
+              json(res, { error: 'Thiết bị mẫu chỉ hỗ trợ RTSP, không có ONVIF.' }, 400); return;
+            }
+            if (cam && cam.status !== 'online') { json(res, { error: 'Thiết bị mẫu chưa trực tuyến.' }, 503); return; }
+            const uri = `rtsp://${host}:554/preview`;
             json(res, { device: { manufacturer: 'UI Preview', model: 'Camera mẫu', firmware_version: 'demo', serial_number: 'DEMO-001' },
               profiles: [{ token: 'main', name: 'Main stream mẫu', stream_uri: uri, codec: 'h264', width: 640, height: 360, fps: 10, bitrate: 500 }],
               suggested_main_uri: uri, suggested_sub_uri: uri }); return;
           }
           if (pathname === '/api/cameras') {
-            if (method === 'POST') { const id = nextId++; const item = { ...camera(id, 'Camera mẫu'), ...await body(req), id }; cameras.push(item); json(res, item, 201); }
+            if (method === 'POST') { const id = nextId++; const item = { ...camera(id, 'Camera mẫu', { onvif_url: null }), ...await body(req), id }; if (!item.enabled) item.status = 'stopped'; cameras.push(item); json(res, item, 201); }
             else json(res, cameras);
             return;
           }
@@ -122,16 +152,26 @@ export function uiPreviewPlugin(): Plugin {
             const id = Number(item[1]); const cam = cameras.find(value => value.id === id); const action = item[2];
             if (!cam) { json(res, { error: 'Không tìm thấy camera mẫu' }, 404); return; }
             if (!action) {
-              if (method === 'PUT') Object.assign(cam, await body(req), { id });
+              if (method === 'PUT') {
+                const data = await body(req); Object.assign(cam, data, { id });
+                if (data.enabled === false) { cam.status = 'stopped'; cam.last_error = null; }
+                else if (data.enabled === true) connect(cam);
+              }
               if (method === 'DELETE') { cameras = cameras.filter(value => value.id !== id); json(res, null, 204); }
               else json(res, cam);
               return;
             }
             if (action === 'stop' || action === 'start' || action === 'reconnect') {
-              cam.enabled = action !== 'stop'; cam.status = cam.enabled ? 'online' : 'stopped'; req.resume();
-              json(res, { ok: true, moved: null }); return;
+              req.resume();
+              if (action === 'stop') { cam.enabled = false; cam.status = 'stopped'; cam.last_error = null; }
+              else connect(cam);
+              if (cam.status === 'error') json(res, { error: cam.last_error }, 503);
+              else json(res, { ok: true, moved: null });
+              return;
             }
             if (action.startsWith('ptz')) {
+              const reason = ptzUnavailable(cam);
+              if (reason) { req.resume(); json(res, method === 'GET' ? { supported: false, reason } : { error: reason }, method === 'GET' ? 200 : 409); return; }
               const list = presets.get(id) ?? [{ token: 'home', name: 'Góc mặc định' }];
               if (action === 'ptz/presets' && method === 'POST') list.push({ token: String(Date.now()), name: String((await body(req)).name ?? 'Góc mẫu') });
               if (method === 'DELETE') { const token = decodeURIComponent(action.split('/')[2]); presets.set(id, list.filter(value => value.token !== token)); }
@@ -147,7 +187,7 @@ export function uiPreviewPlugin(): Plugin {
           }
           if (pathname === '/api/events') {
             const day = days()[0]; const start = Date.parse(`${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}T10:00:00+07:00`);
-            let events: DetectionEvent[] = cameras.map((cam, index) => ({ id: index + 1, camera_id: cam.id, camera_name: cam.name,
+            let events: DetectionEvent[] = cameras.filter(cam => cam.ai_enabled).map((cam, index) => ({ id: index + 1, camera_id: cam.id, camera_name: cam.name,
               detected_at: new Date(start + index * 30_000).toISOString(), label: index % 2 ? 'car' : 'person', confidence: 0.93,
               snapshot_url: '/__ui-preview__/scene.svg', metadata: { box: [120, 80, 300, 240], ai_fps: 2 } }));
             if (url.searchParams.get('cameraId')) events = events.filter(value => value.camera_id === Number(url.searchParams.get('cameraId')));

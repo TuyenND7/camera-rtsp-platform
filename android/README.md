@@ -55,6 +55,8 @@ Thay lệnh `npm run dev` ở trên bằng `npm run dev:ui`. Giữ chuyển ti�
 
 Chế độ này có camera, video thử 120 giây, recording/timeline, dung lượng, sự kiện, ONVIF/PTZ mẫu. Các thao tác thêm/sửa/xóa chỉ thay đổi dữ liệu trong bộ nhớ của Vite; khởi động lại server sẽ reset. Nhãn **Xem trước UI · dữ liệu mẫu** phân biệt với camera thật. Mọi API được xử lý cục bộ, kể cả khi đã cấu hình `VITE_API_BASE` khác. Không gọi RTSP/ONVIF thật và không đọc DB hay `.env` của máy chủ Windows.
 
+Sáu thiết bị mẫu gồm camera ONVIF có PTZ, camera chỉ RTSP không có ONVIF, camera mất kết nối, camera đang kết nối, camera đã dừng và camera ONVIF cố định không có PTZ. Mặc định lưới 2×2 hiển thị hai camera trực tuyến, một mất kết nối và một đang kết nối. Dùng nút chọn camera để xem đủ sáu thiết bị. Camera offline không phát video mẫu; PTZ trả đúng khả năng từng thiết bị. Nút kết nối lại giữ nguyên tình huống mất kết nối/đang kết nối để thử UI, còn camera đã dừng có thể bật lại. Dò thiết bị cũng có mẫu chỉ hỗ trợ RTSP.
+
 Đây là chế độ **development-only**, không triển khai lên máy chủ camera. `npm run build` giữ xác thực như bình thường; build với `--mode ui-preview` bị chặn. Khi trở lại máy chủ thật, đăng nhập bằng tài khoản web như trước.
 
 Kết thúc phiên phát triển, dừng Vite và gỡ chuyển tiếp USB:
