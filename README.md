@@ -38,7 +38,7 @@ Logo và icon ứng dụng được tạo bằng Imagegen, dùng cùng một bi�
 - **Không gian xem:** nút menu cạnh tiêu đề ẩn/hiện thanh điều hướng và ghi nhớ lựa chọn trên trình duyệt.
 - **Cài đặt:** trang `/settings` nằm trên web, sử dụng được từ máy tính, tablet và trình duyệt điện thoại. Có chuyển Sáng/Tối (ghi nhớ trên từng trình duyệt), kiểm tra máy chủ hiện tại và cấu hình lưu trữ dùng chung. App Android tiếp tục chỉ hiển thị web.
 - **Bố cục chung:** Live view, Playback, Thiết bị và Sự kiện dùng chung lề nội dung, hàng tiêu đề và khoảng cách tới nội dung. Tiêu đề chính 24px trên desktop/tablet, 22px trên màn hình nhỏ; nút menu và hàng thao tác cao 44px. Các panel nội dung dùng đệm 12px, riêng ô video không có đệm để tối đa diện tích xem.
-- **Playback:** chọn camera/ngày, kéo hoặc nhấn dòng thời gian để tua; dùng ←/→ để tua 10 giây, Shift để tua 1 phút, Home/End để đến đầu/cuối recording. Có ảnh preview, tốc độ 1×/2×/4×/8× và thông tin lưu trữ, lịch sử dọn dữ liệu.
+- **Playback:** chọn ngày và tốc độ ở cụm điều khiển phía dưới video. Vùng xem tự co giãn theo cửa sổ, không kéo cuộn cả trang; khi chữ lớn hoặc mở thông tin bản ghi, phần cấu hình cuộn riêng. Toàn màn hình giữ cả video, nút phát và timeline. Nút Phát/Tạm dừng giữ đúng lựa chọn khi bản ghi đang tải; hết video có thể bấm Phát để xem lại từ đầu. Kéo hoặc nhấn dòng thời gian để tua; dùng ←/→ để tua 10 giây, Shift để tua 1 phút, Home/End để đến đầu/cuối recording. Có ảnh preview, tốc độ 1×/2×/4×/8× và thông tin lưu trữ, lịch sử dọn dữ liệu.
 - **Thiết bị:** danh sách camera, tìm theo tên/IP và lọc trạng thái. Bấm **Dò thiết bị** để tìm camera/NVR trong mạng; **Thêm thủ công** khi đã có RTSP hoặc URL ONVIF. Các tùy chọn codec, PTZ và AI nằm trong **Nâng cao**.
 - **Dò thiết bị:** tự đề xuất dải mạng nội bộ /24 từ địa chỉ máy chủ hoặc camera đã lưu. Dò WS-Discovery đồng thời kiểm tra RTSP/ONVIF bằng kết nối trực tiếp để dùng được cả trong Docker Desktop. Có tiến độ, nút Dừng và đánh dấu thiết bị đã thêm. Một lượt tối đa 254 địa chỉ, giới hạn 40 giây; không tự lưu camera, đổi cấu hình hay khởi động lại luồng hiện có.
 - **ONVIF:** chọn thiết bị tìm thấy, nhập tài khoản/mật khẩu của **camera hoặc NVR**, bấm **Lấy luồng video**, chọn profile rồi **Thêm**. Cảnh báo và chặn thêm lại cùng RTSP trong giao diện. NVR có thể thêm từng kênh từ các profile trả về; chưa có thao tác nhập hàng loạt tất cả kênh.
@@ -75,6 +75,8 @@ Thư mục gốc hiển thị trong Cài đặt là volume đang được gắn.
 Sau khi cập nhật source, build lại `backend web` và reload nginx theo lệnh ở trên. Schema mới tự tạo bảng cài đặt khi backend khởi động, không cần xóa DB.
 
 ### Giao diện và icon
+
+Trong **Cài đặt → Giao diện → Cỡ chữ**, chọn **Bình thường (100%)**, **Lớn (125%)**, **Rất lớn (150%)** hoặc **Lớn nhất (200%)** để người lớn tuổi dễ đọc. Cỡ chữ áp dụng ngay cho menu, tiêu đề, tên camera, nút, biểu mẫu, popup và nhãn thời gian Playback; được ghi nhớ riêng trên từng trình duyệt, không cần bấm Lưu cấu hình máy chủ. Video vẫn giữ bố cục lưới hiện tại.
 
 Chế độ Sáng/Tối áp dụng trên Live, Playback, Thiết bị, Sự kiện, Cài đặt và popup. Lựa chọn nằm ở localStorage của từng trình duyệt, được áp dụng trước lần render đầu tiên và giữ khi tải lại/chuyển trang; không cần đổi app Android.
 

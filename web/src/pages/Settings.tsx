@@ -2,12 +2,12 @@ import { useContext, useEffect, useState } from 'react';
 import { api, type ServerSettings, type SettingsInfo, type StorageStatus } from '../api';
 import Icon from '../Icon';
 import { formatBytes, PageHeader, SessionContext } from '../ui';
-import { useTheme } from '../theme';
+import { TEXT_SIZES, useTheme } from '../theme';
 
 export default function Settings() {
   const user = useContext(SessionContext);
   const admin = user?.role === 'admin';
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, textSize, setTextSize } = useTheme();
   const [info, setInfo] = useState<SettingsInfo | null>(null);
   const [form, setForm] = useState<ServerSettings | null>(null);
   const [storage, setStorage] = useState<StorageStatus | null>(null);
@@ -81,6 +81,18 @@ export default function Settings() {
       <header className="settings-heading"><Icon name="sun" size={22} /><div><h2>Giao diện</h2><p>Chọn giao diện cho trình duyệt hoặc thiết bị đang dùng.</p></div></header>
       <div className="theme-options" role="group" aria-label="Chế độ giao diện">
         {(['light', 'dark'] as const).map(value => <button type="button" key={value} className={`theme-option${theme === value ? ' active' : ''}`} onClick={() => setTheme(value)} aria-pressed={theme === value}><span className={`theme-swatch ${value}`}><i /><i /><i /></span><span className="theme-option-label"><Icon name={value === 'light' ? 'sun' : 'moon'} size={18} />{value === 'light' ? 'Sáng' : 'Tối'}</span>{theme === value && <Icon name="check" size={18} />}</button>)}
+      </div>
+      <div className="text-size-setting">
+        <h3 id="text-size-title">Cỡ chữ</h3>
+        <p id="text-size-description">Chọn chữ lớn hơn để dễ đọc. Lựa chọn được áp dụng và lưu ngay trên thiết bị này.</p>
+        <div className="text-size-options" role="group" aria-labelledby="text-size-title" aria-describedby="text-size-description">
+          {TEXT_SIZES.map(option => <button type="button" key={option.value} className={`text-size-option${textSize === option.value ? ' active' : ''}`} data-text-size-option={option.value} aria-pressed={textSize === option.value} aria-label={`Cỡ chữ ${option.label}, ${option.value}%`} onClick={() => setTextSize(option.value)}>
+            <span className="text-size-sample" style={{ fontSize: `${18 * option.value / 100}px` }} aria-hidden="true">Aa</span>
+            <strong>{option.label}</strong><small>{option.value}%</small>
+            {textSize === option.value && <Icon name="check" size={18} />}
+          </button>)}
+        </div>
+        <p className="text-size-preview" aria-live="polite">Phòng khách · Sân trước — chữ rõ hơn, dễ đọc hơn.</p>
       </div>
     </section>
 

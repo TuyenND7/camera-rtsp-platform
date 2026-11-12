@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, Camera, RecordingDay } from '../api';
 import HlsPlayer, { HlsPlayerHandle } from '../HlsPlayer';
 import Icon from '../Icon';
@@ -22,6 +22,7 @@ const SPEEDS = [1, 2, 4, 8];
 const DEFAULT_THUMB = { width: 160, height: 90, interval_s: 10 };
 
 export default function Playback() {
+  const navigate = useNavigate();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const cameraId = Number(id);
@@ -39,6 +40,9 @@ export default function Playback() {
   const [waiting, setWaiting] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [err, setErr] = useState('');
+  const [playerError, setPlayerError] = useState('');
+  const [loadingCamera, setLoadingCamera] = useState(true);
+  const [fullscreen, setFullscreen] = useState(false);
   const playerRef = useRef<HlsPlayerHandle>(null);
   const playerWrapRef = useRef<HTMLDivElement>(null);
   const advancing = useRef(false);
@@ -55,12 +59,31 @@ export default function Playback() {
   // ---- Tải camera + danh sách ngày ----
   useEffect(() => {
     if (!Number.isFinite(cameraId)) return;
-    api.getCamera(cameraId).then(setCam).catch((error) => setErr(error.message));
-    api.listCameras().then(setCameras).catch(() => setCameras([]));
-    api.recordingDays(cameraId).then((availableDays) => {
-      setDays(availableDays);
-      setDay(availableDays.includes(requestedDay) ? requestedDay : availableDays[0] ?? '');
-    }).catch((error) => setErr(error.message));
+    let cancelled = false;
+    setLoadingCamera(true);
+    setCam(null);
+    setDays([]);
+    setDay('');
+    setDayData(null);
+    setSource(null);
+    setPendingSegment(null);
+    setPositionMs(null);
+    setPlaying(false);
+    setWaiting(false);
+    setErr('');
+    setPlayerError('');
+    advancing.current = false;
+    Promise.all([api.getCamera(cameraId), api.recordingDays(cameraId), api.listCameras().catch(() => [])])
+      .then(([camera, availableDays, availableCameras]) => {
+        if (cancelled) return;
+        setCam(camera);
+        setCameras(availableCameras);
+        setDays(availableDays);
+        setDay(availableDays.includes(requestedDay) ? requestedDay : availableDays[0] ?? '');
+      })
+      .catch((error) => { if (!cancelled) setErr(error.message); })
+      .finally(() => { if (!cancelled) setLoadingCamera(false); });
+    return () => { cancelled = true; };
   }, [cameraId, requestedDay]);
 
   // ---- Tải segment của ngày; ngày mới nhất làm mới mỗi phút để timeline có đoạn vừa ghi ----
@@ -68,6 +91,10 @@ export default function Playback() {
     if (!day) return;
     let cancelled = false;
     setErr('');
+    setPlayerError('');
+    setPlaying(false);
+    setWaiting(false);
+    advancing.current = false;
     setDayData(null);
     setSource(null);
     setPendingSegment(null);
@@ -117,6 +144,7 @@ export default function Playback() {
 
   // ---- Seek ----
   const seek = useCallback((ms: number) => {
+    setPlayerError('');
     setPositionMs(ms);
     if (dayMode) {
       const t = wallToTime(ms, dayMode.key);
@@ -136,6 +164,7 @@ export default function Playback() {
     const offsetSec = hit.inside ? (ms - hit.segment.startMs) / 1000 : 0;
     if (source?.mode === 'segment' && source.file === hit.segment.file) {
       playerRef.current?.seek(source.base + offsetSec);
+      playerRef.current?.play();
       return;
     }
     setSource(null);
@@ -209,6 +238,17 @@ export default function Playback() {
 
   useEffect(() => { playerRef.current?.setRate(speed); }, [speed, source]);
 
+  useEffect(() => {
+    const update = () => setFullscreen(document.fullscreenElement === playerWrapRef.current);
+    document.addEventListener('fullscreenchange', update);
+    return () => { document.removeEventListener('fullscreenchange', update); };
+  }, []);
+
+  function togglePlay() {
+    setPlayerError('');
+    playerRef.current?.togglePlay();
+  }
+
   function jump(seconds: number) {
     if (positionMs !== null) seek(positionMs + seconds * 1000);
   }
@@ -227,6 +267,7 @@ export default function Playback() {
       <PageHeader title="Playback" actions={<Link to="/playback" className="button"><Icon name="folder" size={16} />Chọn camera</Link>} />
       <div className={`playback-shell ${cameras.length <= 1 ? 'single-camera' : ''}`}>
         {cameras.length > 1 && <aside className="playback-camera-rail" aria-label="Chọn camera playback">
+          <label className="playback-camera-dropdown"><Icon name="video" size={19} /><select aria-label="Chọn camera playback" value={cameraId} onChange={(event) => navigate(`/playback/${event.target.value}`)}>{cameras.map((camera) => <option key={camera.id} value={camera.id}>{camera.name}</option>)}</select></label>
           <div className="playback-rail-heading"><Icon name="video" size={19} /><span>Thiết bị</span><small>{cameras.length}</small></div>
           <div className="playback-camera-list">
             {cameras.map((camera) => (
@@ -241,79 +282,72 @@ export default function Playback() {
           <Link to="/playback" className="rail-back"><Icon name="chevronRight" size={14} className="icon-back" />Danh sách recording</Link>
         </aside>}
 
-        <div className="playback-workspace">
-          <div className="playback-heading cctv-playback-heading">
-            <div>
-              <h2>{cam?.name ?? `Camera ${id}`}</h2>
-            </div>
-            <div className="playback-day-picker"><Icon name="clock" size={18} /><select value={day} onChange={(event) => setDay(event.target.value)} disabled={days.length === 0} aria-label="Chọn ngày">
-              {days.length === 0 && <option>Chưa có recording</option>}
-              {days.map((value) => <option key={value} value={value}>{formatDay(value)}</option>)}
-            </select></div>
+        <div className="playback-workspace" ref={playerWrapRef}>
+          <div className="playback-heading cctv-playback-heading"><h2>{cam?.name ?? `Camera ${id}`}</h2></div>
+          <div className="playback-player cctv-playback-player pb-player">
+            {source ? (
+              <HlsPlayer
+                key={source.url}
+                ref={playerRef}
+                src={source.url}
+                startPosition={source.start}
+                controls={false}
+                onTime={onTime}
+                onPlayingChange={setPlaying}
+                onWaitingChange={setWaiting}
+                onPlaybackError={setPlayerError}
+              />
+            ) : (
+              <div className="playback-empty"><Icon name={days.length ? 'video' : 'clock'} size={30} />
+                {err ? <p>{err}</p> : loadingCamera ? <p>Đang tải camera…</p> : days.length === 0 ? <><h3>Chưa có video đã ghi</h3><p>Kiểm tra camera đang bật và tùy chọn ghi hình.</p><Link to="/cameras">Mở cấu hình camera</Link></> : <p>{preparing ? 'Đang chuẩn bị bản ghi H.265…' : dayData ? 'Chọn một mốc trên timeline.' : 'Đang tải recording…'}</p>}
+              </div>
+            )}
+            {source && waiting && <div className="pb-spinner" aria-label="Đang tải video" />}
+            {positionMs !== null && <div className="pb-clock">{formatDay(day)} · {formatClock(positionMs)}</div>}
           </div>
 
-          {days.length > 1 && <div className="playback-day-strip" aria-label="Ngày có recording">
-            {days.map((value) => <button key={value} type="button" onClick={() => setDay(value)} className={value === day ? 'active' : ''}>{formatDayShort(value)}</button>)}
-          </div>}
-
-          {err && <p className="form-error">{err}</p>}
-          {days.length === 0 && !err && <div className="playback-empty"><Icon name="clock" size={30} /><h3>Chưa có video đã ghi</h3><p>Hãy kiểm tra camera đang bật, trạng thái online và tùy chọn ghi hình.</p><Link to="/cameras">Mở cấu hình camera</Link></div>}
-
-          {days.length > 0 && <>
-            <div className="playback-player cctv-playback-player pb-player" ref={playerWrapRef}>
-              {source ? (
-                <HlsPlayer
-                  key={source.url}
-                  ref={playerRef}
-                  src={source.url}
-                  startPosition={source.start}
-                  controls={false}
-                  onTime={onTime}
-                  onPlayingChange={setPlaying}
-                  onWaitingChange={setWaiting}
-                />
-              ) : (
-                <div className="playback-empty"><Icon name="video" size={30} /><p>{preparing ? 'Đang chuyển đoạn H.265 đã chọn sang H.264 để browser phát được…' : dayData ? 'Chọn một mốc trên timeline.' : 'Đang tải recording…'}</p></div>
-              )}
-              {source && waiting && <div className="pb-spinner" aria-label="Đang tải video" />}
-              {positionMs !== null && <div className="pb-clock">{formatDay(day)} · {formatClock(positionMs)}</div>}
-            </div>
-            {preparing && <p className="playback-preparing"><Icon name="clock" size={16} />Đang xử lý file local, không kết nối lại camera. Đoạn này sẽ được cache để mở lại nhanh hơn.</p>}
-
-            <section className="recording-timeline cctv-timeline" aria-label="Timeline playback">
-              <div className="pb-controls">
-                <div className="pb-controls-main">
-                  <button type="button" onClick={() => jump(-10)} disabled={positionMs === null} title="Lùi 10 giây (←)" aria-label="Lùi 10 giây"><Icon name="rewind" size={18} /><small>10</small></button>
-                  <button type="button" className="pb-play" onClick={() => playerRef.current?.togglePlay()} disabled={!source} title={playing ? 'Tạm dừng (Space)' : 'Phát (Space)'} aria-label={playing ? 'Tạm dừng' : 'Phát'}><Icon name={playing ? 'pause' : 'play'} size={20} stroke={2.4} /></button>
-                  <button type="button" onClick={() => jump(10)} disabled={positionMs === null} title="Tới 10 giây (→)" aria-label="Tới 10 giây"><small>10</small><Icon name="skipForward" size={18} /></button>
-                </div>
-                <div className="pb-controls-side">
-                  <label className="pb-speed">Tốc độ
-                    <select value={speed} onChange={(event) => setSpeed(Number(event.target.value))}>
-                      {SPEEDS.map((value) => <option key={value} value={value}>{value}×</option>)}
-                    </select>
-                  </label>
-                  <button type="button" onClick={() => latestSegment && seek(Math.max(latestSegment.startMs, latestSegment.endMs - 30_000))} disabled={!latestSegment} title="Tới đoạn mới nhất">Mới nhất</button>
-                  <button type="button" onClick={toggleFullscreen} title="Toàn màn hình" aria-label="Toàn màn hình"><Icon name="layout" size={17} /></button>
-                </div>
+          <section className="playback-config recording-timeline cctv-timeline" aria-label="Điều khiển playback">
+            <div className="pb-controls">
+              <div className="pb-controls-main">
+                <button type="button" onClick={() => jump(-10)} disabled={positionMs === null} title="Lùi 10 giây (←)" aria-label="Lùi 10 giây"><Icon name="rewind" size={18} /><small>10</small></button>
+                <button type="button" className="pb-play" onClick={togglePlay} disabled={!source} title={playing ? 'Tạm dừng (Space)' : 'Phát (Space)'} aria-label={playing ? 'Tạm dừng' : 'Phát'}><Icon name={playing ? 'pause' : 'play'} size={20} stroke={2.4} /></button>
+                <button type="button" onClick={() => jump(10)} disabled={positionMs === null} title="Tới 10 giây (→)" aria-label="Tới 10 giây"><small>10</small><Icon name="skipForward" size={18} /></button>
+                <button type="button" onClick={() => latestSegment && seek(Math.max(latestSegment.startMs, latestSegment.endMs - 30_000))} disabled={!latestSegment} title="Tới đoạn mới nhất">Mới nhất</button>
+                <button type="button" onClick={toggleFullscreen} title={fullscreen ? 'Thu nhỏ' : 'Toàn màn hình'} aria-label={fullscreen ? 'Thu nhỏ playback' : 'Toàn màn hình playback'}><Icon name={fullscreen ? 'minimize' : 'maximize'} size={18} /></button>
               </div>
-
-              <PlaybackTimeline
-                segments={segments}
-                dayStart={day ? dayStartMs(day) : 0}
-                positionMs={positionMs}
-                thumb={thumb}
-                onSeek={seek}
-                onTogglePlay={() => playerRef.current?.togglePlay()}
-              />
+              <div className="pb-controls-settings">
+                <div className="playback-day-picker"><Icon name="clock" size={18} /><select value={day} onChange={(event) => setDay(event.target.value)} disabled={days.length === 0} aria-label="Chọn ngày">
+                  {days.length === 0 && <option value="">Chưa có bản ghi</option>}
+                  {days.map((value) => <option key={value} value={value}>{formatDay(value)}</option>)}
+                </select></div>
+                <label className="pb-speed">Tốc độ
+                  <select aria-label="Tốc độ phát" value={speed} onChange={(event) => setSpeed(Number(event.target.value))}>
+                    {SPEEDS.map((value) => <option key={value} value={value}>{value}×</option>)}
+                  </select>
+                </label>
+              </div>
+            </div>
+            {(playerError || (err && source)) && <p className="form-error" role="alert">{playerError || err}</p>}
+            {preparing && <p className="playback-preparing"><Icon name="clock" size={16} />Đang xử lý bản ghi đã lưu trên máy chủ.</p>}
+            <PlaybackTimeline
+              segments={segments}
+              dayStart={day ? dayStartMs(day) : 0}
+              positionMs={positionMs}
+              thumb={thumb}
+              onSeek={seek}
+              onTogglePlay={togglePlay}
+            />
+            <div className="playback-config-footer">
+              {days.length > 1 && <div className="playback-day-strip" aria-label="Ngày có recording">
+                {days.map((value) => <button key={value} type="button" onClick={() => setDay(value)} className={value === day ? 'active' : ''}>{formatDayShort(value)}</button>)}
+              </div>}
               <p className="timeline-help"><span><i />Có ghi hình</span>{formatBytes(totalBytes)}</p>
-            </section>
-
+            </div>
             <details className="segment-details">
               <summary>Thông tin bản ghi · {segments.length} đoạn <Icon name="chevronDown" size={17} /></summary>
               <div>{segments.map((segment) => <button key={segment.file} onClick={() => seek(segment.startMs)}><span>{formatShortClock(segment.startMs)}</span><b>{segment.file}</b><small>{formatBytes(segment.size)}</small></button>)}</div>
             </details>
-          </>}
+          </section>
         </div>
       </div>
     </section>

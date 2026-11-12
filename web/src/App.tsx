@@ -74,7 +74,7 @@ function Layout({ children, user: sessionUser }: { children: React.ReactNode; us
     finally { setLoggingOut(false); }
   }
 
-  return <SessionContext.Provider value={sessionUser}><NavigationContext.Provider value={{ expanded: navigationExpanded, toggle: toggleNavigation }}><div className={`app-shell simple-shell${location.pathname === '/live' ? ' live-shell' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+  return <SessionContext.Provider value={sessionUser}><NavigationContext.Provider value={{ expanded: navigationExpanded, toggle: toggleNavigation }}><div className={`app-shell simple-shell${location.pathname === '/live' ? ' live-shell' : ''}${location.pathname.startsWith('/playback/') ? ' playback-view-shell' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
     {isMobile && mobileOpen && <button className="sidebar-shade" aria-label="Đóng điều hướng" onClick={() => setMobileOpen(false)} />}
     <aside id="app-navigation" className={`app-sidebar ${mobileOpen ? 'open' : ''}`} aria-hidden={!navigationExpanded}>
       <Link to="/live" className="app-brand" aria-label="Camera Station"><img className="brand-image" src="/brand/camera-mark.png" alt="" width="42" height="42" /><strong>Camera Station</strong></Link>

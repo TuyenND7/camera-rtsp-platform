@@ -11,6 +11,7 @@ interface Props {
   onTime?: (seconds: number) => void;
   onPlayingChange?: (playing: boolean) => void;
   onWaitingChange?: (waiting: boolean) => void;
+  onPlaybackError?: (message: string) => void;
 }
 
 /** Điều khiển video từ component cha (timeline Playback). */
@@ -27,14 +28,43 @@ export interface HlsPlayerHandle {
 
 /** Player HLS dùng hls.js, fallback native HLS (Safari). */
 const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
-  { src, live = false, controls = true, startPosition = -1, onTime, onPlayingChange, onWaitingChange },
+  { src, live = false, controls = true, startPosition = -1, onTime, onPlayingChange, onWaitingChange, onPlaybackError },
   ref
 ) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const callbacks = useRef({ onTime, onPlayingChange, onWaitingChange });
-  callbacks.current = { onTime, onPlayingChange, onWaitingChange };
+  const callbacks = useRef({ onTime, onPlayingChange, onWaitingChange, onPlaybackError });
+  callbacks.current = { onTime, onPlayingChange, onWaitingChange, onPlaybackError };
+  const playRequested = useRef(true);
+  const playAttempt = useRef(0);
+  const rate = useRef(1);
   // Tăng để tạo lại hls.js (nút Tải lại, lỗi mạng, live bị đứng hình).
   const [generation, setGeneration] = useState(0);
+
+  function playVideo() {
+    const video = videoRef.current;
+    if (!video) return;
+    playRequested.current = true;
+    const attempt = ++playAttempt.current;
+    callbacks.current.onPlaybackError?.('');
+    if (video.ended) video.currentTime = 0;
+    video.play().catch((error) => {
+      if (attempt !== playAttempt.current || error?.name === 'AbortError') return;
+      playRequested.current = false;
+      callbacks.current.onPlayingChange?.(false);
+      callbacks.current.onWaitingChange?.(false);
+      callbacks.current.onPlaybackError?.(error?.name === 'NotAllowedError'
+        ? 'Nhấn Phát để bắt đầu xem video.'
+        : 'Chưa phát được bản ghi. Hãy thử chọn lại mốc thời gian.');
+    });
+  }
+
+  function pauseVideo() {
+    playRequested.current = false;
+    playAttempt.current++;
+    videoRef.current?.pause();
+    callbacks.current.onPlayingChange?.(false);
+    callbacks.current.onWaitingChange?.(false);
+  }
 
   useImperativeHandle(ref, () => ({
     reload() { setGeneration((value) => value + 1); },
@@ -44,31 +74,38 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
       video.currentTime = Math.max(0, seconds);
       callbacks.current.onTime?.(video.currentTime);
     },
-    play() { videoRef.current?.play().catch(() => undefined); },
-    pause() { videoRef.current?.pause(); },
+    play: playVideo,
+    pause: pauseVideo,
     togglePlay() {
       const video = videoRef.current;
       if (!video) return;
-      if (video.paused) video.play().catch(() => undefined);
-      else video.pause();
+      if (video.paused || video.ended) playVideo();
+      else pauseVideo();
     },
-    setRate(rate: number) { if (videoRef.current) videoRef.current.playbackRate = rate; },
+    setRate(value: number) {
+      if (!Number.isFinite(value) || value <= 0) return;
+      rate.current = value;
+      if (videoRef.current) videoRef.current.playbackRate = value;
+    },
     currentTime() { return videoRef.current?.currentTime ?? 0; },
   }), []);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    callbacks.current.onWaitingChange?.(playRequested.current);
 
     if (isUiPreview) {
       const ready = () => {
         if (startPosition > 0) video.currentTime = Math.min(startPosition, Math.max(0, video.duration - 0.1));
-        video.play().catch(() => undefined);
+        video.playbackRate = rate.current;
+        if (playRequested.current) playVideo();
       };
       video.loop = live;
       video.addEventListener('loadedmetadata', ready);
       video.src = '/__ui-preview__/sample.mp4';
       return () => {
+        playAttempt.current++;
         video.removeEventListener('loadedmetadata', ready);
         video.pause();
         video.removeAttribute('src');
@@ -108,7 +145,8 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
       hls.loadSource(src);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(() => undefined);
+        video.playbackRate = rate.current;
+        if (playRequested.current) playVideo();
       });
       let mediaRecovered = false;
       hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -127,7 +165,8 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
       video.src = src;
       video.addEventListener('loadedmetadata', () => {
         if (startPosition > 0) video.currentTime = startPosition;
-        video.play().catch(() => undefined);
+        video.playbackRate = rate.current;
+        if (playRequested.current) playVideo();
       }, { once: true });
     }
 
@@ -142,6 +181,7 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
     }, 4000) : undefined;
 
     return () => {
+      playAttempt.current++;
       if (retryTimer) window.clearTimeout(retryTimer);
       if (watchdog) window.clearInterval(watchdog);
       if (hls) hls.destroy();
@@ -152,9 +192,13 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
     const video = videoRef.current;
     if (!video) return;
     const time = () => callbacks.current.onTime?.(video.currentTime);
-    const playing = () => callbacks.current.onPlayingChange?.(!video.paused);
-    const waiting = () => callbacks.current.onWaitingChange?.(true);
+    const playing = () => {
+      callbacks.current.onPlayingChange?.(!video.paused && !video.ended);
+      if (video.paused) callbacks.current.onWaitingChange?.(false);
+    };
+    const waiting = () => callbacks.current.onWaitingChange?.(playRequested.current);
     const ready = () => callbacks.current.onWaitingChange?.(false);
+    const ended = () => { callbacks.current.onPlayingChange?.(false); callbacks.current.onWaitingChange?.(false); };
     video.addEventListener('timeupdate', time);
     video.addEventListener('seeked', time);
     video.addEventListener('play', playing);
@@ -163,6 +207,9 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
     video.addEventListener('seeking', waiting);
     video.addEventListener('playing', ready);
     video.addEventListener('canplay', ready);
+    video.addEventListener('loadeddata', ready);
+    video.addEventListener('seeked', ready);
+    video.addEventListener('ended', ended);
     return () => {
       video.removeEventListener('timeupdate', time);
       video.removeEventListener('seeked', time);
@@ -172,6 +219,9 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
       video.removeEventListener('seeking', waiting);
       video.removeEventListener('playing', ready);
       video.removeEventListener('canplay', ready);
+      video.removeEventListener('loadeddata', ready);
+      video.removeEventListener('seeked', ready);
+      video.removeEventListener('ended', ended);
     };
   }, []);
 

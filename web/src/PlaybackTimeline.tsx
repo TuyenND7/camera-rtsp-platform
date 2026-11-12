@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from './Icon';
+import { useTheme } from './theme';
 import { formatClock, formatShortClock, recordedRanges, segmentAt, TimedSegment } from './playbackTime';
 
 interface ThumbInfo {
@@ -40,6 +41,10 @@ type Interaction =
  * mốc đang kéo/hover, zoom bằng con lăn hoặc nút, và điều khiển bằng bàn phím.
  */
 export default function PlaybackTimeline({ segments, dayStart, positionMs, thumb, onSeek, onTogglePlay }: Props) {
+  const { textSize, theme } = useTheme();
+  const textScale = textSize / 100;
+  const labelOffset = Math.ceil((textScale - 1) * 16);
+  const trackHeight = TRACK_HEIGHT + labelOffset;
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(0);
@@ -78,11 +83,11 @@ export default function PlaybackTimeline({ segments, dayStart, positionMs, thumb
     if (!canvas || width === 0) return;
     const dpr = window.devicePixelRatio || 1;
     canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(TRACK_HEIGHT * dpr);
+    canvas.height = Math.round(trackHeight * dpr);
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, width, TRACK_HEIGHT);
+    ctx.clearRect(0, 0, width, trackHeight);
 
     const viewStart = center - (width / 2) * msPerPx;
     const viewEnd = center + (width / 2) * msPerPx;
@@ -90,21 +95,21 @@ export default function PlaybackTimeline({ segments, dayStart, positionMs, thumb
 
     // Nền và vùng ngoài ngày đang xem
     ctx.fillStyle = '#e8eff8';
-    ctx.fillRect(0, 30, width, 26);
+    ctx.fillRect(0, 30 + labelOffset, width, 26);
     ctx.fillStyle = 'rgba(36, 57, 79, 0.04)';
-    if (viewStart < minMs) ctx.fillRect(0, 0, toX(minMs), TRACK_HEIGHT);
-    if (viewEnd > maxMs) ctx.fillRect(toX(maxMs), 0, width - toX(maxMs), TRACK_HEIGHT);
+    if (viewStart < minMs) ctx.fillRect(0, 0, toX(minMs), trackHeight);
+    if (viewEnd > maxMs) ctx.fillRect(toX(maxMs), 0, width - toX(maxMs), trackHeight);
 
     // Dải đã ghi hình
     ctx.fillStyle = '#72a8f4';
     for (const [start, end] of ranges) {
       if (end < viewStart || start > viewEnd) continue;
       const x = toX(start);
-      ctx.fillRect(x, 30, Math.max(1.5, toX(end) - x), 26);
+      ctx.fillRect(x, 30 + labelOffset, Math.max(1.5, toX(end) - x), 26);
     }
 
     // Vạch chia + nhãn giờ
-    const labelStep = TICK_STEPS.find((step) => step / msPerPx >= 76) ?? TICK_STEPS[TICK_STEPS.length - 1];
+    const labelStep = TICK_STEPS.find((step) => step / msPerPx >= 76 * textScale) ?? TICK_STEPS[TICK_STEPS.length - 1];
     const minorStep = labelStep / (labelStep >= HOUR ? 4 : 5);
     const tzOffset = new Date(center).getTimezoneOffset() * MINUTE;
     const firstTick = (value: number, step: number) => Math.ceil((value - tzOffset) / step) * step + tzOffset;
@@ -113,24 +118,24 @@ export default function PlaybackTimeline({ segments, dayStart, positionMs, thumb
     ctx.beginPath();
     for (let ms = firstTick(viewStart, minorStep); ms <= viewEnd; ms += minorStep) {
       const x = Math.round(toX(ms)) + 0.5;
-      ctx.moveTo(x, 22);
-      ctx.lineTo(x, 28);
+      ctx.moveTo(x, 22 + labelOffset);
+      ctx.lineTo(x, 28 + labelOffset);
     }
     ctx.stroke();
     ctx.strokeStyle = '#8aa0ba';
-    ctx.fillStyle = '#6a819c';
-    ctx.font = '500 11px "Be Vietnam Pro", system-ui, sans-serif';
+    ctx.fillStyle = getComputedStyle(canvas).getPropertyValue('--text-muted').trim() || '#6a819c';
+    ctx.font = `500 ${11 * textScale}px "Be Vietnam Pro", system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     ctx.beginPath();
     for (let ms = firstTick(viewStart, labelStep); ms <= viewEnd; ms += labelStep) {
       const x = Math.round(toX(ms)) + 0.5;
-      ctx.moveTo(x, 17);
-      ctx.lineTo(x, 28);
-      ctx.fillText(formatShortClock(ms), x, 13);
+      ctx.moveTo(x, 17 + labelOffset);
+      ctx.lineTo(x, 28 + labelOffset);
+      ctx.fillText(formatShortClock(ms), x, 13 + labelOffset);
     }
     ctx.stroke();
-  }, [center, maxMs, minMs, msPerPx, ranges, width]);
+  }, [center, maxMs, minMs, msPerPx, ranges, width, textScale, trackHeight, labelOffset, theme]);
 
   // ---- Seek: đưa mốc về đoạn có ghi hình gần nhất phía sau ----
   const commit = useCallback((ms: number) => {
@@ -304,7 +309,7 @@ export default function PlaybackTimeline({ segments, dayStart, positionMs, thumb
         onPointerLeave={() => setHoverX(null)}
         onKeyDown={onKeyDown}
       >
-        <canvas ref={canvasRef} style={{ width: '100%', height: TRACK_HEIGHT }} />
+        <canvas ref={canvasRef} style={{ width: '100%', height: trackHeight }} />
         <div className="pt-playhead" aria-hidden="true"><span /></div>
         {preview && (
           <div className="pt-preview" style={{ left: previewLeft, width: previewWidth }} aria-hidden="true">
