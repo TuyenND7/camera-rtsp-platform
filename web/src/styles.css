@@ -789,3 +789,30 @@ tbody tr:last-child td { border-bottom: 0; }
 .mi-camera-video > .mi-camera-audio, .mi-featured-video > .mi-camera-audio { position: absolute; z-index: 4; left: 8px; bottom: 8px; display: inline-flex; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; border: 1px solid #e2efff35; border-radius: 8px; color: #c4d3e9; background: #102039d9; }
 .mi-camera-video > .mi-camera-audio.active, .mi-featured-video > .mi-camera-audio.active { color: #fff; background: #1768efdf; border-color: #8fbaff; }
 .mi-camera-audio:disabled { opacity: .55; }
+
+.mi-live-talk-button { flex-shrink: 0; width: 44px; height: 44px; min-width: 44px; padding: 0; color: #d7354c; border-color: #d7354c55; background: var(--surface, #fff); }
+.mi-live-talk-button:hover:not(:disabled) { color: #e04358; border-color: #e04358; background: var(--danger-bg, #fff1f3); }
+:root[data-theme=dark] .mi-live-talk-button { color: #ff8e9b; border-color: #ee617555; }
+.talk-dialog { width: min(620px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 20px; overflow-y: auto; }
+.talk-dialog .dialog-heading { padding: 0 0 16px; }
+.talk-dialog .dialog-heading .icon-button { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+.talk-dialog .dialog-heading h2 { display: flex; align-items: center; gap: 9px; }
+.talk-dialog .dialog-heading h2 > .app-icon { color: var(--danger-text, #d7354c); }
+.talk-camera-list { display: grid; gap: 6px; margin: 12px 0; max-height: 38dvh; overflow-y: auto; }
+.talk-camera-row { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.talk-camera-row input { flex: 0 0 20px; width: 20px; height: 20px; margin: 0; }
+.talk-camera-row > span:not(.app-icon):not(.talk-ready) { flex: 1; min-width: 0; }
+.talk-camera-row strong { display: block; color: var(--ink); font-weight: 700; overflow-wrap: anywhere; }
+.talk-camera-row small { display: block; margin-top: 4px; color: var(--muted); font-weight: 500; line-height: 1.6; }
+.talk-camera-row.unavailable { background: var(--surface-soft, #f5f8fc); }
+.talk-ready { color: var(--positive-text, #168268); font-size: calc(10px * var(--text-scale, 1)); }
+.talk-mic-check { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: calc(11px * var(--text-scale, 1)); }
+.talk-level { height: 5px; margin: 10px 0 16px; overflow: hidden; border-radius: 4px; background: var(--line); }
+.talk-level > span { display: block; height: 100%; background: var(--green); transition: width .1s; }
+.talk-footer { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+.talk-footer > span { color: var(--muted); font-size: calc(11px * var(--text-scale, 1)); }
+.talk-hold-button { min-height: 52px; color: #fff; background: #c72c43; border-color: #c72c43; touch-action: none; user-select: none; -webkit-user-select: none; }
+.talk-hold-button:hover:not(:disabled), .talk-hold-button.active { color: #fff; background: #a81f34; border-color: #a81f34; }
+.talk-hold-button:disabled { opacity: .65; }
+@media(max-width: 600px) { .talk-camera-row { gap: 8px; padding: 10px; } .talk-ready { display: none; } .talk-dialog .dialog-heading { align-items: flex-start; } }
+.mi-live-utility-actions { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 8px; margin-left: auto; }

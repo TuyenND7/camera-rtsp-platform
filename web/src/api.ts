@@ -2,6 +2,8 @@ import { isUiPreview } from './preview';
 
 const API_BASE = isUiPreview ? '/api' : (import.meta as any).env?.VITE_API_BASE ?? '/api';
 export interface SessionUser { id: number; username: string; role: string }
+export interface TalkCapability { camera_id: number; supported: boolean; reason: string; codec?: string }
+export interface TalkSession { id: string; camera_ids: number[]; sample_rate: number; max_seconds: number }
 export interface ServerSettings {
   public_base_url: string;
   storage_label: string;
@@ -166,6 +168,20 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 export const api = {
+  async talkCapabilities(cameraIds: number[]) {
+    return handle<TalkCapability[]>(await fetch(`${API_BASE}/talk/capabilities`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ camera_ids: cameraIds }) }));
+  },
+  async startTalk(cameraIds: number[]) {
+    return handle<TalkSession>(await fetch(`${API_BASE}/talk/sessions`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ camera_ids: cameraIds }) }));
+  },
+  async talkAudio(id: string, sequence: number, pcm: ArrayBuffer, signal: AbortSignal) {
+    const response = await fetch(`${API_BASE}/talk/sessions/${encodeURIComponent(id)}/audio`, { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/octet-stream', 'X-Audio-Sequence': String(sequence) }, body: pcm, signal });
+    if (!response.ok) await handle<never>(response);
+  },
+  async stopTalk(id: string) {
+    // Keep cleanup alive during navigation/pagehide. No URL credentials.
+    await fetch(`${API_BASE}/talk/sessions/${encodeURIComponent(id)}`, { method: 'DELETE', headers: authHeaders(), keepalive: true });
+  },
   async session(): Promise<SessionUser | null> {
     const response = await fetch(`${API_BASE}/auth/session`, { cache: 'no-store' });
     if (response.status === 401) { csrf = ''; return null; }

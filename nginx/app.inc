@@ -7,7 +7,7 @@ add_header Cache-Control "private, no-store" always;
 add_header X-Content-Type-Options nosniff always;
 add_header X-Frame-Options DENY always;
 add_header Referrer-Policy no-referrer always;
-add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+add_header Permissions-Policy "camera=(), microphone=(self), geolocation=()" always;
 add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'" always;
 
 # Web admin (React static build served by 'web' service)
@@ -24,7 +24,7 @@ location /api/ {
     proxy_set_header X-Real-IP $remote_addr;
     # Replace untrusted client headers; backend trusts exactly this proxy hop.
     proxy_set_header X-Forwarded-For $remote_addr;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Proto $camera_scheme;
     proxy_read_timeout 300s;
     proxy_hide_header Cache-Control;
 }
@@ -40,7 +40,7 @@ location = /_media_auth {
     proxy_set_header Cookie $http_cookie;
     proxy_set_header Authorization $http_authorization;
     proxy_set_header X-Forwarded-For $remote_addr;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Proto $camera_scheme;
 }
 
 # HLS live streams (served directly from storage volume)

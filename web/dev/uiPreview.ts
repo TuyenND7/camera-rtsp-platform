@@ -124,6 +124,14 @@ export function uiPreviewPlugin(): Plugin {
           }
           if (pathname === '/api/auth/logout') { req.resume(); json(res, null, 204); return; }
           if (pathname === '/api/health') { json(res, { ok: true, preview: true }); return; }
+          if (pathname === '/api/talk/capabilities') {
+            const ids = (await body(req)).camera_ids;
+            json(res, cameras.filter(c => Array.isArray(ids) && ids.includes(c.id)).map(c => ({ camera_id: c.id,
+              supported: c.status === 'online' && c.enabled && c.id !== 2,
+              reason: c.status !== 'online' || !c.enabled ? 'Camera mẫu chưa trực tuyến.' : c.id === 2 ? 'Camera mẫu chưa cung cấp kênh nhận giọng nói.' : 'Kênh đàm thoại mẫu · không gửi audio tới camera thật', codec: 'PCMA' })));
+            return;
+          }
+          if (pathname.startsWith('/api/talk/sessions')) { req.resume(); json(res, { error: 'Bản xem trước không gửi giọng nói tới camera thật.' }, 422); return; }
           if (pathname === '/api/settings') {
             if (method === 'PUT') {
               try { settings = validateSettings(await body(req)); json(res, { settings }); }

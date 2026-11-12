@@ -1,6 +1,8 @@
 package vn.tuyen.camerastation;
 
 import android.annotation.SuppressLint;
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
@@ -16,6 +18,7 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.PermissionRequest;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -49,6 +52,8 @@ public final class MainActivity extends Activity {
     private boolean pageFailed;
     private View fullscreenView;
     private WebChromeClient.CustomViewCallback fullscreenCallback;
+    private static final int MIC_PERMISSION = 41;
+    private PermissionRequest microphoneRequest;
 
     @Override
     public void onCreate(Bundle state) {
@@ -154,6 +159,7 @@ public final class MainActivity extends Activity {
 
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                cancelMicrophoneRequest();
                 pageFailed = false;
                 errorPanel.setVisibility(View.GONE);
                 progress.setVisibility(View.VISIBLE);
@@ -183,6 +189,26 @@ public final class MainActivity extends Activity {
         });
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                runOnUiThread(() -> {
+                    if (!trustedMicrophoneOrigin(request) || microphoneRequest != null) { request.deny(); return; }
+                    String[] resources = request.getResources();
+                    if (resources.length != 1 || !PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resources[0])) { request.deny(); return; }
+                    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        request.grant(new String[] { PermissionRequest.RESOURCE_AUDIO_CAPTURE });
+                    } else {
+                        microphoneRequest = request;
+                        requestPermissions(new String[] { Manifest.permission.RECORD_AUDIO }, MIC_PERMISSION);
+                    }
+                });
+            }
+
+            @Override
+            public void onPermissionRequestCanceled(PermissionRequest request) {
+                if (microphoneRequest == request) microphoneRequest = null;
+            }
+
+            @Override
             public void onProgressChanged(WebView view, int value) {
                 progress.setProgress(value);
                 if (value == 100 || pageFailed) progress.setVisibility(View.GONE);
@@ -201,6 +227,26 @@ public final class MainActivity extends Activity {
             @Override
             public void onHideCustomView() { exitFullscreen(); }
         });
+    }
+
+    private boolean trustedMicrophoneOrigin(PermissionRequest request) {
+        Uri origin = request.getOrigin();
+        return "https".equals(origin.getScheme()) && sameOrigin(origin, Uri.parse(serverUrl))
+            && webView.getUrl() != null && sameOrigin(origin, Uri.parse(webView.getUrl()));
+    }
+
+    private void cancelMicrophoneRequest() {
+        if (microphoneRequest != null) { microphoneRequest.deny(); microphoneRequest = null; }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grants) {
+        super.onRequestPermissionsResult(requestCode, permissions, grants);
+        if (requestCode != MIC_PERMISSION || microphoneRequest == null) return;
+        PermissionRequest request = microphoneRequest; microphoneRequest = null;
+        if (grants.length == 1 && grants[0] == PackageManager.PERMISSION_GRANTED && trustedMicrophoneOrigin(request)) {
+            request.grant(new String[] { PermissionRequest.RESOURCE_AUDIO_CAPTURE });
+        } else request.deny();
     }
 
     private void showServerDialog() {
@@ -304,6 +350,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
+        webView.evaluateJavascript("window.dispatchEvent(new Event('camera-station:stop-talk'));", null);
         webView.onPause();
         CookieManager.getInstance().flush();
         super.onPause();
@@ -317,6 +364,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        cancelMicrophoneRequest();
         exitFullscreen();
         webView.stopLoading();
         ((FrameLayout) webView.getParent()).removeView(webView);

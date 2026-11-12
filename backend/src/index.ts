@@ -11,6 +11,8 @@ import ptzRoutes from './routes/ptz';
 import recordingRoutes from './routes/recordings';
 import eventRoutes from './routes/events';
 import settingsRoutes from './routes/settings';
+import talkRoutes from './routes/talk';
+import { talkManager } from './talk/manager';
 import { loadSettings } from './settings';
 import { browserRequestGuard } from './middleware/security';
 
@@ -32,6 +34,7 @@ async function main() {
   app.use('/api/recordings', recordingRoutes);
   app.use('/api/events', eventRoutes);
   app.use('/api/settings', settingsRoutes);
+  app.use('/api/talk', talkRoutes);
 
   // Khởi động worker cho các camera đang bật
   await streamManager.bootstrap();
@@ -46,6 +49,7 @@ async function main() {
     console.log('[backend] shutting down...');
     clearInterval(retentionTimer);
     thumbnailJob.stop();
+    talkManager.close();
     streamManager.stopAll();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 5000);

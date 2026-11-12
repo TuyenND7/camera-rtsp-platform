@@ -5,6 +5,7 @@ import HlsPlayer, { HlsPlayerHandle } from '../HlsPlayer';
 import Icon from '../Icon';
 import PtzPanel from '../PtzPanel';
 import LiveDevicePicker from '../LiveDevicePicker';
+import TalkPanel from '../TalkPanel';
 import { PageHeader, statusLabels } from '../ui';
 
 type LayoutSize = 1 | 4 | 9 | 16;
@@ -16,6 +17,8 @@ export default function Grid() {
   const [slots, setSlots] = useState<Array<number | null>>([]);
   const [layout, setLayout] = useState<LayoutSize>(focusedCameraId > 0 ? 1 : 4);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [talkOpen, setTalkOpen] = useState(false);
+  const [talkActive, setTalkActive] = useState(false);
   const [pickerSlot, setPickerSlot] = useState<number | null>(null);
   const [err, setErr] = useState('');
   const livePage = useRef<HTMLElement>(null);
@@ -114,29 +117,33 @@ export default function Grid() {
           <div className="mi-layout-picker" role="group" aria-label="Bố cục camera">
             {([1, 4, 9, 16] as LayoutSize[]).map((size) => <button key={size} className={layout === size ? 'active' : ''} type="button" onClick={() => changeLayout(size)} title={`Bố cục ${size} camera`}>{size === 1 ? '1' : size === 4 ? '2×2' : size === 9 ? '3×3' : '4×4'}</button>)}
           </div>
+          <div className="mi-live-utility-actions">
+          <button type="button" className="mi-live-talk-button" onClick={() => setTalkOpen(true)} aria-label="Đàm thoại với camera" title="Đàm thoại"><Icon name="microphone" size={21} /></button>
           <button type="button" className="mi-live-fullscreen-button" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen} aria-label={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'} title={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'}><Icon name={fullscreen ? 'minimize' : 'maximize'} size={20} /></button>
+          </div>
         </div>} />
 
       {err && <div className="notice error">Không tải được camera: {err}</div>}
-      {!err && layout === 1 && visible[0] && <FocusView camera={visible[0]} cameras={cameras.filter(camera => camera.enabled)} onChoose={id => chooseCamera(id, 0)} onClose={() => closeSlot(0)} />}
+      {!err && layout === 1 && visible[0] && <FocusView talkActive={talkActive} camera={visible[0]} cameras={cameras.filter(camera => camera.enabled)} onChoose={id => chooseCamera(id, 0)} onClose={() => closeSlot(0)} />}
       {!err && (layout !== 1 || !visible[0]) && <>
         <div className={`mi-camera-grid layout-${layout}`}>
           {visible.map((camera, index) => camera
-            ? <CameraTile key={`slot-${index}`} camera={camera} onClose={() => closeSlot(index)} />
+            ? <CameraTile key={`slot-${index}`} talkActive={talkActive} camera={camera} onClose={() => closeSlot(index)} />
             : <button key={`slot-${index}`} type="button" className="empty-camera-tile" onClick={() => openPicker(index)} aria-label={`Chọn camera cho ô ${index + 1}`}><Icon name="plus" size={26} /><span>Chọn camera</span><small>Thêm vào ô {index + 1}</small></button>)}
         </div>
       </>}
+      {talkOpen && <TalkPanel cameras={cameras} initial={Array.from(selected)} onClose={() => setTalkOpen(false)} onActive={setTalkActive} />}
       {pickerOpen && <LiveDevicePicker cameras={cameras} selected={selected} slot={pickerSlot} onChoose={id => { if (pickerSlot !== null) chooseCamera(id, pickerSlot); }} onClose={() => setPickerOpen(false)} />}
     </section>
   );
 }
 
-function FocusView({ camera, cameras, onChoose, onClose }: { camera: Camera; cameras: Camera[]; onChoose: (id: number) => void; onClose: () => void }) {
+function FocusView({ camera, cameras, onChoose, onClose, talkActive }: { talkActive: boolean; camera: Camera; cameras: Camera[]; onChoose: (id: number) => void; onClose: () => void }) {
   return (
     <>
       <section className="mi-live-focus">
         <article className="mi-featured-camera">
-          <LiveVideo camera={camera} className="mi-featured-video" offlineLabel={statusLabels[camera.status] ?? 'Camera chưa online'} onClose={onClose}>
+          <LiveVideo talkActive={talkActive} camera={camera} className="mi-featured-video" offlineLabel={statusLabels[camera.status] ?? 'Camera chưa online'} onClose={onClose}>
             <div className="mi-featured-title"><i className={`status-dot ${camera.status}`} /><div><span>LIVE CAMERA</span><strong>{camera.name}</strong></div></div>
           </LiveVideo>
         </article>
@@ -157,10 +164,10 @@ function cameraHost(url: string): string {
   try { return new URL(url).hostname; } catch { return 'Camera RTSP'; }
 }
 
-function CameraTile({ camera, onClose }: { camera: Camera; onClose: () => void }) {
+function CameraTile({ camera, onClose, talkActive }: { talkActive: boolean; camera: Camera; onClose: () => void }) {
   return (
     <article className="mi-camera-card">
-      <LiveVideo camera={camera} className="mi-camera-video" offlineLabel={statusLabels[camera.status] ?? 'Camera chưa online'} onClose={onClose} actions={<><Link className="mi-camera-control" to={`/live?camera=${camera.id}`} title="Chỉ xem camera này" aria-label={`Chỉ xem ${camera.name}`}><Icon name="monitor" size={20} /></Link><Link className="mi-camera-control" to={`/playback/${camera.id}`} title="Xem Playback" aria-label={`Xem lại ${camera.name}`}><Icon name="clock" size={20} /></Link></>}>
+      <LiveVideo talkActive={talkActive} camera={camera} className="mi-camera-video" offlineLabel={statusLabels[camera.status] ?? 'Camera chưa online'} onClose={onClose} actions={<><Link className="mi-camera-control" to={`/live?camera=${camera.id}`} title="Chỉ xem camera này" aria-label={`Chỉ xem ${camera.name}`}><Icon name="monitor" size={20} /></Link><Link className="mi-camera-control" to={`/playback/${camera.id}`} title="Xem Playback" aria-label={`Xem lại ${camera.name}`}><Icon name="clock" size={20} /></Link></>}>
         <div className="mi-camera-overlay">
           <div><i className={`status-dot ${camera.status}`} /><strong>{camera.name}</strong><small>{statusLabels[camera.status] ?? camera.status}</small></div>
         </div>
@@ -173,7 +180,7 @@ function CameraTile({ camera, onClose }: { camera: Camera; onClose: () => void }
  * Tự tải lại player khi camera chuyển sang online sau khi mất kết nối.
  * Nút kết nối lại chỉ hiện khi camera offline để tìm lại IP nếu DHCP đã đổi.
  */
-function LiveVideo({ camera, className, offlineLabel, children, actions, onClose }: { camera: Camera; className: string; offlineLabel: string; children: React.ReactNode; actions?: React.ReactNode; onClose: () => void }) {
+function LiveVideo({ camera, className, offlineLabel, children, actions, onClose, talkActive }: { talkActive: boolean; camera: Camera; className: string; offlineLabel: string; children: React.ReactNode; actions?: React.ReactNode; onClose: () => void }) {
   const container = useRef<HTMLDivElement>(null);
   const controls = useRef<HTMLDivElement>(null);
   const player = useRef<HlsPlayerHandle>(null);
@@ -243,7 +250,7 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
     }} onKeyDown={event => {
       if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setControlsVisible(value => !value); }
     }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setControlsVisible(false); }}>
-      {!offline && <HlsPlayer ref={player} src={`/live/${camera.id}/index.m3u8`} live controls={false} muted={muted} onAudioAvailable={setHasAudio} />}
+      {!offline && <HlsPlayer ref={player} src={`/live/${camera.id}/index.m3u8`} live controls={false} muted={muted || talkActive} onAudioAvailable={setHasAudio} />}
       {offline && (
         <div className="mi-stream-state">
           <strong className="mi-stream-label"><i className={`status-dot ${camera.status}`} />{offlineLabel}</strong>
@@ -253,7 +260,7 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
       )}
       {notice && !offline && <div className="mi-live-notice" role="status">{notice}</div>}
       {children}
-      <button type="button" className={`mi-camera-control mi-camera-audio${!muted ? ' active' : ''}`} disabled={offline || hasAudio === false} onClick={() => setMuted(value => !value)} aria-pressed={!muted} aria-label={`${muted ? 'Bật' : 'Tắt'} âm thanh ${camera.name}`} title={offline ? 'Camera chưa trực tuyến' : hasAudio === false ? 'Luồng camera không có âm thanh' : `${muted ? 'Bật' : 'Tắt'} âm thanh`} data-audio-state={muted ? 'muted' : 'audible'}><Icon name={muted ? 'volumeMuted' : 'volume'} size={20} /></button>
+      <button type="button" className={`mi-camera-control mi-camera-audio${!muted ? ' active' : ''}`} disabled={offline || hasAudio === false || talkActive} onClick={() => setMuted(value => !value)} aria-pressed={!muted} aria-label={`${muted ? 'Bật' : 'Tắt'} âm thanh ${camera.name}`} title={offline ? 'Camera chưa trực tuyến' : hasAudio === false ? 'Luồng camera không có âm thanh' : `${muted ? 'Bật' : 'Tắt'} âm thanh`} data-audio-state={muted ? 'muted' : 'audible'}><Icon name={muted ? 'volumeMuted' : 'volume'} size={20} /></button>
       <div ref={controls} className="mi-camera-controls" hidden={!controlsVisible}>{actions}<button type="button" className="mi-camera-control mi-camera-close" onClick={onClose} aria-label={`Bỏ ${camera.name} khỏi Live view`} title="Bỏ camera khỏi ô này"><Icon name="close" size={20} /></button></div>
     </div>
   );

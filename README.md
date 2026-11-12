@@ -34,6 +34,7 @@ Logo và icon ứng dụng được tạo bằng Imagegen, dùng cùng một bi�
 
 - **Live view:** mặc định chia lưới 2×2; các ô tự co theo kích thước cửa sổ để không phải cuộn trang, giữ nguyên tỷ lệ video. Khoảng cách giữa các ô 4px, khung không có đệm bên trong, lề ngoài gọn để dành diện tích cho camera. Có thể chuyển sang một camera, 3×3 hoặc 4×4; chọn thiết bị và điều khiển PTZ nếu camera hỗ trợ. Link mở riêng một camera vẫn dùng chế độ một ô. Video tự phát, không có thanh pause/tải lại hay dòng chữ trạng thái phát; nút kết nối lại chỉ xuất hiện khi camera offline. Nút phóng to ở thanh trên mở toàn bộ Live view ra toàn màn hình, giữ nguyên bố cục và camera đang xem; biểu tượng đổi thành thu nhỏ để trở lại. Có thể thoát bằng Esc hoặc Back trên app Android. Nếu trình duyệt không hỗ trợ Fullscreen API, vùng xem được mở rộng trong cửa sổ hiện tại.
 - **Âm thanh:** mỗi ô Live có nút loa ở góc dưới bên trái để bật/tắt tiếng riêng, gồm cả chế độ một camera. Mặc định tắt tiếng; camera ngoại tuyến hoặc luồng không có audio sẽ vô hiệu hóa nút. FFmpeg chuyển audio camera (ví dụ G.711) sang AAC cho Live và recording mới; video recording vẫn copy codec gốc. Playback có nút loa riêng. Các bản ghi cũ đã bị loại audio không thể khôi phục tiếng.
+- **Mic/đàm thoại:** nút mic đỏ cạnh nút toàn màn hình mở danh sách camera. Chọn một hoặc nhiều camera sẵn sàng rồi **nhấn giữ để nói**, nhả để dừng. Có nút **Kiểm tra mic** trong 3 giây, xử lý âm thanh trên thiết bị và không gửi đến camera. Cần HTTPS, quyền mic và camera cung cấp RTSP backchannel G.711A/G.711U mono 8 kHz. Xem giới hạn tương thích và cách bật HTTPS dưới đây.
 - **Điều khiển ô camera:** các nút mặc định ẩn, chạm/nhấn ô để hiện; chạm lại, chạm bên ngoài hoặc chờ 5 giây để ẩn. Các nút cùng kích thước 44×44, icon 20px. Với bàn phím, Tab tới ô rồi nhấn Enter/Space để hiện nút; nút đang được bàn phím chọn không tự ẩn.
 - **Chọn camera vào ô:** chạm ô để hiện **×** ở góc phải, bấm để bỏ camera khỏi ô xem, giữ nguyên vị trí các ô còn lại và không dừng ghi hình. Bấm **+** ở ô trống để mở danh sách tất cả camera; camera đang hiển thị có nhãn **Đang xem**, camera chưa chọn có nút **Chọn** để đưa vào đúng ô vừa bấm. Có tìm kiếm theo tên/IP. Đóng hết camera vẫn giữ các ô trống để chọn lại; khi giảm bố cục, camera ngoài các ô còn hiển thị được bỏ khỏi lựa chọn.
 - **Không gian xem:** nút menu cạnh tiêu đề ẩn/hiện thanh điều hướng và ghi nhớ lựa chọn trên trình duyệt.
@@ -130,6 +131,42 @@ docker compose -f docker-compose.yml -f docker-compose.https.yml exec -T nginx n
 ```
 
 Từ lúc bật HTTPS, các lệnh cập nhật/khởi chạy phải giữ cả hai `-f` ở trên. Đăng xuất các phiên HTTP cũ và đăng nhập lại bằng `https://<hostname>` để nhận cookie Secure. Không bỏ qua cảnh báo chứng chỉ của trình duyệt. Không bật `COOKIE_SECURE=true` khi vẫn dùng HTTP vì trình duyệt sẽ không gửi cookie phiên.
+
+### HTTPS và mic qua Tailscale trên Windows
+
+Đây là lựa chọn thay thế cho cấu hình chứng chỉ riêng ở trên. Máy chủ và thiết bị xem phải kết nối vào tailnet đã được cấp quyền; không mở cổng router hoặc bật Funnel.
+
+1. Cập nhật và khởi chạy Compose thông thường. Nginx tạo upstream HTTPS tại `127.0.0.1:8083`, chỉ nhận kết nối trên loopback của máy chủ. Có thể thay `HTTPS_UPSTREAM_PORT` trong `.env` nếu cổng đang bận; đổi cả địa chỉ đích trong lệnh Serve tương ứng.
+2. Trong PowerShell của **người dùng đang đăng nhập Tailscale** trên Windows, chạy:
+
+```powershell
+& 'C:\Program Files\Tailscale\tailscale.exe' serve --bg --https=443 http://127.0.0.1:8083
+& 'C:\Program Files\Tailscale\tailscale.exe' serve status
+```
+
+3. Nếu CLI đưa một liên kết để bật Serve, mở liên kết bằng tài khoản quản lý tailnet và bật tính năng. CLI sẽ in địa chỉ `https://<ten-may>.<tailnet>.ts.net/`; dùng đúng địa chỉ này, không thay hostname HTTPS bằng IP. Trên máy CAMERA đã cấu hình: `https://camera.taild8cb98.ts.net/live`.
+4. Mở địa chỉ HTTPS trên tablet/điện thoại và đăng nhập web. Trong app Android, nhấn giữ biểu tượng app → **Máy chủ**, thay URL bằng địa chỉ HTTPS vừa nhận. Cài APK 0.2.0 trở lên để có hỗ trợ quyền mic. App chỉ cấp audio cho đúng origin HTTPS đang cấu hình, không cấp camera hay bỏ qua lỗi TLS.
+5. Trong Live, nhấn **mic đỏ** cạnh nút phóng to → **Kiểm tra mic**, cho phép quyền mic nếu hệ thống hỏi. Thanh mức âm thanh phản ứng khi nói. Chọn các camera có trạng thái **Sẵn sàng**, sau đó giữ nút nói. Khi hộp thoại cấp quyền làm ngắt thao tác giữ, nhấn giữ lại sau khi cấp quyền.
+
+Nginx tự đánh dấu đúng HTTPS cho backend trên upstream loopback; cookie được đặt Secure theo từng kết nối HTTPS. HTTP LAN hiện có vẫn hoạt động với `COOKIE_SECURE=false`; nếu chỉ dùng HTTPS có thể bật `COOKIE_SECURE=true`. Cổng HTTP thường luôn ghi đè header `X-Forwarded-Proto` từ máy khách, không chấp nhận header giả mạo để mở đàm thoại.
+
+Để tắt proxy HTTPS, chạy `tailscale serve --https=443 off` trong phiên người dùng sở hữu Tailscale. Tham khảo [Tailscale Serve](https://tailscale.com/docs/reference/tailscale-cli/serve).
+
+### Tương thích đàm thoại và giới hạn hiện tại
+
+- Backend xác thực RTSP với tài khoản camera, kiểm tra SDP có audio **recvonly** rõ ràng dành cho loa, rồi mở SETUP/PLAY qua TCP và gửi RTP G.711. Luồng audio đầu vào thông thường không được coi là kênh loa. Không gửi URL/mật khẩu camera trong API đàm thoại.
+- Chọn tối đa 16 camera; một camera chỉ nhận một cuộc đàm thoại cùng lúc. Âm thanh được phát theo frame 20 ms; hàng đợi giới hạn 500 ms, không tạo bản thu mic riêng; recording vẫn giữ audio do camera gửi về. Khi nhả nút, rời trang, ẩn app, mất mạng, thay cấu hình, đăng xuất hoặc hết 60 giây, phiên và hàng đợi bị đóng. Nếu trình duyệt mất kết nối đột ngột, máy chủ tự đóng khi không có audio trong 1,5 giây.
+- Các endpoint mic yêu cầu phiên admin và CSRF như phần cấu hình. Máy chủ xác minh lại quyền/cấu hình camera trong cuộc gọi. Live tạm tắt tiếng các ô trong lúc gửi giọng nói để hạn chế vọng, rồi khôi phục lựa chọn nghe trước đó.
+- **Ba camera Tenda đang dùng chưa nói được qua web.** Kiểm tra ngày 12/11/2026: RH7V2.0 và hai CT3V1.0 không công bố RTSP backchannel trên các profile chính/phụ. Hai CT3 có cấu hình audio output/decoder ONVIF; thử gắn chúng vào profile tạm vẫn không tạo kênh nhận tiếng, và profile tạm đã được xóa. Nút mic hiển thị lý do chưa tương thích và không bật trạng thái đang nói cho các camera này. TDSEE vẫn đàm thoại được bằng giao thức của hãng; cần API/SDK tương thích để bổ sung adapter Tenda. Không coi việc có loa hoặc hỗ trợ ONVIF là xác nhận có RTSP talkback.
+- Luồng G.711/RTSP, broadcast, ngắt mic và giới hạn quyền đã được kiểm thử bằng máy chủ RTSP kiểm thử. Kiểm thử giao thức không xác nhận loa của camera Tenda đã phát tiếng.
+
+Build và chạy kiểm thử backend từ thư mục project:
+
+```bash
+cd backend
+npm run build
+node --test test/*.test.cjs
+```
 
 ### Cập nhật bản bảo mật trên Windows
 
@@ -437,6 +474,11 @@ docker compose down -v
 Backup `storage/` bằng công cụ backup filesystem/NAS theo lịch; không dùng `docker compose down -v` nếu chưa có backup DB.
 
 ## API
+
+- `POST /api/talk/capabilities`: kiểm tra các `camera_ids` đã lưu, không sửa cấu hình camera.
+- `POST /api/talk/sessions`: mở đàm thoại cho `camera_ids` (HTTPS, admin).
+- `POST /api/talk/sessions/:id/audio`: PCM 16-bit LE mono 8 kHz, `application/octet-stream`, header `X-Audio-Sequence` bắt đầu từ 0; mỗi gói 20–400 ms, tối đa 6400 byte.
+- `DELETE /api/talk/sessions/:id`: dừng ngay cuộc đàm thoại thuộc đúng phiên đăng nhập.
 
 - `POST /api/auth/login`
 - `GET /api/auth/session` — kiểm tra cookie và lấy user/token CSRF
