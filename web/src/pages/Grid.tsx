@@ -16,6 +16,43 @@ export default function Grid() {
   const [layout, setLayout] = useState<LayoutSize>(focusedCameraId > 0 ? 1 : 4);
   const [featuredCameraId, setFeaturedCameraId] = useState<number | null>(null);
   const [err, setErr] = useState('');
+  const livePage = useRef<HTMLElement>(null);
+  const [nativeFullscreen, setNativeFullscreen] = useState(false);
+  const [expandedView, setExpandedView] = useState(false);
+  const fullscreen = nativeFullscreen || expandedView;
+
+  useEffect(() => {
+    const element = livePage.current;
+    const update = () => setNativeFullscreen(document.fullscreenElement === element);
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setExpandedView(false); };
+    document.addEventListener('fullscreenchange', update);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('fullscreenchange', update);
+      document.removeEventListener('keydown', escape);
+      if (document.fullscreenElement && element?.contains(document.fullscreenElement)) void document.exitFullscreen().catch(() => undefined);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!fullscreen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, [fullscreen]);
+
+  async function toggleFullscreen() {
+    if (document.fullscreenElement === livePage.current) {
+      await document.exitFullscreen().catch(() => undefined);
+    } else if (expandedView) {
+      setExpandedView(false);
+    } else if (livePage.current?.requestFullscreen) {
+      try { await livePage.current.requestFullscreen({ navigationUI: 'hide' }); }
+      catch { setExpandedView(true); }
+    } else {
+      setExpandedView(true);
+    }
+  }
 
   useEffect(() => {
     api.listCameras().then((items) => {
@@ -56,7 +93,7 @@ export default function Grid() {
     [layout, selectedCameras]
   );
   return (
-    <section className="mi-live-page">
+    <section className={`mi-live-page${fullscreen ? ' is-fullscreen' : ''}`} ref={livePage}>
       <PageHeader title="Live view" actions={<div className="mi-live-actions">
           <details className="mi-camera-picker">
             <summary><Icon name="video" size={18} />{selected.size} camera <Icon name="chevronDown" size={15} /></summary>
@@ -65,6 +102,7 @@ export default function Grid() {
           <div className="mi-layout-picker" role="group" aria-label="Bố cục camera">
             {([1, 4, 9, 16] as LayoutSize[]).map((size) => <button key={size} className={layout === size ? 'active' : ''} type="button" onClick={() => setLayout(size)} title={`Bố cục ${size} camera`}>{size === 1 ? '1' : size === 4 ? '2×2' : size === 9 ? '3×3' : '4×4'}</button>)}
           </div>
+          <button type="button" className="mi-live-fullscreen-button" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen} aria-label={fullscreen ? 'Thoát toàn màn hình Live view' : 'Toàn màn hình Live view'} title={fullscreen ? 'Thoát toàn màn hình' : 'Toàn màn hình Live view'}><Icon name={fullscreen ? 'minimize' : 'maximize'} size={18} /><span>{fullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}</span></button>
         </div>} />
 
       {err && <div className="notice error">Không tải được camera: {err}</div>}

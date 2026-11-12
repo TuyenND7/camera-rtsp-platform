@@ -5,7 +5,8 @@ export type IconName =
   | 'monitor' | 'pause' | 'play' | 'refresh' | 'rewind' | 'search' | 'settings'
   | 'skipBack' | 'skipForward' | 'user' | 'video' | 'zoomIn' | 'zoomOut'
   | 'server' | 'shield' | 'plus' | 'close' | 'logout' | 'chevronRight'
-  | 'database' | 'bell' | 'check' | 'edit' | 'trash' | 'menu' | 'network';
+  | 'database' | 'bell' | 'check' | 'edit' | 'trash' | 'menu' | 'network'
+  | 'maximize' | 'minimize';
 
 export default function Icon({ name, size = 20, stroke = 1.8, className }: { name: IconName; size?: number; stroke?: number; className?: string }) {
   const common = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: stroke, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true };
@@ -22,6 +23,8 @@ export default function Icon({ name, size = 20, stroke = 1.8, className }: { nam
     edit: <><path d="m15 4 5 5M4 20l5-1L21 7a2.1 2.1 0 0 0-5-5L4 14Z"/></>,
     trash: <><path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7"/></>,
     menu: <path d="M4 6h16M4 12h16M4 18h16"/>,
+    maximize: <path d="M8 3H3v5M16 3h5v5M21 16v5h-5M3 16v5h5"/>,
+    minimize: <path d="M3 8h5V3M16 3v5h5M21 16h-5v5M8 21v-5H3"/>,
     network: <><rect x="8" y="3" width="8" height="6" rx="1"/><rect x="2" y="16" width="7" height="5" rx="1"/><rect x="15" y="16" width="7" height="5" rx="1"/><path d="M12 9v4M5.5 16v-3h13v3"/></>,
     camera: <><path d="m2 7 3-2h7l2 2h4a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><circle cx="11.5" cy="13" r="3"/></>,
     chevronDown: <path d="m6 9 6 6 6-6"/>,

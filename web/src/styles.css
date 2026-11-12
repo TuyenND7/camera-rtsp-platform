@@ -101,6 +101,8 @@ label > small { display: block; margin-top: 7px; color: var(--muted); font-size:
 .app-footer { display: flex; justify-content: space-between; gap: 20px; padding: 8px 32px 20px; color: #95a7be; font-size: 9px; }
 .nav-toggle { display: none; }
 .page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; margin-bottom: 25px; }
+.page-heading-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.sidebar-visibility-toggle { flex-shrink: 0; width: 38px; height: 38px; min-height: 38px; }
 .page-heading p { margin-top: 8px; color: #7d93b0; font-size: 13px; line-height: 1.75; }
 .page-actions { display: flex; align-items: center; flex-shrink: 0; flex-wrap: wrap; gap: 10px; padding-top: 2px; }
 .panel { min-width: 0; margin-bottom: 20px; padding: 23px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
@@ -487,6 +489,17 @@ tbody tr:last-child td { border-bottom: 0; }
 .simple-shell.live-shell .app-main { display: flex; flex-direction: column; max-width: none; min-height: 0; padding: 20px 24px; overflow: hidden; }
 .live-shell .mi-live-page { display: flex; flex: 1; flex-direction: column; gap: 14px; min-width: 0; min-height: 0; }
 .simple-shell.live-shell .page-heading { flex-shrink: 0; margin: 0; }
+.simple-shell.live-shell .mi-live-page > .page-heading { flex-wrap: wrap; gap: 10px; }
+.mi-live-page .page-actions { max-width: 100%; }
+.mi-live-page .mi-live-actions { flex-wrap: wrap; gap: 8px; }
+.mi-live-fullscreen-button { min-height: 37px; padding: 6px 10px; font-size: 11px; }
+.live-shell .mi-live-page:fullscreen, .live-shell .mi-live-page.is-fullscreen { position: fixed; inset: 0; z-index: 60; flex: none; width: 100%; height: 100dvh; max-width: none; padding: 16px; background: #f5f8fc; overflow: hidden; }
+.mi-live-page:fullscreen .sidebar-visibility-toggle, .mi-live-page.is-fullscreen .sidebar-visibility-toggle { display: none; }
+@media (min-width: 761px) {
+  .simple-shell.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .sidebar-collapsed .app-sidebar { display: none; }
+  .sidebar-collapsed .app-body { grid-column: 1; }
+}
 .live-shell .mi-camera-grid { flex: 1; min-height: 0; gap: 12px; grid-template-columns: repeat(var(--live-grid-size), minmax(0, 1fr)); grid-template-rows: repeat(var(--live-grid-size), minmax(0, 1fr)); }
 .live-shell .layout-4 { --live-grid-size: 2; }
 .live-shell .layout-9 { --live-grid-size: 3; }
@@ -513,12 +526,17 @@ tbody tr:last-child td { border-bottom: 0; }
   .live-shell .mi-live-page { gap: 10px; }
 }
 @media (max-width: 760px) {
+  .page-heading .sidebar-visibility-toggle { display: none; }
+  .app-sidebar { visibility: hidden; }
+  .app-sidebar.open { visibility: visible; }
   .simple-shell.live-shell .app-main { padding: 12px; }
   .live-shell .mi-camera-grid { gap: 8px; }
   .live-shell .mi-live-focus { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
   .live-shell .mi-device-panel { max-height: 28dvh; }
 }
 @media (max-width: 480px) {
+  .mi-live-fullscreen-button { width: 37px; padding: 0; }
+  .mi-live-fullscreen-button > span { display: none; }
   .simple-shell.live-shell .page-heading { gap: 8px; }
   .simple-shell.live-shell .mi-live-page .page-actions { padding: 0; }
   .live-shell .mi-camera-card { padding: 3px; border-radius: 8px; }

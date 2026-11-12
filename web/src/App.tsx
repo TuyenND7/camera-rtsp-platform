@@ -9,6 +9,7 @@ import Storage from './pages/Storage';
 import { api, SessionUser, StorageStatus } from './api';
 import Icon from './Icon';
 import { isUiPreview } from './preview';
+import { NavigationContext } from './ui';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SessionUser | null | undefined>();
@@ -30,6 +31,11 @@ function Layout({ children, user: sessionUser }: { children: React.ReactNode; us
   const [storage, setStorage] = useState<StorageStatus | null>(null);
   const [connected, setConnected] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 760px)').matches);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('camera-station.sidebar-collapsed') === 'true'; }
+    catch { return false; }
+  });
   const user = sessionUser.username;
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState('');
@@ -44,6 +50,21 @@ function Layout({ children, user: sessionUser }: { children: React.ReactNode; us
     return () => { cancelled = true; clearInterval(timer); clearInterval(storageTimer); };
   }, []);
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 760px)');
+    const update = () => { setIsMobile(media.matches); setMobileOpen(false); };
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem('camera-station.sidebar-collapsed', String(sidebarCollapsed)); }
+    catch { /* Navigation still works when storage is unavailable. */ }
+  }, [sidebarCollapsed]);
+  const navigationExpanded = isMobile ? mobileOpen : !sidebarCollapsed;
+  function toggleNavigation() {
+    if (isMobile) setMobileOpen(value => !value);
+    else setSidebarCollapsed(value => !value);
+  }
   async function logout() {
     setLoggingOut(true); setLogoutError('');
     try { await api.logout(); navigate('/login'); }
@@ -51,15 +72,15 @@ function Layout({ children, user: sessionUser }: { children: React.ReactNode; us
     finally { setLoggingOut(false); }
   }
 
-  return <div className={`app-shell simple-shell${location.pathname === '/live' ? ' live-shell' : ''}`}>
-    {mobileOpen && <button className="sidebar-shade" aria-label="Đóng điều hướng" onClick={() => setMobileOpen(false)} />}
-    <aside className={`app-sidebar ${mobileOpen ? 'open' : ''}`}>
+  return <NavigationContext.Provider value={{ expanded: navigationExpanded, toggle: toggleNavigation }}><div className={`app-shell simple-shell${location.pathname === '/live' ? ' live-shell' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+    {isMobile && mobileOpen && <button className="sidebar-shade" aria-label="Đóng điều hướng" onClick={() => setMobileOpen(false)} />}
+    <aside id="app-navigation" className={`app-sidebar ${mobileOpen ? 'open' : ''}`} aria-hidden={!navigationExpanded}>
       <Link to="/live" className="app-brand" aria-label="Camera Station"><img className="brand-image" src="/brand/camera-mark.png" alt="" width="42" height="42" /><strong>Camera Station</strong></Link>
       <nav className="app-nav" aria-label="Điều hướng chính"><NavLink to="/live"><Icon name="monitor" /><span>Live view</span></NavLink><NavLink to="/playback"><Icon name="clock" /><span>Playback</span></NavLink><NavLink to="/cameras"><Icon name="settings" /><span>Thiết bị</span></NavLink><NavLink to="/events"><Icon name="bell" /><span>Sự kiện</span></NavLink></nav>
       <div className="sidebar-bottom"><span className="sidebar-server"><i className={`status-dot ${connected ? 'online' : 'error'}`} />{isUiPreview ? 'Xem trước UI · dữ liệu mẫu' : connected ? 'Máy chủ trực tuyến' : 'Mất kết nối máy chủ'}</span><Link to="/playback" className={`simple-storage-link ${storage && storage.used_percent >= storage.cleanup_threshold_percent ? 'warning' : ''}`}><Icon name="database" size={16} /><span>Lưu trữ</span><b>{storage ? `${storage.used_percent}%` : '—'}</b></Link><div className="account"><span className="account-avatar">{user.slice(0, 1).toUpperCase()}</span><span><b>{user}</b></span><button type="button" onClick={() => void logout()} disabled={loggingOut} title="Đăng xuất" aria-label="Đăng xuất"><Icon name="logout" size={18} /></button></div></div>
     </aside>
-    <div className="app-body"><header className="app-topbar"><button type="button" className="icon-button nav-toggle" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Mở điều hướng" aria-expanded={mobileOpen}><Icon name="menu" /></button><span>{page}{isUiPreview ? ' · UI mẫu' : ''}</span></header><main className="app-main">{logoutError && <div className="notice error" role="alert">{logoutError}</div>}{children}</main></div>
-  </div>;
+    <div className="app-body"><header className="app-topbar"><button type="button" className="icon-button nav-toggle" onClick={toggleNavigation} aria-controls="app-navigation" aria-label={navigationExpanded ? 'Ẩn menu' : 'Hiện menu'} aria-expanded={navigationExpanded}><Icon name="menu" /></button><span>{page}{isUiPreview ? ' · UI mẫu' : ''}</span></header><main className="app-main">{logoutError && <div className="notice error" role="alert">{logoutError}</div>}{children}</main></div>
+  </div></NavigationContext.Provider>;
 }
 
 export default function App() {
