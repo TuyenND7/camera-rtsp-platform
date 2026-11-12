@@ -4,7 +4,8 @@ import { api, Camera } from '../api';
 import HlsPlayer, { HlsPlayerHandle } from '../HlsPlayer';
 import Icon from '../Icon';
 import PtzPanel from '../PtzPanel';
-import { EmptyState, PageHeader, statusLabels } from '../ui';
+import LiveDevicePicker from '../LiveDevicePicker';
+import { PageHeader, statusLabels } from '../ui';
 
 type LayoutSize = 1 | 4 | 9 | 16;
 
@@ -12,18 +13,20 @@ export default function Grid() {
   const [searchParams] = useSearchParams();
   const focusedCameraId = Number(searchParams.get('camera'));
   const [cameras, setCameras] = useState<Camera[]>([]);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [slots, setSlots] = useState<Array<number | null>>([]);
   const [layout, setLayout] = useState<LayoutSize>(focusedCameraId > 0 ? 1 : 4);
-  const [featuredCameraId, setFeaturedCameraId] = useState<number | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSlot, setPickerSlot] = useState<number | null>(null);
   const [err, setErr] = useState('');
   useEffect(() => {
     api.listCameras().then((items) => {
       setCameras(items);
       const enabled = items.filter((camera) => camera.enabled);
       const focused = enabled.find((camera) => camera.id === focusedCameraId);
-      setLayout(focused ? 1 : 4);
-      setSelected(new Set((focused ? [focused] : enabled.slice(0, 16)).map((camera) => camera.id)));
-      setFeaturedCameraId((focused ?? enabled[0])?.id ?? null);
+      const size = focused ? 1 : 4;
+      const initial = focused ? [focused] : enabled.slice(0, size);
+      setLayout(size);
+      setSlots(Array.from({ length: size }, (_, index) => initial[index]?.id ?? null));
     }).catch((error) => setErr(error.message));
   }, [focusedCameraId]);
 
@@ -35,56 +38,66 @@ export default function Grid() {
     return () => window.clearInterval(timer);
   }, []);
 
-  function toggle(id: number) {
-    setSelected((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      if (!next.has(featuredCameraId ?? -1)) setFeaturedCameraId(Array.from(next)[0] ?? null);
-      return next;
-    });
+  const cameraById = useMemo(() => new Map(cameras.map(camera => [camera.id, camera])), [cameras]);
+  const visible = useMemo(
+    () => Array.from({ length: layout }, (_, index) => cameraById.get(slots[index] ?? -1) ?? null),
+    [cameraById, layout, slots]
+  );
+  const selected = useMemo(() => new Set(visible.flatMap(camera => camera ? [camera.id] : [])), [visible]);
+
+  function changeLayout(size: LayoutSize) {
+    setLayout(size);
+    setSlots(current => Array.from({ length: size }, (_, index) => current[index] ?? null));
+    setPickerOpen(false);
   }
 
-  const selectedCameras = useMemo(
-    () => cameras.filter((camera) => selected.has(camera.id)),
-    [cameras, selected]
-  );
-  const featuredCamera = selectedCameras.find((camera) => camera.id === featuredCameraId) ?? selectedCameras[0];
-  const visible = useMemo(
-    () => selectedCameras.slice(0, layout),
-    [layout, selectedCameras]
-  );
+  function closeSlot(index: number) {
+    setSlots(current => current.map((id, slot) => slot === index ? null : id));
+  }
+
+  function openPicker(index?: number) {
+    const firstEmpty = visible.findIndex(camera => !camera);
+    setPickerSlot(index ?? (firstEmpty >= 0 ? firstEmpty : null));
+    setPickerOpen(true);
+  }
+
+  function chooseCamera(id: number, index: number) {
+    if (!cameraById.has(id) || index < 0 || index >= layout) return;
+    setSlots(current => {
+      if (current.includes(id)) return current;
+      return Array.from({ length: layout }, (_, slot) => slot === index ? id : current[slot] ?? null);
+    });
+    setPickerOpen(false);
+  }
   return (
     <section className="mi-live-page">
       <PageHeader title="Live view" actions={<div className="mi-live-actions">
-          <details className="mi-camera-picker">
-            <summary><Icon name="video" size={18} />{selected.size} camera <Icon name="chevronDown" size={15} /></summary>
-            <div>{cameras.map((camera) => <label key={camera.id}><input type="checkbox" checked={selected.has(camera.id)} onChange={() => toggle(camera.id)} /><i className={`status-dot ${camera.status}`} />{camera.name}</label>)}</div>
-          </details>
+          <button type="button" className="mi-camera-picker-button" onClick={() => openPicker()} aria-label="Chọn camera Live view"><Icon name="video" size={18} />{selected.size} camera <Icon name="chevronDown" size={15} /></button>
           <div className="mi-layout-picker" role="group" aria-label="Bố cục camera">
-            {([1, 4, 9, 16] as LayoutSize[]).map((size) => <button key={size} className={layout === size ? 'active' : ''} type="button" onClick={() => setLayout(size)} title={`Bố cục ${size} camera`}>{size === 1 ? '1' : size === 4 ? '2×2' : size === 9 ? '3×3' : '4×4'}</button>)}
+            {([1, 4, 9, 16] as LayoutSize[]).map((size) => <button key={size} className={layout === size ? 'active' : ''} type="button" onClick={() => changeLayout(size)} title={`Bố cục ${size} camera`}>{size === 1 ? '1' : size === 4 ? '2×2' : size === 9 ? '3×3' : '4×4'}</button>)}
           </div>
         </div>} />
 
       {err && <div className="notice error">Không tải được camera: {err}</div>}
-      {!err && selectedCameras.length === 0 && <section className="panel"><EmptyState title="Chưa có camera trong màn hình" action={<Link to="/cameras" className="button primary">Thêm thiết bị</Link>}>Thêm camera RTSP/ONVIF hoặc chọn camera ở bộ lọc phía trên.</EmptyState></section>}
-      {!err && selectedCameras.length > 0 && layout === 1 && featuredCamera && <FocusView camera={featuredCamera} cameras={selectedCameras} onChoose={setFeaturedCameraId} />}
-      {!err && selectedCameras.length > 0 && layout !== 1 && <>
+      {!err && layout === 1 && visible[0] && <FocusView camera={visible[0]} cameras={cameras.filter(camera => camera.enabled)} onChoose={id => chooseCamera(id, 0)} onClose={() => closeSlot(0)} />}
+      {!err && (layout !== 1 || !visible[0]) && <>
         <div className={`mi-camera-grid layout-${layout}`}>
-          {visible.map((camera) => <CameraTile key={camera.id} camera={camera} />)}
-          {Array.from({ length: Math.max(0, layout - visible.length) }, (_, index) => <Link key={`empty-${index}`} to="/cameras" className="empty-camera-tile"><Icon name="plus" size={26} /><span>Chưa có camera</span><small>Thêm thiết bị để theo dõi</small></Link>)}
+          {visible.map((camera, index) => camera
+            ? <CameraTile key={`slot-${index}`} camera={camera} onClose={() => closeSlot(index)} />
+            : <button key={`slot-${index}`} type="button" className="empty-camera-tile" onClick={() => openPicker(index)} aria-label={`Chọn camera cho ô ${index + 1}`}><Icon name="plus" size={26} /><span>Chọn camera</span><small>Thêm vào ô {index + 1}</small></button>)}
         </div>
       </>}
+      {pickerOpen && <LiveDevicePicker cameras={cameras} selected={selected} slot={pickerSlot} onChoose={id => { if (pickerSlot !== null) chooseCamera(id, pickerSlot); }} onClose={() => setPickerOpen(false)} />}
     </section>
   );
 }
 
-function FocusView({ camera, cameras, onChoose }: { camera: Camera; cameras: Camera[]; onChoose: (id: number) => void }) {
+function FocusView({ camera, cameras, onChoose, onClose }: { camera: Camera; cameras: Camera[]; onChoose: (id: number) => void; onClose: () => void }) {
   return (
     <>
       <section className="mi-live-focus">
         <article className="mi-featured-camera">
-          <LiveVideo camera={camera} className="mi-featured-video" offlineLabel={camera.status === 'connecting' ? 'Đang kết nối camera' : 'Camera chưa online'}>
+          <LiveVideo camera={camera} className="mi-featured-video" offlineLabel={camera.status === 'connecting' ? 'Đang kết nối camera' : 'Camera chưa online'} onClose={onClose}>
             <div className="mi-featured-title"><i className={`status-dot ${camera.status}`} /><div><span>LIVE CAMERA</span><strong>{camera.name}</strong></div></div>
           </LiveVideo>
         </article>
@@ -105,10 +118,10 @@ function cameraHost(url: string): string {
   try { return new URL(url).hostname; } catch { return 'Camera RTSP'; }
 }
 
-function CameraTile({ camera }: { camera: Camera }) {
+function CameraTile({ camera, onClose }: { camera: Camera; onClose: () => void }) {
   return (
     <article className="mi-camera-card">
-      <LiveVideo camera={camera} className="mi-camera-video" offlineLabel={camera.status === 'connecting' ? 'Đang kết nối' : 'Camera chưa online'}>
+      <LiveVideo camera={camera} className="mi-camera-video" offlineLabel={camera.status === 'connecting' ? 'Đang kết nối' : 'Camera chưa online'} onClose={onClose}>
         <div className="mi-camera-overlay">
           <div><i className={`status-dot ${camera.status}`} /><strong>{camera.name}</strong><small>{statusLabels[camera.status] ?? camera.status}</small></div>
           <div className="mi-camera-card-actions"><Link to={`/live?camera=${camera.id}`} title="Chỉ xem camera này"><Icon name="monitor" size={17} /></Link><Link to={`/playback/${camera.id}`} title="Xem Playback"><Icon name="clock" size={17} /></Link></div>
@@ -119,16 +132,14 @@ function CameraTile({ camera }: { camera: Camera }) {
 }
 
 /**
- * Khung live + nút Tải lại. Tự tải lại player khi camera chuyển sang online
- * (sau khi mất kết nối). Khi camera chưa online, nút còn yêu cầu backend kết nối
- * lại ngay và tìm IP mới nếu router đã đổi IP camera.
+ * Tự tải lại player khi camera chuyển sang online sau khi mất kết nối.
+ * Nút kết nối lại chỉ hiện khi camera offline để tìm lại IP nếu DHCP đã đổi.
  */
-function LiveVideo({ camera, className, offlineLabel, children }: { camera: Camera; className: string; offlineLabel: string; children: React.ReactNode }) {
+function LiveVideo({ camera, className, offlineLabel, children, onClose }: { camera: Camera; className: string; offlineLabel: string; children: React.ReactNode; onClose: () => void }) {
   const player = useRef<HlsPlayerHandle>(null);
   const previousStatus = useRef(camera.status);
   const [reconnecting, setReconnecting] = useState(false);
   const [notice, setNotice] = useState('');
-  const [playing, setPlaying] = useState(false);
   const offline = camera.status !== 'online';
 
   useEffect(() => {
@@ -162,7 +173,7 @@ function LiveVideo({ camera, className, offlineLabel, children }: { camera: Came
 
   return (
     <div className={className}>
-      <HlsPlayer ref={player} src={`/live/${camera.id}/index.m3u8`} live controls={false} onPlayingChange={setPlaying} />
+      <HlsPlayer ref={player} src={`/live/${camera.id}/index.m3u8`} live controls={false} />
       {offline && (
         <div className="mi-stream-state">
           <i className={`status-dot ${camera.status}`} />{offlineLabel}
@@ -171,7 +182,7 @@ function LiveVideo({ camera, className, offlineLabel, children }: { camera: Came
       )}
       {notice && <div className="mi-live-notice" role="status">{notice}</div>}
       {children}
-      <div className="live-media-bar"><button type="button" onClick={() => player.current?.togglePlay()} aria-label={playing ? `Tạm dừng ${camera.name}` : `Phát ${camera.name}`} title={playing ? 'Tạm dừng' : 'Phát'}><Icon name={playing ? 'pause' : 'play'} size={18} /></button><button type="button" className={reconnecting ? 'busy' : ''} onClick={() => void reload()} disabled={reconnecting} title="Tải lại luồng live" aria-label={`Tải lại luồng live ${camera.name}`}><Icon name="refresh" size={18} /></button></div>
+      <button type="button" className="mi-camera-close" onClick={onClose} aria-label={`Bỏ ${camera.name} khỏi Live view`} title="Bỏ camera khỏi ô này"><Icon name="close" size={19} /></button>
     </div>
   );
 }
