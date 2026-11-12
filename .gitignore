@@ -23,3 +23,11 @@ npm-debug.log*
 
 # os
 .DS_Store
+
+# Android local configuration and generated files
+android/.gradle/
+android/.idea/
+android/**/build/
+android/local.properties
+*.jks
+*.keystore

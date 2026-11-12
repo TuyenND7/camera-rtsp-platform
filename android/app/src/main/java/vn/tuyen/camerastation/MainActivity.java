@@ -1,0 +1,361 @@
+package vn.tuyen.camerastation;
+
+import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Intent;
+import android.graphics.Color;
+import android.net.Uri;
+import android.net.http.SslError;
+import android.os.Build;
+import android.os.Bundle;
+import android.text.InputType;
+import android.view.Gravity;
+import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.view.WindowManager;
+import android.webkit.CookieManager;
+import android.webkit.SslErrorHandler;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.PopupMenu;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+
+public final class MainActivity extends Activity {
+    private static final String DEFAULT_URL = "http://camera.local:8081/live";
+    private static final int INK = Color.rgb(31, 59, 96);
+    private FrameLayout root;
+    private LinearLayout content;
+    private WebView webView;
+    private ProgressBar progress;
+    private LinearLayout errorPanel;
+    private TextView errorMessage;
+    private String serverUrl;
+    private boolean pageFailed;
+    private View fullscreenView;
+    private WebChromeClient.CustomViewCallback fullscreenCallback;
+
+    @Override
+    public void onCreate(Bundle state) {
+        super.onCreate(state);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        serverUrl = getPreferences(MODE_PRIVATE).getString("server_url", DEFAULT_URL);
+        createViews();
+        configureWebView();
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(0, this::navigateBack);
+        }
+        if (state == null || webView.restoreState(state) == null) webView.loadUrl(serverUrl);
+    }
+
+    private void createViews() {
+        root = new FrameLayout(this);
+        root.setBackgroundColor(Color.WHITE);
+        content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        root.addView(content, new FrameLayout.LayoutParams(-1, -1));
+
+        LinearLayout toolbar = new LinearLayout(this);
+        toolbar.setGravity(Gravity.CENTER_VERTICAL);
+        toolbar.setPadding(dp(12), 0, dp(4), 0);
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.camera_mark);
+        toolbar.addView(icon, new LinearLayout.LayoutParams(dp(26), dp(26)));
+        TextView title = new TextView(this);
+        title.setText(R.string.app_name);
+        title.setTextColor(INK);
+        title.setTextSize(15);
+        title.setPadding(dp(10), 0, 0, 0);
+        toolbar.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        ImageButton reload = toolbarButton(R.drawable.ic_refresh, R.string.reload);
+        reload.setOnClickListener(view -> reload());
+        toolbar.addView(reload);
+        ImageButton menu = toolbarButton(R.drawable.ic_more, R.string.menu);
+        menu.setOnClickListener(this::showMenu);
+        toolbar.addView(menu);
+        content.addView(toolbar, new LinearLayout.LayoutParams(-1, dp(48)));
+
+        progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        progress.setVisibility(View.INVISIBLE);
+        content.addView(progress, new LinearLayout.LayoutParams(-1, dp(2)));
+        FrameLayout page = new FrameLayout(this);
+        content.addView(page, new LinearLayout.LayoutParams(-1, 0, 1));
+        webView = new WebView(this);
+        webView.setBackgroundColor(Color.rgb(245, 248, 252));
+        page.addView(webView, new FrameLayout.LayoutParams(-1, -1));
+
+        errorPanel = new LinearLayout(this);
+        errorPanel.setOrientation(LinearLayout.VERTICAL);
+        errorPanel.setGravity(Gravity.CENTER);
+        errorPanel.setPadding(dp(28), dp(20), dp(28), dp(20));
+        errorPanel.setBackgroundColor(Color.rgb(245, 248, 252));
+        TextView heading = new TextView(this);
+        heading.setText(R.string.connection_error);
+        heading.setTextSize(21);
+        heading.setTextColor(INK);
+        heading.setGravity(Gravity.CENTER);
+        errorPanel.addView(heading);
+        errorMessage = new TextView(this);
+        errorMessage.setTextColor(Color.rgb(82, 111, 148));
+        errorMessage.setTextSize(14);
+        errorMessage.setGravity(Gravity.CENTER);
+        errorMessage.setPadding(0, dp(14), 0, dp(20));
+        errorPanel.addView(errorMessage);
+        Button retry = new Button(this);
+        retry.setText(R.string.retry);
+        retry.setOnClickListener(view -> reload());
+        errorPanel.addView(retry);
+        Button change = new Button(this);
+        change.setText(R.string.server);
+        change.setOnClickListener(view -> showServerDialog());
+        errorPanel.addView(change);
+        errorPanel.setVisibility(View.GONE);
+        page.addView(errorPanel, new FrameLayout.LayoutParams(-1, -1));
+        setContentView(root);
+        if (Build.VERSION.SDK_INT >= 30) {
+            getWindow().setDecorFitsSystemWindows(false);
+            root.setOnApplyWindowInsetsListener((view, insets) -> {
+                android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                int keyboard = insets.getInsets(WindowInsets.Type.ime()).bottom;
+                view.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, keyboard));
+                return insets;
+            });
+        }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private void configureWebView() {
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        settings.setSupportMultipleWindows(false);
+        CookieManager.getInstance().setAcceptCookie(true);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
+        WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                if (!request.isForMainFrame()) return false;
+                Uri uri = request.getUrl();
+                if (sameOrigin(uri, Uri.parse(serverUrl))) return false;
+                if ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme())) {
+                    startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                }
+                return true;
+            }
+
+            @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                pageFailed = false;
+                errorPanel.setVisibility(View.GONE);
+                progress.setVisibility(View.VISIBLE);
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                progress.setVisibility(View.INVISIBLE);
+                CookieManager.getInstance().flush();
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (request.isForMainFrame()) showError(getString(R.string.connection_help));
+            }
+
+            @Override
+            public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
+                if (request.isForMainFrame() && response.getStatusCode() >= 500) showError(getString(R.string.connection_help));
+            }
+
+            @Override
+            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                handler.cancel();
+                showError(getString(R.string.tls_error));
+            }
+        });
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onProgressChanged(WebView view, int value) {
+                progress.setProgress(value);
+                if (value == 100 || pageFailed) progress.setVisibility(View.INVISIBLE);
+            }
+
+            @Override
+            public void onShowCustomView(View view, CustomViewCallback callback) {
+                if (fullscreenView != null) { callback.onCustomViewHidden(); return; }
+                fullscreenView = view;
+                fullscreenCallback = callback;
+                content.setVisibility(View.GONE);
+                root.addView(view, new FrameLayout.LayoutParams(-1, -1));
+                setFullscreen(true);
+            }
+
+            @Override
+            public void onHideCustomView() { exitFullscreen(); }
+        });
+    }
+
+    private void showMenu(View anchor) {
+        PopupMenu menu = new PopupMenu(this, anchor);
+        menu.getMenu().add(R.string.server).setOnMenuItemClickListener(item -> { showServerDialog(); return true; });
+        menu.getMenu().add(R.string.open_browser).setOnMenuItemClickListener(item -> {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(serverUrl)));
+            return true;
+        });
+        menu.show();
+    }
+
+    private void showServerDialog() {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setSelectAllOnFocus(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        input.setText(serverUrl);
+        input.setHint(R.string.server_hint);
+        LinearLayout container = new LinearLayout(this);
+        container.setPadding(dp(24), dp(8), dp(24), 0);
+        container.addView(input, new LinearLayout.LayoutParams(-1, -2));
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(R.string.server).setView(container)
+            .setNegativeButton(R.string.cancel, null).setPositiveButton(R.string.connect, null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
+            String url = normalizeServerUrl(input.getText().toString());
+            if (url == null) { input.setError(getString(R.string.invalid_url)); return; }
+            serverUrl = url;
+            getPreferences(MODE_PRIVATE).edit().putString("server_url", url).apply();
+            webView.stopLoading();
+            webView.clearHistory();
+            webView.loadUrl(url);
+            dialog.dismiss();
+        }));
+        dialog.show();
+    }
+
+    private static String normalizeServerUrl(String input) {
+        try {
+            URI uri = new URI(input.trim());
+            String scheme = uri.getScheme();
+            if (!("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) || uri.getHost() == null
+                || uri.getRawUserInfo() != null || uri.getRawFragment() != null || uri.getPort() > 65535 || uri.getPort() == 0) return null;
+            String path = uri.getRawPath();
+            return new URI(scheme.toLowerCase(java.util.Locale.ROOT), null, uri.getHost(), uri.getPort(),
+                path == null || path.isEmpty() || "/".equals(path) ? "/live" : uri.getPath(), uri.getQuery(), null).toASCIIString();
+        } catch (URISyntaxException exception) { return null; }
+    }
+
+    private static boolean sameOrigin(Uri left, Uri right) {
+        int leftPort = left.getPort() == -1 ? ("https".equals(left.getScheme()) ? 443 : 80) : left.getPort();
+        int rightPort = right.getPort() == -1 ? ("https".equals(right.getScheme()) ? 443 : 80) : right.getPort();
+        return left.getScheme() != null && left.getScheme().equalsIgnoreCase(right.getScheme())
+            && left.getHost() != null && left.getHost().equalsIgnoreCase(right.getHost()) && leftPort == rightPort;
+    }
+
+    private void reload() {
+        exitFullscreen();
+        if (pageFailed || webView.getUrl() == null) webView.loadUrl(serverUrl);
+        else webView.reload();
+    }
+
+    private void showError(String message) {
+        pageFailed = true;
+        progress.setVisibility(View.INVISIBLE);
+        errorMessage.setText(getString(R.string.error_details, message, serverUrl));
+        errorPanel.setVisibility(View.VISIBLE);
+    }
+
+    private void setFullscreen(boolean enabled) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            WindowInsetsController controller = getWindow().getInsetsController();
+            if (controller == null) return;
+            if (enabled) {
+                controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                controller.hide(WindowInsets.Type.systemBars());
+            } else controller.show(WindowInsets.Type.systemBars());
+        } else {
+            getWindow().getDecorView().setSystemUiVisibility(enabled ? View.SYSTEM_UI_FLAG_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        }
+    }
+
+    private void exitFullscreen() {
+        if (fullscreenView == null) return;
+        root.removeView(fullscreenView);
+        fullscreenView = null;
+        content.setVisibility(View.VISIBLE);
+        setFullscreen(false);
+        WebChromeClient.CustomViewCallback callback = fullscreenCallback;
+        fullscreenCallback = null;
+        if (callback != null) callback.onCustomViewHidden();
+    }
+
+    private void navigateBack() {
+        if (fullscreenView != null) exitFullscreen();
+        else if (webView.canGoBack()) webView.goBack();
+        else moveTaskToBack(true);
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() { navigateBack(); }
+
+    @Override
+    protected void onSaveInstanceState(Bundle state) {
+        webView.saveState(state);
+        super.onSaveInstanceState(state);
+    }
+
+    @Override
+    protected void onPause() {
+        webView.onPause();
+        CookieManager.getInstance().flush();
+        super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        webView.onResume();
+    }
+
+    @Override
+    protected void onDestroy() {
+        exitFullscreen();
+        webView.stopLoading();
+        ((FrameLayout) webView.getParent()).removeView(webView);
+        webView.destroy();
+        super.onDestroy();
+    }
+
+    private ImageButton toolbarButton(int image, int description) {
+        ImageButton button = new ImageButton(this);
+        button.setLayoutParams(new LinearLayout.LayoutParams(dp(48), -1));
+        button.setImageResource(image);
+        button.setContentDescription(getString(description));
+        android.util.TypedValue background = new android.util.TypedValue();
+        getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, background, true);
+        button.setBackgroundResource(background.resourceId);
+        return button;
+    }
+
+    private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+}

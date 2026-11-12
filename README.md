@@ -59,6 +59,10 @@ docker compose exec -T nginx nginx -s reload
 
 Kiểm tra code sau khi cài dependency: `npm run build --prefix backend`, `node --test backend/test/*.test.cjs`, `npm run build --prefix web`.
 
+## App Android cho tablet
+
+Thư mục [`android/`](android/README.md) chứa app **Camera Station** mở web trong cửa sổ riêng, mặc định `http://camera.local:8081/live`. Có nút tải lại, đổi máy chủ và hỗ trợ video toàn màn hình. UI tải trực tiếp từ máy chủ nên cập nhật web không cần cài lại APK. Xem hướng dẫn build, cài qua ADB và xem trước UI qua USB trong [android/README.md](android/README.md).
+
 ## Bảo mật và phiên đăng nhập
 
 - Nginx kiểm tra phiên với backend cho **từng playlist, đoạn video, ảnh sự kiện và ảnh preview** tại `/live/`, `/rec/`, `/playback/`, `/events/`, `/thumbs/`. Biết URL hoặc ở cùng LAN không đủ quyền truy cập. Không có ngoại lệ cho IP Docker/LAN, không truyền token trong URL, không cache kết quả xác thực.
