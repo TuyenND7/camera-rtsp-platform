@@ -42,7 +42,7 @@ for(const auth of ['Basic','Digest'])test(`RTSP ${auth} handshake sends real RTP
  }finally{client.close();await fake.close()}
 });
 test('unsupported camera probes never PLAY, SETUP or expose credentials',async()=>{
- const fake=await camera({noBackchannel:true}),manager=new TalkManager();try{const r=await manager.probe({id:1,rtsp_url:fake.url});assert.equal(r.supported,false);assert.ok(!JSON.stringify(r).includes('fixture-password'));assert.ok(!fake.methods.includes('SETUP')&&!fake.methods.includes('PLAY'))}finally{manager.close();await fake.close()}
+ const fake=await camera({noBackchannel:true}),manager=new TalkManager();try{const c={id:1,rtsp_url:fake.url},r=await manager.probe(c);assert.equal(r.supported,false);assert.ok(!JSON.stringify(r).includes('fixture-password'));assert.ok(!fake.methods.includes('SETUP')&&!fake.methods.includes('PLAY'));const count=fake.methods.length;await manager.probe(c);assert.equal(fake.methods.length,count)}finally{manager.close();await fake.close()}
 });
 test('broadcast reaches two camera codecs; ownership, ordering and exclusivity are enforced',async()=>{
  const a=await camera(),b=await camera({codec:'PCMU'}),m=new TalkManager();try{

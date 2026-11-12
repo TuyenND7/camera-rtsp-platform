@@ -118,8 +118,8 @@ export default function Grid() {
             {([1, 4, 9, 16] as LayoutSize[]).map((size) => <button key={size} className={layout === size ? 'active' : ''} type="button" onClick={() => changeLayout(size)} title={`Bố cục ${size} camera`}>{size === 1 ? '1' : size === 4 ? '2×2' : size === 9 ? '3×3' : '4×4'}</button>)}
           </div>
           <div className="mi-live-utility-actions">
-          <button type="button" className="mi-live-talk-button" onClick={() => setTalkOpen(true)} aria-label="Đàm thoại với camera" title="Đàm thoại"><Icon name="microphone" size={21} /></button>
-          <button type="button" className="mi-live-fullscreen-button" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen} aria-label={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'} title={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'}><Icon name={fullscreen ? 'minimize' : 'maximize'} size={20} /></button>
+            <button type="button" className="mi-live-fullscreen-button" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen} aria-label={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'} title={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'}><Icon name={fullscreen ? 'minimize' : 'maximize'} size={20} /></button>
+            <button type="button" className="mi-live-talk-button" onClick={() => setTalkOpen(true)} aria-label="Đàm thoại với camera" title="Đàm thoại"><Icon name="microphone" size={21} /></button>
           </div>
         </div>} />
 

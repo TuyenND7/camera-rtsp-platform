@@ -109,12 +109,18 @@ export default function TalkPanel({ cameras, initial, onClose, onActive }: { cam
       current.microphone.stop();
       if (run.current !== current) return;
       stop();
-      const message = e instanceof DOMException && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? 'Chưa được cấp quyền mic. Cho phép mic trong trình duyệt hoặc cài đặt ứng dụng, rồi nhấn giữ lại.' : e instanceof Error ? e.message : 'Không mở được mic.';
+      const message = e instanceof DOMException && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? 'Chưa được cấp quyền mic. Cho phép mic trong trình duyệt hoặc cài đặt ứng dụng, rồi nhấn giữ lại.'
+        : e instanceof DOMException && e.name === 'NotReadableError' ? 'Không mở được mic. Kiểm tra quyền âm thanh của ứng dụng hoặc mic đang được ứng dụng khác sử dụng, rồi thử lại.'
+        : e instanceof DOMException && e.name === 'NotFoundError' ? 'Không tìm thấy mic trên thiết bị này.' : e instanceof Error ? e.message : 'Không mở được mic.';
       setError(message);
     }
   }
 
-  return <dialog ref={dialog} className="device-dialog talk-dialog" aria-labelledby="talk-title" onCancel={onClose} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
+  return <dialog ref={dialog} className="device-dialog talk-dialog" aria-labelledby="talk-title" onCancel={onClose} onClick={event => {
+    if (event.target !== event.currentTarget) return;
+    const r = event.currentTarget.getBoundingClientRect();
+    if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) onClose();
+  }}>
     <header className="dialog-heading"><div><h2 id="talk-title"><Icon name="microphone" size={23} />Đàm thoại</h2><p>Chọn camera nhận giọng nói của bạn</p></div><button type="button" className="icon-button" onClick={onClose} aria-label="Đóng đàm thoại"><Icon name="close" size={20} /></button></header>
     {!secure && <div className="notice error" role="alert">Mở địa chỉ HTTPS của máy chủ để sử dụng mic trên điện thoại, tablet hoặc máy tính.</div>}
     {error && <div className="notice error" role="alert">{error}</div>}

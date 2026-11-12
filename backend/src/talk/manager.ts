@@ -31,6 +31,12 @@ export class TalkManager {
       try {
         client = this.transport(camera.rtsp_url);
         const track = await client.describe();
+        // A missing receive track is stable until camera configuration changes.
+        // Avoid repeatedly opening RTSP connections on session-limited cameras.
+        if (!track) {
+          const entry = this.probes.get(key);
+          if (entry) entry.expires = this.now() + 30 * 60_000;
+        }
         return track ? { camera_id: camera.id, supported: true, codec: track.codec, reason: 'Sẵn sàng đàm thoại' }
           : { camera_id: camera.id, supported: false, reason: 'Camera chưa cung cấp kênh nhận giọng nói ONVIF/RTSP. Đàm thoại qua ứng dụng hãng có thể dùng giao thức riêng.' };
       } catch (error) {
