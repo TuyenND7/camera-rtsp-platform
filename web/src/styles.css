@@ -784,3 +784,8 @@ tbody tr:last-child td { border-bottom: 0; }
   .playback-page > .page-heading .page-actions { width: auto; }
   .playback-page > .page-heading .page-actions .button { padding: 8px; }
 }
+
+/* Audio stays in the corner of each video, without shrinking the picture. */
+.mi-camera-video > .mi-camera-audio, .mi-featured-video > .mi-camera-audio { position: absolute; z-index: 4; left: 8px; bottom: 8px; display: inline-flex; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; border: 1px solid #e2efff35; border-radius: 8px; color: #c4d3e9; background: #102039d9; }
+.mi-camera-video > .mi-camera-audio.active, .mi-featured-video > .mi-camera-audio.active { color: #fff; background: #1768efdf; border-color: #8fbaff; }
+.mi-camera-audio:disabled { opacity: .55; }

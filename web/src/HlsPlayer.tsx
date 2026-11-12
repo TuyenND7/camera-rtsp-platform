@@ -6,12 +6,14 @@ interface Props {
   src: string; // .m3u8 url
   live?: boolean;
   controls?: boolean;
+  muted?: boolean;
   startPosition?: number;
   /** Gọi khoảng 4 lần/giây khi video chạy, và ngay sau khi seek. */
   onTime?: (seconds: number) => void;
   onPlayingChange?: (playing: boolean) => void;
   onWaitingChange?: (waiting: boolean) => void;
   onPlaybackError?: (message: string) => void;
+  onAudioAvailable?: (available: boolean) => void;
 }
 
 /** Điều khiển video từ component cha (timeline Playback). */
@@ -28,12 +30,12 @@ export interface HlsPlayerHandle {
 
 /** Player HLS dùng hls.js, fallback native HLS (Safari). */
 const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
-  { src, live = false, controls = true, startPosition = -1, onTime, onPlayingChange, onWaitingChange, onPlaybackError },
+  { src, live = false, controls = true, muted = true, startPosition = -1, onTime, onPlayingChange, onWaitingChange, onPlaybackError, onAudioAvailable },
   ref
 ) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const callbacks = useRef({ onTime, onPlayingChange, onWaitingChange, onPlaybackError });
-  callbacks.current = { onTime, onPlayingChange, onWaitingChange, onPlaybackError };
+  const callbacks = useRef({ onTime, onPlayingChange, onWaitingChange, onPlaybackError, onAudioAvailable });
+  callbacks.current = { onTime, onPlayingChange, onWaitingChange, onPlaybackError, onAudioAvailable };
   const playRequested = useRef(true);
   const playAttempt = useRef(0);
   const rate = useRef(1);
@@ -148,6 +150,9 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
         video.playbackRate = rate.current;
         if (playRequested.current) playVideo();
       });
+      hls.on(Hls.Events.BUFFER_CODECS, (_event, tracks) => {
+        if (tracks.audio || tracks.video) callbacks.current.onAudioAvailable?.(!!tracks.audio);
+      });
       let mediaRecovered = false;
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.response?.code === 401) { window.location.replace('/login'); return; }
@@ -199,6 +204,10 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
     const waiting = () => callbacks.current.onWaitingChange?.(playRequested.current);
     const ready = () => callbacks.current.onWaitingChange?.(false);
     const ended = () => { callbacks.current.onPlayingChange?.(false); callbacks.current.onWaitingChange?.(false); };
+    const audio = () => {
+      const tracks = (video as HTMLVideoElement & { audioTracks?: { length: number } }).audioTracks;
+      if (tracks) callbacks.current.onAudioAvailable?.(tracks.length > 0);
+    };
     video.addEventListener('timeupdate', time);
     video.addEventListener('seeked', time);
     video.addEventListener('play', playing);
@@ -210,6 +219,7 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
     video.addEventListener('loadeddata', ready);
     video.addEventListener('seeked', ready);
     video.addEventListener('ended', ended);
+    video.addEventListener('loadedmetadata', audio);
     return () => {
       video.removeEventListener('timeupdate', time);
       video.removeEventListener('seeked', time);
@@ -222,6 +232,7 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
       video.removeEventListener('loadeddata', ready);
       video.removeEventListener('seeked', ready);
       video.removeEventListener('ended', ended);
+      video.removeEventListener('loadedmetadata', audio);
     };
   }, []);
 
@@ -229,7 +240,7 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
     <video
       ref={videoRef}
       controls={controls}
-      muted
+      muted={muted}
       playsInline
       style={{ width: '100%', height: '100%', background: '#000', borderRadius: controls ? 8 : 0 }}
     />

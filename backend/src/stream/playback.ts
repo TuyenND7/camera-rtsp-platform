@@ -79,7 +79,8 @@ class BrowserPlaybackManager {
     const args = [
       '-hide_banner', '-loglevel', 'warning', '-y',
       '-fflags', '+genpts', '-f', 'concat', '-safe', '0', '-i', concatFile,
-      '-map', '0:v:0', '-an',
+      '-map', '0:v:0', '-map', '0:a:0?',
+      '-c:a', 'aac', '-b:a', '64k', '-ar', '16000', '-ac', '1',
       '-c:v', 'libx264', '-preset', config.browserPlaybackPreset,
       '-b:v', config.browserPlaybackBitrate, '-pix_fmt', 'yuv420p', '-g', '48',
       '-force_key_frames', `expr:gte(t,n_forced*${config.browserPlaybackSegmentSeconds})`,

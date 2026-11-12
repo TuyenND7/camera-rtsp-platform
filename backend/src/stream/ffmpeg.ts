@@ -14,7 +14,7 @@ export type CodecMode = 'auto' | 'h264' | 'h265';
  * Codec:
  * - H.264: live dùng "-c:v copy" (nhẹ CPU).
  * - H.265/HEVC: trình duyệt không phát được HLS/HEVC => live phải transcode sang H.264 (libx264).
- * - Recording: LUÔN "-c:v copy" giữ nguyên codec gốc (không tốn CPU, giữ chất lượng).
+ * - Recording: LUÔN "-c:v copy" giữ nguyên codec video; audio chuyển AAC cho browser.
  *   File H.265 xem lại được bằng VLC hoặc trình duyệt hỗ trợ.
  */
 export interface FfmpegPaths {
@@ -98,7 +98,7 @@ function buildArgs(
   ];
 
   // ---- Output 1: HLS live (cuốn chiếu, low retention) ----
-  args.push('-map', '0:v:0', '-an');
+  args.push('-map', '0:v:0', ...audioOutputArgs());
   if (liveCodec === 'h265') {
     // Transcode HEVC -> H.264 để trình duyệt phát được
     args.push(
@@ -140,7 +140,7 @@ function buildArgs(
     args.push(
       '-map', '0:v:0',
       '-c:v', 'copy',
-      '-an',
+      ...audioOutputArgs(),
       '-f', 'hls',
       '-hls_time', String(config.recordSegmentSeconds),
       '-hls_list_size', '0', // giữ tất cả segment trong playlist
@@ -158,7 +158,7 @@ function buildArgs(
       fs.mkdirSync(playbackDayDir, { recursive: true });
       args.push(
         '-map', '0:v:0',
-        '-an',
+        ...audioOutputArgs(),
         '-c:v', 'libx264',
         '-preset', config.browserPlaybackPreset,
         '-b:v', config.browserPlaybackBitrate,
@@ -179,6 +179,11 @@ function buildArgs(
   }
 
   return args;
+}
+
+/** G.711 from cameras is not browser-compatible; AAC also works in HLS recordings. */
+function audioOutputArgs(): string[] {
+  return ['-map', '0:a:0?', '-c:a', 'aac', '-b:a', '64k', '-ar', '16000', '-ac', '1'];
 }
 
 export interface FfmpegHandle {

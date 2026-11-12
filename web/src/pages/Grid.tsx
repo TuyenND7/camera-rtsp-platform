@@ -181,9 +181,11 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
   const [reconnecting, setReconnecting] = useState(false);
   const [notice, setNotice] = useState('');
   const [controlsVisible, setControlsVisible] = useState(false);
+  const [muted, setMuted] = useState(true);
+  const [hasAudio, setHasAudio] = useState<boolean | null>(null);
   const offline = camera.status !== 'online';
 
-  useEffect(() => { setControlsVisible(false); setNotice(''); }, [camera.id]);
+  useEffect(() => { setControlsVisible(false); setNotice(''); setMuted(true); setHasAudio(null); }, [camera.id]);
 
   useEffect(() => {
     if (!controlsVisible) return;
@@ -241,7 +243,7 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
     }} onKeyDown={event => {
       if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setControlsVisible(value => !value); }
     }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setControlsVisible(false); }}>
-      {!offline && <HlsPlayer ref={player} src={`/live/${camera.id}/index.m3u8`} live controls={false} />}
+      {!offline && <HlsPlayer ref={player} src={`/live/${camera.id}/index.m3u8`} live controls={false} muted={muted} onAudioAvailable={setHasAudio} />}
       {offline && (
         <div className="mi-stream-state">
           <strong className="mi-stream-label"><i className={`status-dot ${camera.status}`} />{offlineLabel}</strong>
@@ -251,6 +253,7 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
       )}
       {notice && !offline && <div className="mi-live-notice" role="status">{notice}</div>}
       {children}
+      <button type="button" className={`mi-camera-control mi-camera-audio${!muted ? ' active' : ''}`} disabled={offline || hasAudio === false} onClick={() => setMuted(value => !value)} aria-pressed={!muted} aria-label={`${muted ? 'Bật' : 'Tắt'} âm thanh ${camera.name}`} title={offline ? 'Camera chưa trực tuyến' : hasAudio === false ? 'Luồng camera không có âm thanh' : `${muted ? 'Bật' : 'Tắt'} âm thanh`} data-audio-state={muted ? 'muted' : 'audible'}><Icon name={muted ? 'volumeMuted' : 'volume'} size={20} /></button>
       <div ref={controls} className="mi-camera-controls" hidden={!controlsVisible}>{actions}<button type="button" className="mi-camera-control mi-camera-close" onClick={onClose} aria-label={`Bỏ ${camera.name} khỏi Live view`} title="Bỏ camera khỏi ô này"><Icon name="close" size={20} /></button></div>
     </div>
   );

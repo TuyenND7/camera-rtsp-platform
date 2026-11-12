@@ -39,6 +39,8 @@ export default function Playback() {
   const [playing, setPlaying] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [audioMuted, setAudioMuted] = useState(true);
+  const [hasAudio, setHasAudio] = useState<boolean | null>(null);
   const [err, setErr] = useState('');
   const [playerError, setPlayerError] = useState('');
   const [loadingCamera, setLoadingCamera] = useState(true);
@@ -72,6 +74,8 @@ export default function Playback() {
     setWaiting(false);
     setErr('');
     setPlayerError('');
+    setAudioMuted(true);
+    setHasAudio(null);
     advancing.current = false;
     Promise.all([api.getCamera(cameraId), api.recordingDays(cameraId), api.listCameras().catch(() => [])])
       .then(([camera, availableDays, availableCameras]) => {
@@ -292,6 +296,8 @@ export default function Playback() {
                 src={source.url}
                 startPosition={source.start}
                 controls={false}
+                muted={audioMuted}
+                onAudioAvailable={setHasAudio}
                 onTime={onTime}
                 onPlayingChange={setPlaying}
                 onWaitingChange={setWaiting}
@@ -312,6 +318,7 @@ export default function Playback() {
                 <button type="button" onClick={() => jump(-10)} disabled={positionMs === null} title="Lùi 10 giây (←)" aria-label="Lùi 10 giây"><Icon name="rewind" size={18} /><small>10</small></button>
                 <button type="button" className="pb-play" onClick={togglePlay} disabled={!source} title={playing ? 'Tạm dừng (Space)' : 'Phát (Space)'} aria-label={playing ? 'Tạm dừng' : 'Phát'}><Icon name={playing ? 'pause' : 'play'} size={20} stroke={2.4} /></button>
                 <button type="button" onClick={() => jump(10)} disabled={positionMs === null} title="Tới 10 giây (→)" aria-label="Tới 10 giây"><small>10</small><Icon name="skipForward" size={18} /></button>
+                <button type="button" onClick={() => setAudioMuted(value => !value)} disabled={!source || hasAudio === false} aria-pressed={!audioMuted} aria-label={audioMuted ? 'Bật âm thanh bản ghi' : 'Tắt âm thanh bản ghi'} title={hasAudio === false ? 'Bản ghi này không có âm thanh' : audioMuted ? 'Bật âm thanh' : 'Tắt âm thanh'}><Icon name={audioMuted ? 'volumeMuted' : 'volume'} size={20} /></button>
                 <button type="button" onClick={() => latestSegment && seek(Math.max(latestSegment.startMs, latestSegment.endMs - 30_000))} disabled={!latestSegment} title="Tới đoạn mới nhất">Mới nhất</button>
                 <button type="button" onClick={toggleFullscreen} title={fullscreen ? 'Thu nhỏ' : 'Toàn màn hình'} aria-label={fullscreen ? 'Thu nhỏ playback' : 'Toàn màn hình playback'}><Icon name={fullscreen ? 'minimize' : 'maximize'} size={18} /></button>
               </div>
