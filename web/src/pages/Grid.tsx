@@ -144,7 +144,7 @@ function FocusView({ camera, cameras, onChoose, onClose, talkActive }: { talkAct
       <section className="mi-live-focus">
         <article className="mi-featured-camera">
           <LiveVideo talkActive={talkActive} camera={camera} className="mi-featured-video" offlineLabel={statusLabels[camera.status] ?? 'Camera chưa online'} onClose={onClose}>
-            <div className="mi-featured-title"><i className={`status-dot ${camera.status}`} /><div><strong title={camera.name}>{camera.name}</strong><small>{statusLabels[camera.status] ?? camera.status}</small></div></div>
+            <div className="mi-featured-title"><i className={`status-dot ${camera.status}`} /><div><strong title={camera.name}>{camera.name}</strong>{camera.status !== 'online' && <small>{statusLabels[camera.status] ?? camera.status}</small>}</div></div>
           </LiveVideo>
         </article>
         <aside className="mi-device-panel">
@@ -154,7 +154,7 @@ function FocusView({ camera, cameras, onChoose, onClose, talkActive }: { talkAct
         </aside>
       </section>
       {cameras.length > 1 && <section className="mi-camera-carousel" aria-label="Chuyển camera">
-        <div className="mi-carousel-items">{cameras.map((item) => <button key={item.id} type="button" className={item.id === camera.id ? 'active' : ''} onClick={() => onChoose(item.id)}><Icon name="camera" size={18} /><span>{item.name}</span><i className={`status-dot ${item.status}`} /><small>{statusLabels[item.status] ?? item.status}</small></button>)}</div>
+        <div className="mi-carousel-items">{cameras.map((item) => <button key={item.id} type="button" className={item.id === camera.id ? 'active' : ''} onClick={() => onChoose(item.id)}><Icon name="camera" size={18} /><span>{item.name}</span><i className={`status-dot ${item.status}`} />{item.status !== 'online' && <small>{statusLabels[item.status] ?? item.status}</small>}</button>)}</div>
       </section>}
     </>
   );
@@ -169,7 +169,7 @@ function CameraTile({ camera, onClose, talkActive }: { talkActive: boolean; came
     <article className="mi-camera-card">
       <LiveVideo talkActive={talkActive} camera={camera} className="mi-camera-video" offlineLabel={statusLabels[camera.status] ?? 'Camera chưa online'} onClose={onClose} actions={<><Link className="mi-camera-control" to={`/live?camera=${camera.id}`} title="Chỉ xem camera này" aria-label={`Chỉ xem ${camera.name}`}><Icon name="monitor" size={20} /></Link><Link className="mi-camera-control" to={`/playback/${camera.id}`} title="Xem Playback" aria-label={`Xem lại ${camera.name}`}><Icon name="clock" size={20} /></Link></>}>
         <div className="mi-camera-overlay">
-          <div><i className={`status-dot ${camera.status}`} /><strong title={camera.name}>{camera.name}</strong><small>{statusLabels[camera.status] ?? camera.status}</small></div>
+          <div><i className={`status-dot ${camera.status}`} /><strong title={camera.name}>{camera.name}</strong>{camera.status !== 'online' && <small>{statusLabels[camera.status] ?? camera.status}</small>}</div>
         </div>
       </LiveVideo>
     </article>
