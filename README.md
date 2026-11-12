@@ -62,6 +62,21 @@ docker compose up -d --no-deps --force-recreate backend web
 docker compose exec -T nginx nginx -s reload
 ```
 
+Nếu build qua SSH trên Windows gặp lỗi Docker **“A specified logon session does not exist”**, credential helper không truy cập được phiên đăng nhập Windows. Mở một cửa sổ PowerShell mới dành cho build, dùng cấu hình riêng cho các base image công khai của project:
+
+```powershell
+$cameraBuildConfig = Join-Path $env:TEMP 'camera-rtsp-docker-build'
+New-Item -ItemType Directory -Force $cameraBuildConfig | Out-Null
+$cameraDockerEndpoint = (docker context inspect (docker context show) | ConvertFrom-Json)[0].Endpoints.docker.Host
+'{"auths":{"https://index.docker.io/v1/":{}},"credsStore":"","cliPluginsExtraDirs":["C:\\Program Files\\Docker\\Docker\\resources\\cli-plugins"]}' | Set-Content -Encoding ASCII (Join-Path $cameraBuildConfig 'config.json')
+$env:DOCKER_CONFIG = $cameraBuildConfig
+$env:DOCKER_HOST = $cameraDockerEndpoint
+Remove-Item Env:DOCKER_CONTEXT -ErrorAction SilentlyContinue
+docker compose build backend web
+```
+
+Sau khi build thành công, chạy lệnh cập nhật container và reload nginx ở trên trong cùng cửa sổ. Cấu hình riêng không chứa thông tin đăng nhập registry; đóng cửa sổ PowerShell để kết thúc các biến môi trường tạm thời. Khi chạy build qua SSH, giữ phiên kết nối mở đến khi lệnh hoàn thành.
+
 Kiểm tra code sau khi cài dependency: `npm run build --prefix backend`, `node --test backend/test/*.test.cjs`, `npm run build --prefix web`.
 
 ### Cài đặt máy chủ trên web

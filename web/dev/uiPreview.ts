@@ -3,7 +3,6 @@ import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
 import type { Camera, DetectionEvent, DiscoveryState, RecordingDay } from '../src/api';
-import { validateSettings } from '../../backend/src/settingsValidation';
 
 const MEDIA = '/__ui-preview__/sample.mp4';
 const SAMPLE_DURATION = 120;
@@ -92,7 +91,11 @@ export function uiPreviewPlugin(): Plugin {
   return {
     name: 'camera-ui-preview',
     apply: 'serve',
-    configureServer(server) {
+    async configureServer(server) {
+      // Docker builds only the web directory. Load the shared validator when
+      // preview is running, rather than bundling backend source into Vite config.
+      const validatorPath = path.resolve(server.config.root, '../backend/src/settingsValidation.ts').replace(/\\/g, '/');
+      const { validateSettings } = await server.ssrLoadModule(`/@fs/${validatorPath}`) as typeof import('../../backend/src/settingsValidation');
       const mediaFile = path.resolve(server.config.root, 'dev/media/sample.mp4');
       server.middlewares.use(async (req, res, next) => {
         const url = new URL(req.url ?? '/', 'http://localhost');
