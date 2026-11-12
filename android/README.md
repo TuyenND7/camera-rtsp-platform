@@ -1,11 +1,11 @@
 # Camera Station cho Android
 
-App Android mở web Camera Station trong WebView riêng. Giao diện vẫn được tải từ máy chủ: cập nhật web rồi bấm **Tải lại trang** trong app là thấy UI mới, không phải build lại APK.
+App Android mở web Camera Station trọn khung, không có thanh tiêu đề riêng. Giao diện vẫn được tải từ máy chủ: cập nhật web rồi tải lại trang là thấy UI mới, không phải build lại APK.
 
 - Android 8.0 trở lên, hỗ trợ tablet dọc/ngang.
 - Mặc định mở `http://camera.local:8081/live`.
-- Nút **⋮ → Địa chỉ máy chủ** để thay URL LAN/VPN hoặc HTTPS. URL được giữ lại khi mở app lần sau.
-- Có nút tải lại, trạng thái mất kết nối, nút Back và video toàn màn hình.
+- Nhấn giữ biểu tượng **Camera Station** trong launcher → **Máy chủ** để thay URL LAN/VPN hoặc HTTPS. URL được giữ lại khi mở app lần sau.
+- Nhấn giữ biểu tượng app → **Tải lại** để tải lại trang. Khi mất kết nối, màn hình lỗi cũng có nút thử lại và đổi máy chủ. Hỗ trợ nút Back và video toàn màn hình.
 - Dùng logo hiện có của web. Đăng nhập bằng tài khoản web; APK không chứa mật khẩu camera hay tài khoản quản trị.
 - Cookie phiên nằm trong dữ liệu riêng của app, không cho cookie bên thứ ba; không bật file access hoặc JavaScript bridge. Không bỏ qua lỗi chứng chỉ HTTPS. WebView debugging chỉ bật ở bản debug để chỉnh UI qua USB.
 
@@ -45,7 +45,7 @@ npm run dev -- --host 127.0.0.1 --port 18173 --strictPort
 adb -s <SERIAL_LENOVO> reverse tcp:18173 tcp:18173
 ```
 
-Trong app, mở **⋮ → Địa chỉ máy chủ**, nhập `http://127.0.0.1:18173/login`. Đây là trang đăng nhập từ source trên máy phát triển, có HMR khi sửa `web/src`. Muốn đăng nhập, xem Live/Playback và dữ liệu thật, cấu hình proxy trong `web/vite.config.ts` tới backend/nginx truy cập được; một frontend chạy riêng không thay thế máy chủ camera. Đổi địa chỉ app về `http://camera.local:8081/live` khi dùng máy chủ thật.
+Nhấn giữ biểu tượng **Camera Station** trong launcher → **Máy chủ**, nhập `http://127.0.0.1:18173/login`. Đây là trang đăng nhập từ source trên máy phát triển, có HMR khi sửa `web/src`. Muốn đăng nhập, xem Live/Playback và dữ liệu thật, cấu hình proxy trong `web/vite.config.ts` tới backend/nginx truy cập được; một frontend chạy riêng không thay thế máy chủ camera. Đổi địa chỉ app về `http://camera.local:8081/live` khi dùng máy chủ thật.
 
 ### Xem đầy đủ UI khi không có máy chủ
 

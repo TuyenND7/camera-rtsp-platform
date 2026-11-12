@@ -27,10 +27,7 @@ import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.ImageButton;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.PopupMenu;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -39,6 +36,8 @@ import java.net.URISyntaxException;
 
 public final class MainActivity extends Activity {
     private static final String DEFAULT_URL = "http://camera.local:8081/live";
+    private static final String ACTION_SERVER = "vn.tuyen.camerastation.SERVER";
+    private static final String ACTION_RELOAD = "vn.tuyen.camerastation.RELOAD";
     private static final int INK = Color.rgb(31, 59, 96);
     private FrameLayout root;
     private LinearLayout content;
@@ -62,6 +61,15 @@ public final class MainActivity extends Activity {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(0, this::navigateBack);
         }
         if (state == null || webView.restoreState(state) == null) webView.loadUrl(serverUrl);
+        if (ACTION_SERVER.equals(getIntent().getAction())) root.post(this::showServerDialog);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (ACTION_SERVER.equals(intent.getAction())) root.post(this::showServerDialog);
+        else if (ACTION_RELOAD.equals(intent.getAction())) reload();
     }
 
     private void createViews() {
@@ -71,34 +79,14 @@ public final class MainActivity extends Activity {
         content.setOrientation(LinearLayout.VERTICAL);
         root.addView(content, new FrameLayout.LayoutParams(-1, -1));
 
-        LinearLayout toolbar = new LinearLayout(this);
-        toolbar.setGravity(Gravity.CENTER_VERTICAL);
-        toolbar.setPadding(dp(12), 0, dp(4), 0);
-        ImageView icon = new ImageView(this);
-        icon.setImageResource(R.drawable.camera_mark);
-        toolbar.addView(icon, new LinearLayout.LayoutParams(dp(26), dp(26)));
-        TextView title = new TextView(this);
-        title.setText(R.string.app_name);
-        title.setTextColor(INK);
-        title.setTextSize(15);
-        title.setPadding(dp(10), 0, 0, 0);
-        toolbar.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
-        ImageButton reload = toolbarButton(R.drawable.ic_refresh, R.string.reload);
-        reload.setOnClickListener(view -> reload());
-        toolbar.addView(reload);
-        ImageButton menu = toolbarButton(R.drawable.ic_more, R.string.menu);
-        menu.setOnClickListener(this::showMenu);
-        toolbar.addView(menu);
-        content.addView(toolbar, new LinearLayout.LayoutParams(-1, dp(48)));
-
-        progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        progress.setVisibility(View.INVISIBLE);
-        content.addView(progress, new LinearLayout.LayoutParams(-1, dp(2)));
         FrameLayout page = new FrameLayout(this);
         content.addView(page, new LinearLayout.LayoutParams(-1, 0, 1));
         webView = new WebView(this);
         webView.setBackgroundColor(Color.rgb(245, 248, 252));
         page.addView(webView, new FrameLayout.LayoutParams(-1, -1));
+        progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        progress.setVisibility(View.GONE);
+        page.addView(progress, new FrameLayout.LayoutParams(-1, dp(2), Gravity.TOP));
 
         errorPanel = new LinearLayout(this);
         errorPanel.setOrientation(LinearLayout.VERTICAL);
@@ -173,7 +161,7 @@ public final class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
-                progress.setVisibility(View.INVISIBLE);
+                progress.setVisibility(View.GONE);
                 CookieManager.getInstance().flush();
             }
 
@@ -197,7 +185,7 @@ public final class MainActivity extends Activity {
             @Override
             public void onProgressChanged(WebView view, int value) {
                 progress.setProgress(value);
-                if (value == 100 || pageFailed) progress.setVisibility(View.INVISIBLE);
+                if (value == 100 || pageFailed) progress.setVisibility(View.GONE);
             }
 
             @Override
@@ -213,16 +201,6 @@ public final class MainActivity extends Activity {
             @Override
             public void onHideCustomView() { exitFullscreen(); }
         });
-    }
-
-    private void showMenu(View anchor) {
-        PopupMenu menu = new PopupMenu(this, anchor);
-        menu.getMenu().add(R.string.server).setOnMenuItemClickListener(item -> { showServerDialog(); return true; });
-        menu.getMenu().add(R.string.open_browser).setOnMenuItemClickListener(item -> {
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(serverUrl)));
-            return true;
-        });
-        menu.show();
     }
 
     private void showServerDialog() {
@@ -277,7 +255,7 @@ public final class MainActivity extends Activity {
 
     private void showError(String message) {
         pageFailed = true;
-        progress.setVisibility(View.INVISIBLE);
+        progress.setVisibility(View.GONE);
         errorMessage.setText(getString(R.string.error_details, message, serverUrl));
         errorPanel.setVisibility(View.VISIBLE);
     }
@@ -344,17 +322,6 @@ public final class MainActivity extends Activity {
         ((FrameLayout) webView.getParent()).removeView(webView);
         webView.destroy();
         super.onDestroy();
-    }
-
-    private ImageButton toolbarButton(int image, int description) {
-        ImageButton button = new ImageButton(this);
-        button.setLayoutParams(new LinearLayout.LayoutParams(dp(48), -1));
-        button.setImageResource(image);
-        button.setContentDescription(getString(description));
-        android.util.TypedValue background = new android.util.TypedValue();
-        getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, background, true);
-        button.setBackgroundResource(background.resourceId);
-        return button;
     }
 
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }

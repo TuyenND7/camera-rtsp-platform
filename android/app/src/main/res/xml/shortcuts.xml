@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="server"
+        android:icon="@drawable/ic_more"
+        android:shortcutShortLabel="@string/server_shortcut"
+        android:shortcutLongLabel="@string/server">
+        <intent
+            android:action="vn.tuyen.camerastation.SERVER"
+            android:targetPackage="vn.tuyen.camerastation"
+            android:targetClass="vn.tuyen.camerastation.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="reload"
+        android:icon="@drawable/ic_refresh"
+        android:shortcutShortLabel="@string/reload_shortcut"
+        android:shortcutLongLabel="@string/reload">
+        <intent
+            android:action="vn.tuyen.camerastation.RELOAD"
+            android:targetPackage="vn.tuyen.camerastation"
+            android:targetClass="vn.tuyen.camerastation.MainActivity" />
+    </shortcut>
+</shortcuts>

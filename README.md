@@ -61,7 +61,7 @@ Kiểm tra code sau khi cài dependency: `npm run build --prefix backend`, `node
 
 ## App Android cho tablet
 
-Thư mục [`android/`](android/README.md) chứa app **Camera Station** mở web trong cửa sổ riêng, mặc định `http://camera.local:8081/live`. Có nút tải lại, đổi máy chủ và hỗ trợ video toàn màn hình. UI tải trực tiếp từ máy chủ nên cập nhật web không cần cài lại APK. Xem hướng dẫn build, cài qua ADB và xem trước UI qua USB trong [android/README.md](android/README.md).
+Thư mục [`android/`](android/README.md) chứa app **Camera Station** mở web trọn khung, không có thanh tiêu đề riêng, mặc định `http://camera.local:8081/live`. Nhấn giữ biểu tượng app trong launcher để tải lại hoặc đổi máy chủ; hỗ trợ video toàn màn hình. UI tải trực tiếp từ máy chủ nên cập nhật web không cần cài lại APK. Xem hướng dẫn build, cài qua ADB và xem trước UI qua USB trong [android/README.md](android/README.md).
 
 Khi chưa kết nối được máy chủ, chạy `npm run dev:ui` trong `web`, chuyển tiếp cổng 18173 qua ADB và mở `http://127.0.0.1:18173/live` trong app. Chế độ xem trước không cần mật khẩu, dùng API/video mẫu cục bộ để chỉnh Live, Playback, Thiết bị và Sự kiện; không bỏ xác thực ở backend thật và không được dùng để build production.
 

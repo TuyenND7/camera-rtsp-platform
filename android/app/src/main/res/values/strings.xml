@@ -2,9 +2,9 @@
 <resources>
     <string name="app_name">Camera Station</string>
     <string name="reload">Tải lại trang</string>
-    <string name="menu">Tùy chọn</string>
+    <string name="reload_shortcut">Tải lại</string>
+    <string name="server_shortcut">Máy chủ</string>
     <string name="server">Địa chỉ máy chủ</string>
-    <string name="open_browser">Mở trong trình duyệt</string>
     <string name="connect">Kết nối</string>
     <string name="cancel">Hủy</string>
     <string name="retry">Thử lại</string>
