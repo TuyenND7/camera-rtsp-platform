@@ -125,10 +125,10 @@ export default function TalkPanel({ cameras, initial, onClose, onActive }: { cam
     {!secure && <div className="notice error" role="alert">Mở địa chỉ HTTPS của máy chủ để sử dụng mic trên điện thoại, tablet hoặc máy tính.</div>}
     {error && <div className="notice error" role="alert">{error}</div>}
     <div className="talk-camera-list">
-      {cameras.map(camera => { const capability = capabilities[camera.id], available = eligible.some(c => c.id === camera.id); return <label className={`talk-camera-row${available ? '' : ' unavailable'}`} key={camera.id}>
+      {cameras.map(camera => { const capability = capabilities[camera.id], available = eligible.some(c => c.id === camera.id), transmitting = phase === 'talking' && run.current?.cameraIds.includes(camera.id); return <label className={`talk-camera-row${available ? '' : ' unavailable'}`} key={camera.id}>
         <input type="checkbox" checked={available && selected.includes(camera.id)} disabled={!available || phase !== 'idle' || (!selected.includes(camera.id) && chosen.length >= 16)} onChange={event => setSelected(ids => event.target.checked ? [...ids, camera.id] : ids.filter(id => id !== camera.id))} />
-        <Icon name="camera" size={22} /><span><strong>{camera.name}</strong><small>{capability?.reason ?? (checking ? 'Đang kiểm tra kênh đàm thoại…' : 'Chưa kiểm tra được camera')}</small></span>
-        {available && <span className="talk-ready">Sẵn sàng</span>}
+        <Icon name="camera" size={22} /><span><strong>{camera.name}</strong><small>{transmitting ? 'Đang gửi giọng nói · chưa xác nhận loa đã phát' : capability?.reason ?? (checking ? 'Đang kiểm tra kênh đàm thoại…' : 'Chưa kiểm tra được camera')}</small></span>
+        {available && <span className="talk-ready">{transmitting ? 'Đang gửi tiếng' : 'Sẵn sàng'}</span>}
       </label>; })}
       {!cameras.length && <p className="muted">Thêm camera trong trang Thiết bị để đàm thoại.</p>}
     </div>
