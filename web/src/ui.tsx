@@ -5,9 +5,9 @@ import type { SessionUser } from './api';
 export const NavigationContext = createContext<{ expanded: boolean; toggle: () => void } | null>(null);
 export const SessionContext = createContext<SessionUser | null>(null);
 
-export function PageHeader({ title, description, actions, eyebrow }: { title: string; description?: string; actions?: ReactNode; eyebrow?: string }) {
+export function PageHeader({ title, description, actions, eyebrow, titleActions, center, className = '' }: { title: string; description?: string; actions?: ReactNode; eyebrow?: string; titleActions?: ReactNode; center?: ReactNode; className?: string }) {
   const navigation = useContext(NavigationContext);
-  return <header className="page-heading"><div className="page-heading-title">{navigation && <button type="button" className="icon-button sidebar-visibility-toggle" onClick={navigation.toggle} aria-controls="app-navigation" aria-expanded={navigation.expanded} aria-label={navigation.expanded ? 'Ẩn menu' : 'Hiện menu'} title={navigation.expanded ? 'Ẩn menu' : 'Hiện menu'}><Icon name="menu" /></button>}<div>{eyebrow && <span className="eyebrow">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</div></div>{actions && <div className="page-actions">{actions}</div>}</header>;
+  return <header className={`page-heading ${className}`.trim()}><div className="page-heading-title">{navigation && <button type="button" className="icon-button sidebar-visibility-toggle" onClick={navigation.toggle} aria-controls="app-navigation" aria-expanded={navigation.expanded} aria-label={navigation.expanded ? 'Ẩn menu' : 'Hiện menu'} title={navigation.expanded ? 'Ẩn menu' : 'Hiện menu'}><Icon name="menu" /></button>}<div>{eyebrow && <span className="eyebrow">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</div>{titleActions}</div>{center}{actions && <div className="page-actions">{actions}</div>}</header>;
 }
 
 export const statusLabels: Record<string, string> = { online: 'Trực tuyến', connecting: 'Đang kết nối lại', error: 'Mất kết nối', stopped: 'Đã dừng' };

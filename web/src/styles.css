@@ -212,9 +212,16 @@ tbody tr:last-child td { border-bottom: 0; }
 .live-toolbar h2 { font-size: calc(13px * var(--text-scale, 1)); }
 .live-indicator { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; font-size: calc(8px * var(--text-scale, 1)); font-weight: 600; letter-spacing: 1px; color: var(--positive-text, #36a390); }
 .mi-live-actions { display: flex; align-items: center; gap: 13px; }
-.mi-layout-picker { display: flex; align-items: stretch; gap: 2px; min-height: 36px; height: auto; padding: 2px; border: 1px solid var(--line, #e4ecf7); border-radius: 6px; background: var(--surface, #f7f9fd); }
-.mi-layout-picker button { position: relative; min-width: 28px; min-height: 28px; padding: 3px 4px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text-muted, #8a9db7); font-size: calc(10px * var(--text-scale, 1)); }
-.mi-layout-picker button.active { color: var(--blue); border-color: var(--line, #dce7f7); background: var(--surface, #fff); box-shadow: 0 2px 4px #243c5805; }
+.mi-layout-picker { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 8px; border-radius: 6px; color: var(--text-muted, #728aa8); font-size: calc(11px * var(--text-scale, 1)); white-space: nowrap; }
+.live-layout-dialog { width: min(320px, calc(100vw - 24px)); }
+.live-layout-dialog .dialog-heading { padding: 12px 16px; }
+.live-layout-dialog .dialog-heading h2 { font-size: calc(16px * var(--text-scale, 1)); }
+.live-layout-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0 12px 12px; }
+.live-layout-options button { position: relative; display: flex; flex-direction: column; gap: 8px; min-height: 90px; padding: 12px; color: var(--text-muted); font-size: calc(14px * var(--text-scale, 1)); }
+.live-layout-options button[aria-pressed=true] { color: var(--blue); border-color: var(--blue); background: var(--selection-bg); }
+.live-layout-options button > .app-icon { position: absolute; top: 8px; right: 8px; }
+.live-layout-preview { display: grid; grid-template-columns: repeat(var(--layout-columns), minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 2px; width: 34px; height: 26px; }
+.live-layout-preview i { border: 1px solid currentColor; border-radius: 1px; opacity: .8; }
 .mi-camera-picker-button { min-height: 44px; padding: 5px 11px; color: var(--text-muted, #728aa8); font-size: calc(11px * var(--text-scale, 1)); }
 .mi-camera-controls { position: absolute; top: 8px; right: 8px; z-index: 3; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 16px); }
 .mi-camera-controls[hidden] { display: none; }
@@ -689,7 +696,6 @@ tbody tr:last-child td { border-bottom: 0; }
 }
 :root[data-theme=dark] button.primary, :root[data-theme=dark] .button.primary { color: #f4f8ff; background: #2e61b1; border-color: #3d74c8; }
 :root[data-theme=dark] button.primary:hover:not(:disabled), :root[data-theme=dark] .button.primary:hover { background: #386fc3; }
-:root[data-theme=dark] .mi-layout-picker button.active { color: var(--blue); background: var(--selection-bg); }
 :root[data-theme=dark] .theme-option.active { color: var(--blue); border-color: var(--blue); background: var(--selection-bg); }
 
 .ptz-arrow.up { transform: rotate(-90deg); }
@@ -1034,7 +1040,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .emergency-selection-note { margin: 0; padding: 10px 22px; color: var(--danger-text); font-weight: 650; }
 .emergency-camera-dialog .emergency-apply { color: #fff; border-color: #bd213b; background: #bd213b; }
 @media (pointer: coarse) {
-  .mi-layout-picker button::after { position: absolute; top: -7px; right: 0; bottom: -7px; left: 0; content: ''; }
+  .mi-layout-picker::after { position: absolute; top: -4px; right: 0; bottom: -4px; left: 0; content: ''; }
   .emergency-controls.compact .emergency-selector::after, .emergency-controls.compact .emergency-actions > button::after { position: absolute; top: -4px; right: 0; bottom: -4px; left: 0; content: ''; }
   .emergency-controls.compact .emergency-actions > button::after { top: -6px; bottom: -6px; }
 }
@@ -1061,4 +1067,22 @@ tbody tr:last-child td { border-bottom: 0; }
 @media (max-width: 360px) {
   .emergency-controls.compact .emergency-selector-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   :root[data-text-size="200"] .emergency-actions .app-icon { display: none !important; }
+}
+
+/* Keep Live selectors beside its title, with a centered clock and emergency controls on the right. */
+.live-shell .mi-live-page { container-type: inline-size; container-name: live-wall; }
+.simple-shell.live-shell .mi-live-page > .mi-live-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-areas: 'leading clock emergency'; align-items: center; gap: 6px 10px; }
+.mi-live-heading > .page-heading-title { grid-area: leading; justify-self: start; flex-wrap: wrap; max-width: 100%; }
+.mi-live-heading h1 { white-space: nowrap; }
+.mi-live-selectors { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; max-width: 100%; }
+.simple-shell.live-shell .mi-live-page > .mi-live-heading > .page-actions { grid-area: emergency; justify-self: end; width: auto; max-width: 100%; margin: 0; }
+.mi-live-clock { grid-area: clock; justify-self: center; display: flex; flex-direction: column; align-items: center; gap: 1px; color: var(--text-muted); font-variant-numeric: tabular-nums; line-height: 1.25; white-space: nowrap; }
+.mi-live-clock strong { color: var(--text-body); font-size: calc(14px * var(--text-scale, 1)); font-weight: 750; }
+.mi-live-clock > span { font-size: calc(11px * var(--text-scale, 1)); }
+@container live-wall (max-width: 900px) {
+  .simple-shell.live-shell .mi-live-page > .mi-live-heading { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'leading emergency' 'clock clock'; }
+  .mi-live-clock { flex-direction: row; gap: 8px; }
+}
+@container live-wall (max-width: 620px) {
+  .simple-shell.live-shell .mi-live-page > .mi-live-heading { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'leading' 'clock' 'emergency'; }
 }

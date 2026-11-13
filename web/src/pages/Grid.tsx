@@ -11,9 +11,10 @@ import CameraSettingsDialog from '../CameraSettingsDialog';
 import CameraFlashButton from '../CameraFlashButton';
 import useCameraTalk from '../useCameraTalk';
 import EmergencyControls from '../EmergencyControls';
+import LiveLayoutPicker, { LayoutSize } from '../LiveLayoutPicker';
+import LiveClock from '../LiveClock';
 import { PageHeader, statusLabels } from '../ui';
 
-type LayoutSize = 1 | 4 | 9 | 16;
 type LiveTalk = ReturnType<typeof useCameraTalk>;
 
 export default function Grid() {
@@ -81,12 +82,11 @@ export default function Grid() {
   }
   return (
     <section className="mi-live-page">
-      <PageHeader title="Live view" actions={<div className="mi-live-actions">
-          <EmergencyControls cameras={cameras} talk={cameraTalk} compact />
+      <PageHeader title="Live view" className="mi-live-heading" titleActions={<div className="mi-live-selectors">
           <button type="button" className="mi-camera-picker-button" onClick={() => openPicker()} aria-label={`Chọn camera Live view, đang chọn ${selected.size} camera`}><Icon name="video" size={18} />{selected.size}<Icon name="chevronDown" size={15} /></button>
-          <div className="mi-layout-picker" role="group" aria-label="Bố cục camera">
-            {([1, 4, 9, 16] as LayoutSize[]).map((size) => <button key={size} className={layout === size ? 'active' : ''} type="button" onClick={() => changeLayout(size)} title={`Bố cục ${size} camera`}>{size === 1 ? '1' : size === 4 ? '2×2' : size === 9 ? '3×3' : '4×4'}</button>)}
-          </div>
+          <LiveLayoutPicker value={layout} onChange={changeLayout} />
+        </div>} center={<LiveClock />} actions={<div className="mi-live-actions">
+          <EmergencyControls cameras={cameras} talk={cameraTalk} compact />
         </div>} />
 
       {err && <div className="notice error">Không tải được camera: {err}</div>}
