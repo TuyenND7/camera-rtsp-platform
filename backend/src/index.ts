@@ -14,6 +14,7 @@ import settingsRoutes from './routes/settings';
 import talkRoutes from './routes/talk';
 import controlRoutes from './routes/controls';
 import videoSettingsRoutes from './routes/videoSettings';
+import deviceSettingsRoutes from './routes/deviceSettings';
 import { deviceControls } from './controls/tenda';
 import { talkManager } from './talk/manager';
 import { loadSettings } from './settings';
@@ -35,6 +36,7 @@ async function main() {
   app.use('/api/cameras/:id/ptz', ptzRoutes);
   app.use('/api/cameras/:id/controls', controlRoutes);
   app.use('/api/cameras/:id/video-settings', videoSettingsRoutes);
+  app.use('/api/cameras/:id/device-settings', deviceSettingsRoutes);
   app.use('/api/cameras', cameraRoutes);
   app.use('/api/recordings', recordingRoutes);
   app.use('/api/events', eventRoutes);

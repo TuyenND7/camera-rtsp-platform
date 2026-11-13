@@ -47,7 +47,7 @@ public static partial class TalkAgent
     }
     static void Publish(bool authenticated)
     {
-        try { Write(Path.Combine(root, "status.json"), new { version = 1, control_version = 1, instance = instance, updated_at = Now, authenticated = authenticated, bindings = bindings }); } catch (IOException) {}
+        try { Write(Path.Combine(root, "status.json"), new { version = 1, control_version = 1, settings_version = 1, instance = instance, updated_at = Now, authenticated = authenticated, bindings = bindings }); } catch (IOException) {}
     }
     static string Authorize(Dictionary<string, object> config)
     {

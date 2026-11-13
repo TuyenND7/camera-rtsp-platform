@@ -161,6 +161,11 @@ export interface CameraVideoProfile {
 }
 export interface CameraVideoSettings { supported: boolean; reason?: string; profiles: CameraVideoProfile[]; confirmed?: boolean }
 export interface CameraVideoChange { profile_token: string; revision: string; width: number; height: number; fps?: number; bitrate?: number }
+export type DeviceSettingKey = 'night_vision' | 'infrared' | 'image_flip' | 'indicator' | 'anti_flicker' | 'privacy' | 'motion_detection' | 'motion_sensitivity' | 'tdsee_notifications' | 'alarm_sound' | 'alarm_light' | 'sd_recording' | 'intercom' | 'microphone_volume' | 'speaker_volume';
+export interface CameraDeviceSettings {
+  revision: string; values: Partial<Record<DeviceSettingKey, number>>; options: Partial<Record<DeviceSettingKey, number[]>>; confirmed?: boolean;
+  info: { firmware?: string; timezone?: string; StorageStatus?: number; StorageTotalCapacity?: number; StorageRemainCapacity?: number; SignalStrength?: number };
+}
 
 export interface StorageStatus {
   label: string;
@@ -194,6 +199,12 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 export const api = {
+  async cameraDeviceSettings(id: number) {
+    return handle<CameraDeviceSettings>(await fetch(`${API_BASE}/cameras/${id}/device-settings`, { headers: authHeaders(), cache: 'no-store' }));
+  },
+  async setCameraDeviceSettings(id: number, revision: string, changes: Partial<Record<DeviceSettingKey, number>>) {
+    return handle<CameraDeviceSettings>(await fetch(`${API_BASE}/cameras/${id}/device-settings`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ revision, changes }) }));
+  },
   async cameraVideoSettings(id: number) {
     return handle<CameraVideoSettings>(await fetch(`${API_BASE}/cameras/${id}/video-settings`, { headers: authHeaders(), cache: 'no-store' }));
   },

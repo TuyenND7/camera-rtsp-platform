@@ -70,6 +70,26 @@ try {
     $command.created_at=Now; $command.agent_instance=[guid]::NewGuid().ToString('D'); Assert-Command $false
     $command.agent_instance=$generation; $command.action='alarm'; $command.duration_seconds=999; Assert-Command $false
     $command.duration_seconds=5; Assert-Command $true
+    $settingsProperties = $serializer.DeserializeObject('{"ImageFlipState":{"value":0},"stNightVisionMode":{"value":{"enFillLightMode":3,"bMenuLight":1,"s32LightVal":50}},"AudibleAlarm":{"value":{"AlarmSwitch":0,"LightSwitch":1}},"StorageRecordMode":{"value":1},"StorageStatus":{"value":0},"WifiConfiguration":{"value":{"password":"fixture-secret"}}}')
+    $snapshot = $agent.GetMethod('SettingsFromProperties',$flags).Invoke($null,@($settingsProperties))
+    if ($snapshot.values['image_flip'] -ne 0 -or $snapshot.values['night_vision'] -ne 3 -or $snapshot.values.ContainsKey('WifiConfiguration')) { throw 'Settings whitelist failed' }
+    if (($snapshot | ConvertTo-Json -Depth 8 -Compress) -match 'fixture-secret|WifiConfiguration') { throw 'Settings leaked credentials' }
+    $settingsCommand = $serializer.DeserializeObject(('{"revision":"' + $snapshot.revision + '","changes":{"night_vision":2,"alarm_sound":1}}'))
+    $patch = $agent.GetMethod('SettingsPatch',$flags).Invoke($null,[object[]]@($settingsProperties,$settingsCommand))
+    if ($patch['stNightVisionMode']['enFillLightMode'] -ne 2 -or $patch['stNightVisionMode']['bMenuLight'] -ne 1 -or $patch['stNightVisionMode']['s32LightVal'] -ne 50) { throw 'Night vision struct fields were lost' }
+    if ($patch['AudibleAlarm']['AlarmSwitch'] -ne 1 -or $patch['AudibleAlarm']['LightSwitch'] -ne 1 -or $settingsProperties['AudibleAlarm']['value']['AlarmSwitch'] -ne 0) { throw 'Nested alarm update failed' }
+    function Assert-SettingsRejected([string]$body) {
+        $rejected=$false
+        try { $null=$agent.GetMethod('SettingsPatch',$flags).Invoke($null,[object[]]@($settingsProperties,$serializer.DeserializeObject($body))) } catch { $rejected=$true }
+        if (-not $rejected) { throw 'Unsafe settings command was accepted' }
+    }
+    Assert-SettingsRejected ('{"revision":"' + ('0' * 64) + '","changes":{"image_flip":1}}')
+    Assert-SettingsRejected ('{"revision":"' + $snapshot.revision + '","changes":{"WifiConfiguration":1}}')
+    Assert-SettingsRejected ('{"revision":"' + $snapshot.revision + '","changes":{"image_flip":true}}')
+    Assert-SettingsRejected ('{"revision":"' + $snapshot.revision + '","changes":{"night_vision":99}}')
+    Assert-SettingsRejected ('{"revision":"' + $snapshot.revision + '","changes":{"sd_recording":2}}')
+    Assert-SettingsRejected ('{"revision":"' + $snapshot.revision + '","changes":{"speaker_volume":50}}')
+    Write-Output 'PASS: device settings privacy, stale revisions, nested field preservation and capability validation'
     Write-Output 'PASS: IPC contention/expiry/revocation, safe control state and bound command validation'
 } finally {
     Remove-Item -LiteralPath $temporary -Recurse -Force

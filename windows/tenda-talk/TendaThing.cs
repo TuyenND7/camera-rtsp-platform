@@ -84,6 +84,12 @@ public static partial class TendaNative
             Method<ThingSet>(handle, 6)(handle, Str("{\"TurnLight\":" + (enabled ? "1" : "0") + "}"), callback.Value);
             Complete(callback);
         }
+        public void Settings(Dictionary<string, object> values)
+        {
+            var callback = new ThingFunction();
+            Method<ThingSet>(handle, 6)(handle, Str(serializer.Serialize(values)), callback.Value);
+            Complete(callback);
+        }
         public void Alarm(bool enabled)
         {
             var callback = new ThingFunction();

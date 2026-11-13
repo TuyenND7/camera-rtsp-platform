@@ -108,3 +108,9 @@ API dành cho admin:
 - `POST /api/cameras/:id/controls`: HTTPS + phiên admin + CSRF; JSON `{ "action": "alarm" | "light", "enabled": true | false, "duration_seconds": 5 | 10 | 30 }`.
 
 App Android vẫn chỉ hiển thị website. Snapshot PNG được tạo từ video đang phát trong trình duyệt; hỗ trợ lưu/chia sẻ file của từng WebView có thể khác Chrome/Safari.
+
+## Cài đặt thiết bị theo TDSEE
+
+Agent công bố thêm `settings_version: 1`. `DeviceSettings.cs` lọc các thuộc tính công khai theo danh sách cho phép, giữ nguyên những trường khác trong cấu trúc khi sửa nhìn đêm hoặc còi/đèn báo động. Revision tính trên các giá trị đã lọc; thay đổi bên TDSEE làm revision cũ bị từ chối. Mở tab cài đặt chỉ đọc, không tự đặt lại thông số.
+
+Các request `settings` trong IPC yêu cầu binding/generation/tuổi lệnh như lệnh còi/đèn, chỉ nhận số nguyên và các trường đã khai báo. Không nhận tên thuộc tính/service/URL tùy ý, reset hoặc định dạng thẻ. Camera đang đàm thoại/còi sẽ từ chối cập nhật. Trạng thái đọc lại phải khớp mới xác nhận; không lộ các thuộc tính Wi-Fi hoặc khóa thiết bị. Cài đặt âm lượng chỉ được công bố nếu model thực sự trả về các thuộc tính volume.

@@ -38,6 +38,8 @@ Logo và icon ứng dụng được tạo bằng Imagegen, dùng cùng một bi�
 - **Còi và đèn camera:** nút chuông cạnh phóng to/mic, hoặc trong điều khiển của từng ô Live, mở bảng bật/dừng còi và bật/tắt đèn trắng. Còi gốc Tenda tự được gửi lệnh dừng sau 5/10/30 giây đã chọn; có nút dừng sớm. Không cần cấp quyền mic cho chức năng này. Camera đang đàm thoại không nhận thêm lệnh bật còi. Chỉ mở các nút camera đã công bố hỗ trợ; cần HTTPS và adapter Windows mới.
 - **Sửa thiết bị:** có ba tab **Kết nối / Xem trước / Cài đặt**. Xem trước dùng HLS đang có trên máy chủ; zoom số 1–4×, kéo ảnh khi phóng to và bật/tắt tiếng. PTZ giữ để quay, thả để dừng, preset và zoom camera chỉ dùng khi ONVIF công bố hỗ trợ. Hai CT3 đang dùng không có PTZ trong media profile; zoom xem trước vẫn dùng được.
 - **Cài đặt video camera:** đọc luồng và tùy chọn độ phân giải/FPS/bitrate trực tiếp qua ONVIF; luồng video, độ phân giải, FPS và bitrate mở hộp thoại chọn riêng, dùng thẻ lớn có dấu chọn và nhãn thông số đang dùng. Các lựa chọn nằm trong giới hạn thiết bị công bố. Nhấn **Chọn** để cập nhật lựa chọn trong form; **Hủy**, Esc hoặc chạm bên ngoài để bỏ lựa chọn của hộp thoại. Không cần nhập số thủ công. Nút **Áp dụng vào camera** lưu độc lập với thông tin kết nối rồi đọc lại để xác nhận. Cấu hình thay đổi từ phiên khác sẽ bị từ chối cho tới khi đọc lại. Đổi độ phân giải ảnh hưởng live và recording mới của luồng đó. Camera không kết nối/không cung cấp cài đặt được báo rõ; bộ ghi không tự bị thay thông số khi chỉ mở tab. Cấu hình codec H.265 vẫn đọc được, nhưng thao tác ghi encoder chỉ bật với cấu hình tương thích setter ONVIF đang dùng (H.264/JPEG/MPEG4).
+- **Cài đặt camera theo TDSEE:** trong tab Cài đặt, chọn **Cài đặt camera** để mở nhóm hình ảnh/nhìn đêm, riêng tư, phát hiện/báo động, âm thanh và thẻ nhớ. Các lựa chọn lấy từ camera đã liên kết SDK, chỉ hiện khi thiết bị báo thuộc tính tương ứng. Có bước **Chọn → Áp dụng cài đặt camera**, đọc lại để xác nhận và chống ghi đè cấu hình đã thay đổi ở TDSEE. Thẻ nhớ SD trong camera độc lập với storage trên máy chủ. Thông báo TDSEE là thông báo ứng dụng hãng; không tự bật cảnh báo web mới.
+
 - **Chụp ảnh Live:** chạm ô camera để hiện điều khiển, bấm biểu tượng máy ảnh để xem ảnh PNG của khung hình đang phát, tải ảnh hoặc sao chép nếu trình duyệt hỗ trợ. Giữ nguyên độ phân giải khung hình và không mở lại RTSP; thao tác tải file phụ thuộc khả năng trình duyệt/WebView.
 
 - **Điều khiển ô camera:** các nút mặc định ẩn, chạm/nhấn ô để hiện; chạm lại, chạm bên ngoài hoặc chờ 5 giây để ẩn. Các nút cùng kích thước 44×44, icon 20px. Với bàn phím, Tab tới ô rồi nhấn Enter/Space để hiện nút; nút đang được bàn phím chọn không tự ẩn.
@@ -524,3 +526,19 @@ Docker volume pgdata                  PostgreSQL
 - `PUT /api/cameras/:id/video-settings`: HTTPS + admin + CSRF, JSON `{ profile_token, revision, width, height, fps?, bitrate? }`. Profile được lấy lại từ đúng camera, kiểm tra revision và giới hạn trước khi ghi. `confirmed` chỉ là `true` khi thông số đọc lại khớp. Không thay tên dịch vụ/URL/codec tùy ý từ request.
 
 Tham chiếu [ONVIF Media: Get/SetVideoEncoderConfiguration](https://www.onvif.org/ver10/media/wsdl/) và [PTZ: ContinuousMove/Stop](https://www.onvif.org/ver20/ptz/wsdl/).
+
+### Các cài đặt TDSEE trên camera
+
+Đã đối chiếu trang Settings của ứng dụng TDSEE đang đăng nhập trên Lenovo, dữ liệu CT3 thực tế và [hướng dẫn chính thức TDSEE](https://ma.tenda.com.cn/UserFiles/file/20241209/20241209175319_0973.pdf). Một số mục phụ thuộc model/firmware; không hiển thị nút giả cho chức năng camera chưa cung cấp.
+
+- Nhìn đêm: đen trắng / có màu / thông minh; hồng ngoại tự động / bật / tắt.
+- Hướng lắp camera, đèn trạng thái và tần số chống nhấp nháy 50/60 Hz.
+- Riêng tư: che hình camera; có thể tắt lại bằng SDK dù RTSP đang mất hình.
+- Phát hiện chuyển động, độ nhạy, thông báo TDSEE, còi/đèn khi phát hiện. Không tự bật những mục này khi mở web.
+- Chế độ đàm thoại; âm lượng micro/loa chỉ xuất hiện nếu thiết bị trả thuộc tính tương ứng (hai CT3 hiện không trả các mức âm lượng này).
+- Trạng thái/dung lượng thẻ nhớ và chế độ không ghi / ghi báo động / ghi cả ngày. Chỉ ghi cấu hình thẻ khi thẻ sẵn sàng; hai CT3 hiện báo chưa có thẻ.
+- Firmware, múi giờ và tín hiệu Wi-Fi hiện được đọc để xem thông tin.
+
+Các thao tác đổi Wi-Fi, nâng firmware, reset, xóa liên kết, định dạng thẻ và dịch vụ cloud của hãng chưa đưa vào bản tích hợp này. Không sao chép toàn bộ thuộc tính SDK ra web: dữ liệu Wi-Fi/tài khoản/khóa thiết bị luôn bị lọc.
+
+API admin: `GET/PUT /api/cameras/:id/device-settings`. Ghi qua HTTPS + CSRF, body `{ revision, changes: { indicator: 0 } }`; backend và worker Windows đều kiểm tra danh sách trường/giá trị cho phép, ID/fingerprint/generation, revision và khả năng thực tế. Adapter phải công bố `settings_version: 1`. Lệnh SDK ACK chưa khớp đọc lại trả `confirmed: false`.

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, Camera, DiscoveredDevice, OnvifProbeResult } from '../api';
 import DeviceDiscovery from '../DeviceDiscovery';
 import CameraPreview from '../CameraPreview';
-import CameraVideoSettings from '../CameraVideoSettings';
+import CameraSettings from '../CameraSettings';
 import Icon from '../Icon';
 import { cameraHost, EmptyState, PageHeader, StatusBadge } from '../ui';
 
@@ -119,7 +119,7 @@ export default function Cameras() {
           <details className="advanced-fields"><summary>Nâng cao<Icon name="chevronDown" size={16} /></summary><div className="advanced-content"><label>Định dạng video<select value={form.codec} onChange={(event) => setForm({ ...form, codec: event.target.value as CameraForm['codec'] })}><option value="auto">Tự động</option><option value="h264">H.264</option><option value="h265">H.265</option></select></label>{method === 'onvif' && <label>Địa chỉ ONVIF<input value={form.onvif_url} onChange={(event) => changeOnvif('onvif_url', event.target.value)} /></label>}<label>ONVIF cho PTZ<input value={form.ptz_onvif_url} onChange={(event) => setForm({ ...form, ptz_onvif_url: event.target.value })} placeholder="Tự động theo địa chỉ thiết bị" /></label><label className="simple-check"><input type="checkbox" checked={form.enabled} onChange={(event) => setForm({ ...form, enabled: event.target.checked })} />Bật thiết bị</label><label className="simple-check"><input type="checkbox" checked={form.ai_enabled} onChange={(event) => setForm({ ...form, ai_enabled: event.target.checked })} />Nhận dạng AI</label>{form.ai_enabled && <><label>RTSP luồng phụ<input value={form.ai_rtsp_url} onChange={(event) => setForm({ ...form, ai_rtsp_url: event.target.value })} placeholder="Bỏ trống để dùng live" /></label><div className="form-grid"><label>FPS AI<input type="number" min="0.1" max="10" step="0.1" value={form.ai_fps} onChange={(event) => setForm({ ...form, ai_fps: Number(event.target.value) })} /></label><label>Ngưỡng tin cậy<input type="number" min="0" max="1" step="0.05" value={form.ai_confidence} onChange={(event) => setForm({ ...form, ai_confidence: Number(event.target.value) })} /></label></div><label>Nhãn nhận dạng<input value={form.ai_labels} onChange={(event) => setForm({ ...form, ai_labels: event.target.value })} /></label></>}</div></details>
         </div><footer className="dialog-footer"><button type="button" onClick={() => setShowForm(false)} disabled={saving || probing}>Hủy</button><button type="submit" className="primary" disabled={saving || probing || !!duplicate || (method === 'onvif' && !onvifResult)}>{saving ? 'Đang lưu…' : editing ? 'Lưu' : 'Thêm'}</button></footer>
       </form>
-      {editing && tab !== 'connection' && <div className="device-editor-content" role="tabpanel" id={`device-panel-${tab}`} aria-labelledby={`device-tab-${tab}`}>{tab === 'preview' ? <CameraPreview key={editing.id} camera={cameras.find(item => item.id === editing.id) ?? editing} /> : <CameraVideoSettings key={editing.id} camera={cameras.find(item => item.id === editing.id) ?? editing} onBusy={setApplying} />}</div>}
+      {editing && tab !== 'connection' && <div className="device-editor-content" role="tabpanel" id={`device-panel-${tab}`} aria-labelledby={`device-tab-${tab}`}>{tab === 'preview' ? <CameraPreview key={editing.id} camera={cameras.find(item => item.id === editing.id) ?? editing} /> : <CameraSettings key={editing.id} camera={cameras.find(item => item.id === editing.id) ?? editing} onBusy={setApplying} />}</div>}
     </dialog>}
   </section>;
 }

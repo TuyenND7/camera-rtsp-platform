@@ -10,6 +10,7 @@ public sealed class DeviceControlState
     public bool? alarm_active, light_enabled;
     public long? alarm_reported_at, light_reported_at;
     public long observed_at;
+    public DeviceSettingsSnapshot device_settings;
 }
 
 public static partial class TalkAgent
@@ -58,7 +59,8 @@ public static partial class TalkAgent
             light_enabled = Switch(Property(properties, "TurnLight")),
             talking = Switch(Property(properties, "TalkBackStartEnable")) == true,
             alarm_reported_at = Reported(properties, "AudibleStatus"),
-            light_reported_at = Reported(properties, "TurnLight"), observed_at = Now
+            light_reported_at = Reported(properties, "TurnLight"), observed_at = Now,
+            device_settings = SettingsFromProperties(properties)
         };
     }
     static DeviceControlState ConfirmControl(TendaNative.ThingClient client, string action, bool enabled)
@@ -79,7 +81,8 @@ public static partial class TalkAgent
         var command = Read(file); int id = Convert.ToInt32(command["camera_id"]); var binding = Binding(id);
         if (Convert.ToInt32(command["version"]) != 1 || (string)command["agent_instance"] != instance || Math.Abs(Now - Convert.ToInt64(command["created_at"])) > 30000 || binding == null || (string)command["url_hash"] != (string)binding["url_hash"]) throw new ControlFailure(403, "sdk_control_request_invalid");
         string action = (string)command["action"];
-        if (action != "get" && action != "light" && action != "alarm") throw new ControlFailure(400, "sdk_control_request_invalid");
+        if (action != "get" && action != "light" && action != "alarm" && action != "settings") throw new ControlFailure(400, "sdk_control_request_invalid");
+        if (action == "settings") ValidateSettingsCommand(command);
         if (action != "get" && !(command["enabled"] is bool)) throw new ControlFailure(400, "sdk_control_request_invalid");
         if (action == "alarm" && Convert.ToBoolean(command["enabled"]) && !new List<int>{5,10,30}.Contains(Convert.ToInt32(command["duration_seconds"]))) throw new ControlFailure(400, "sdk_control_request_invalid");
         return command;
@@ -106,6 +109,7 @@ public static partial class TalkAgent
             client = new TendaNative.ThingClient(deviceIds[id]); var state = ControlState(client);
             if (!ParentAlive() || File.Exists(Path.Combine(directory, "stop"))) throw new ControlFailure(409, "sdk_control_cancelled");
             if (action == "get") { Write(Path.Combine(directory, "result.json"), new { ok = true, state = state }); return; }
+            if (action == "settings") { ApplySettings(client, command, directory, id); return; }
             if ((action == "alarm" && !state.alarm_supported) || (action == "light" && !state.light_supported)) throw new ControlFailure(422, "sdk_control_unsupported");
             if (action == "light") {
                 client.Light(enabled); state = ConfirmControl(client, action, enabled);
