@@ -18,8 +18,8 @@ App Android mở web Camera Station trọn màn hình, không có thanh tiêu đ
 Mở **Cài đặt → Thiết bị đang xem** trên web trong app:
 
 - **Âm lượng thiết bị** điều chỉnh âm lượng media Android, độc lập với loa trên camera. Nút loa từng ô Live vẫn bật/tắt riêng từng camera.
-- **Độ sáng màn hình** chỉ thay đổi đèn nền của cửa sổ app; nút **Theo độ sáng hệ thống** bỏ mức tùy chỉnh. Không sửa độ sáng toàn hệ thống.
-- **Tắt hiển thị**, hoặc nút mặt trăng cạnh phóng to trên Live, phủ màn hình đen và hạ đèn nền xuống mức thấp nhất. Chạm đúp để mở lại, khôi phục độ sáng trước đó. Back/Enter cũng mở được. Rời app hoặc tải lại trang tự mở lại màn hình.
+- **Độ sáng màn hình** chỉ thay đổi đèn nền của cửa sổ app. Công tắc **Theo độ sáng hệ thống** nằm bên phải tiêu đề: bật để theo hệ thống, tắt để chỉnh thanh trượt từ mức sáng hiện tại. Không sửa độ sáng toàn hệ thống.
+- Nút mặt trăng cạnh phóng to trên Live phủ màn hình đen và hạ đèn nền xuống mức thấp nhất. Chạm đúp để mở lại, khôi phục độ sáng trước đó. Back/Enter cũng mở được. Rời app hoặc tải lại trang tự mở lại màn hình.
 
 Đây là chế độ màn hình tối trong app, **không phải tắt panel hoặc khóa Android bằng nút nguồn**. App vẫn thức để nhận chạm đúp. Mic kết thúc khi bật chế độ này; âm thanh camera đang chọn và ghi hình trên máy chủ không bị tắt. Không cần quyền quản trị thiết bị hoặc `WRITE_SETTINGS`.
 

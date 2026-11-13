@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { api, type ServerSettings, type SettingsInfo, type StorageStatus } from '../api';
 import Icon from '../Icon';
 import { formatBytes, PageHeader, SessionContext } from '../ui';
@@ -6,6 +6,32 @@ import { TEXT_SIZES, useTheme } from '../theme';
 import CameraSettingSelect from '../CameraSettingSelect';
 import { alarmDurations, alarmDurationLabel } from '../alarm';
 import ViewingDeviceSettings from '../ViewingDeviceSettings';
+
+function numericOptions(current: number, values: number[], label: (value: number) => string) {
+  return [...new Set([...values, current])].sort((a, b) => a - b).map(value => ({ value: String(value), label: label(value) }));
+}
+function applyOnEnter(event: React.KeyboardEvent<HTMLInputElement>) {
+  if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
+}
+function normalizeSettings(value: ServerSettings): ServerSettings {
+  const result = { ...value, storage_label: value.storage_label.trim(), public_base_url: value.public_base_url.trim() };
+  if (!result.storage_label || result.storage_label.length > 100) throw new Error('Tên ổ lưu trữ cần từ 1 đến 100 ký tự.');
+  if (result.public_base_url) {
+    try {
+      const url = new URL(result.public_base_url);
+      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || result.public_base_url.length > 2048) throw new Error();
+      result.public_base_url = url.origin;
+    } catch { throw new Error('Địa chỉ máy chủ phải là HTTP/HTTPS, không chứa tài khoản hay mật khẩu.'); }
+  }
+  if (result.cleanup_target_percent >= result.cleanup_threshold_percent) throw new Error('Mức dung lượng sau khi dọn phải thấp hơn ngưỡng bắt đầu dọn.');
+  return result;
+}
+function mergeApplied(current: ServerSettings, submitted: ServerSettings, applied: ServerSettings): ServerSettings {
+  return Object.fromEntries(Object.keys(applied).map(name => {
+    const key = name as keyof ServerSettings;
+    return [key, current[key] === submitted[key] ? applied[key] : current[key]];
+  })) as unknown as ServerSettings;
+}
 
 export default function Settings() {
   const user = useContext(SessionContext);
@@ -21,35 +47,62 @@ export default function Settings() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [copied, setCopied] = useState(false);
+  const mounted = useRef(false), desired = useRef<ServerSettings | null>(null), applied = useRef<ServerSettings | null>(null);
+  const saveQueue = useRef(Promise.resolve()), pendingSaves = useRef(0), editVersion = useRef(0);
 
   useEffect(() => {
+    mounted.current = true;
     let stopped = false;
     if (admin) void api.getSettings().then(value => {
-      if (!stopped) { setInfo(value); setForm(value.settings); }
+      if (!stopped) { setInfo(value); setForm(value.settings); desired.current = value.settings; applied.current = value.settings; }
     }).catch(err => { if (!stopped) setError(err.message); }).finally(() => { if (!stopped) setLoading(false); });
     void api.storageStatus().then(value => { if (!stopped) setStorage(value); }).catch(() => undefined);
     void api.health().then(value => { if (!stopped) setConnection(value.ok); }).catch(() => { if (!stopped) setConnection(false); });
-    return () => { stopped = true; };
+    return () => { stopped = true; mounted.current = false; };
   }, [admin]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(''), 2000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
-  function change<K extends keyof ServerSettings>(key: K, value: ServerSettings[K]) {
+  function draftChange<K extends keyof ServerSettings>(key: K, value: ServerSettings[K]) {
+    editVersion.current++;
     setForm(current => current ? { ...current, [key]: value } : current);
     setNotice(''); setError(''); setCopied(false);
   }
 
-  async function save(event: React.FormEvent) {
-    event.preventDefault();
-    if (!form) return;
-    if (form.cleanup_target_percent >= form.cleanup_threshold_percent) { setError('Mức dung lượng sau khi dọn phải thấp hơn ngưỡng bắt đầu dọn.'); return; }
-    setSaving(true); setError(''); setNotice('');
+  function change<K extends keyof ServerSettings>(key: K, value: ServerSettings[K]) {
+    if (!desired.current) return;
     try {
-      const result = await api.saveSettings(form);
-      setForm(result.settings); setInfo(current => current ? { ...current, settings: result.settings } : current);
-      setNotice('Đã lưu cấu hình máy chủ.');
-      window.dispatchEvent(new Event('camera-station.settings-updated'));
-      void api.storageStatus().then(setStorage).catch(() => undefined);
+      const next = normalizeSettings({ ...desired.current, [key]: value });
+      draftChange(key, next[key]);
+      enqueueSave(next);
     } catch (err: any) { setError(err.message); }
-    finally { setSaving(false); }
+  }
+
+  function enqueueSave(next: ServerSettings) {
+    desired.current = next;
+    if (!pendingSaves.current && JSON.stringify(next) === JSON.stringify(applied.current)) return;
+    pendingSaves.current++; setSaving(true); setError(''); setNotice('');
+    const submitted = { ...next };
+    const version = editVersion.current;
+    saveQueue.current = saveQueue.current.then(async () => {
+      try {
+        if (JSON.stringify(submitted) === JSON.stringify(applied.current)) return;
+        const result = await api.saveSettings(submitted);
+        applied.current = result.settings;
+        if (desired.current) desired.current = mergeApplied(desired.current, submitted, result.settings);
+        if (mounted.current) {
+          setInfo(current => current ? { ...current, settings: result.settings } : current);
+          setForm(current => current ? mergeApplied(current, submitted, result.settings) : current);
+          if (editVersion.current === version) { setError(''); setNotice('Đã áp dụng'); }
+        }
+        window.dispatchEvent(new Event('camera-station.settings-updated'));
+        void api.storageStatus().then(value => { if (mounted.current) setStorage(value); }).catch(() => undefined);
+      } catch (err: any) { if (mounted.current) setError(err.message); }
+      finally { pendingSaves.current--; if (mounted.current) setSaving(pendingSaves.current > 0); }
+    });
   }
 
   async function check() {
@@ -79,7 +132,7 @@ export default function Settings() {
 
   const dirty = form && info && JSON.stringify(form) !== JSON.stringify(info.settings);
   const connectionButton = <button type="button" onClick={() => void check()} disabled={checking}><Icon name="refresh" size={16} />{checking ? 'Đang kiểm tra…' : 'Kiểm tra kết nối'}</button>;
-  return <section className="settings-page">
+  return <section className="settings-page" data-settings-unsaved={dirty || saving ? 'true' : undefined}>
     <PageHeader title="Cài đặt" />
     <section className="panel settings-section appearance-settings">
       <div className="theme-setting">
@@ -101,36 +154,35 @@ export default function Settings() {
     </section>
 
     <ViewingDeviceSettings />
-    <form onSubmit={save} className="settings-form">
+    <form onSubmit={event => { event.preventDefault(); if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); }} className="settings-form">
       <section className="panel settings-section">
         <header className="settings-heading"><Icon name="server" size={22} /><div><h2>Máy chủ</h2></div><span className={`status-badge ${connection === true ? 'online' : connection === false ? 'error' : 'connecting'}`}><i className={`status-dot ${connection === true ? 'online' : connection === false ? 'error' : 'connecting'}`} />{connection === null ? 'Đang kiểm tra' : connection ? 'Trực tuyến' : 'Mất kết nối'}</span></header>
-        {admin && form && <label>Địa chỉ web để chia sẻ<div className="settings-address"><input type="url" value={form.public_base_url} onChange={event => change('public_base_url', event.target.value)} placeholder={window.location.origin} maxLength={2048} /><div className="settings-address-actions"><button type="button" onClick={() => void copyAddress()}>{copied ? 'Đã sao chép' : 'Sao chép link'}</button>{connectionButton}</div></div></label>}
+        {admin && form && <label>Địa chỉ web để chia sẻ<div className="settings-address"><input type="url" value={form.public_base_url} onChange={event => draftChange('public_base_url', event.target.value)} onBlur={event => change('public_base_url', event.target.value)} onKeyDown={applyOnEnter} placeholder={window.location.origin} maxLength={2048} /><div className="settings-address-actions"><button type="button" onClick={() => void copyAddress()}>{copied ? 'Đã sao chép' : 'Sao chép link'}</button>{connectionButton}</div></div></label>}
         {!admin && connectionButton}
       </section>
 
       {admin && form && <section className="panel settings-section alarm-settings-section">
         <header className="settings-heading"><Icon name="bell" size={22} /><div><h2>Báo động</h2></div></header>
-        <CameraSettingSelect label="Thời lượng báo động" value={String(form.alarm_duration_seconds ?? 30)} options={alarmDurations.map(seconds => ({ value: String(seconds), label: alarmDurationLabel(seconds), description: seconds === 0 ? 'Giữ còi cho đến khi nhấn Dừng còi' : 'Tự dừng khi hết thời gian' }))} onChange={value => change('alarm_duration_seconds', Number(value))} disabled={saving} description="Chọn thời gian phát còi cho lần báo động tiếp theo." icon="bell" />
+        <CameraSettingSelect label="Thời lượng báo động" value={String(form.alarm_duration_seconds ?? 30)} options={alarmDurations.map(seconds => ({ value: String(seconds), label: alarmDurationLabel(seconds) }))} onChange={value => change('alarm_duration_seconds', Number(value))} description="Chọn thời lượng phát còi." icon="bell" />
       </section>}
       {admin && <section className="panel settings-section storage-settings-section">
         <header className="settings-heading"><Icon name="database" size={22} /><div><h2>Lưu trữ & ghi hình</h2></div>{storage && <span className="subtle-badge">Đã dùng {storage.used_percent}%</span>}</header>
         {loading && <p className="muted" role="status">Đang tải cấu hình…</p>}
         {form && <>
           <div className="settings-fields">
-            <label>Tên ổ lưu trữ<input value={form.storage_label} onChange={event => change('storage_label', event.target.value)} required maxLength={100} /></label>
-            <label>Thời gian giữ tối đa (giờ)<input type="number" min={0} max={87600} step={1} value={form.record_retention_hours} onChange={event => change('record_retention_hours', Number(event.target.value))} required /><small>0 = giữ đến khi cần dọn theo dung lượng.</small></label>
-            <label>Bắt đầu dọn khi đầy (%)<input type="number" min={1} max={99} step={1} value={form.cleanup_threshold_percent} onChange={event => change('cleanup_threshold_percent', Number(event.target.value))} required /></label>
-            <label>Dọn về mức sử dụng (%)<input type="number" min={0} max={98} step={1} value={form.cleanup_target_percent} onChange={event => change('cleanup_target_percent', Number(event.target.value))} required /></label>
-            <label>Chu kỳ kiểm tra (phút)<input type="number" min={1} max={1440} step={1} value={form.cleanup_interval_minutes} onChange={event => change('cleanup_interval_minutes', Number(event.target.value))} required /></label>
+            <label>Tên ổ lưu trữ<input value={form.storage_label} onChange={event => draftChange('storage_label', event.target.value)} onBlur={event => change('storage_label', event.target.value)} onKeyDown={applyOnEnter} required maxLength={100} /></label>
+            <CameraSettingSelect label="Thời gian giữ bản ghi" value={String(form.record_retention_hours)} options={numericOptions(form.record_retention_hours, [0, 6, 12, 24, 48, 72, 168, 336, 720, 1440, 2160, 8760], hours => hours === 0 ? 'Theo dung lượng' : hours % 24 === 0 ? `${hours / 24} ngày` : `${hours} giờ`)} onChange={value => change('record_retention_hours', Number(value))} description="Chọn thời gian giữ bản ghi tối đa." icon="clock" />
+            <CameraSettingSelect label="Bắt đầu dọn khi đầy" value={String(form.cleanup_threshold_percent)} options={numericOptions(form.cleanup_threshold_percent, [60, 70, 75, 80, 85, 90, 95, 98, 99], value => `${value}%`).map(option => ({ ...option, disabled: Number(option.value) <= form.cleanup_target_percent }))} onChange={value => change('cleanup_threshold_percent', Number(value))} description="Chọn ngưỡng bắt đầu dọn bản ghi cũ." icon="database" />
+            <CameraSettingSelect label="Dọn về mức sử dụng" value={String(form.cleanup_target_percent)} options={numericOptions(form.cleanup_target_percent, [0, 10, 25, 50, 60, 70, 75, 80, 85, 90, 95, 98], value => `${value}%`).map(option => ({ ...option, disabled: Number(option.value) >= form.cleanup_threshold_percent }))} onChange={value => change('cleanup_target_percent', Number(value))} description="Chọn mức thấp hơn ngưỡng bắt đầu dọn." icon="database" />
+            <CameraSettingSelect label="Chu kỳ kiểm tra" value={String(form.cleanup_interval_minutes)} options={numericOptions(form.cleanup_interval_minutes, [1, 2, 5, 10, 15, 30, 60, 120, 360, 720, 1440], minutes => minutes % 60 === 0 ? `${minutes / 60} giờ` : `${minutes} phút`)} onChange={value => change('cleanup_interval_minutes', Number(value))} description="Chọn khoảng thời gian giữa hai lần kiểm tra." icon="refresh" />
             <div className="settings-readonly"><span>Múi giờ ghi hình</span><strong>{info?.record_timezone}</strong></div>
           </div>
           <div className="storage-location"><span>Thư mục dữ liệu đang dùng</span><code>{info?.storage_root}</code>{storage && <small>Còn {formatBytes(storage.free_bytes)} / {formatBytes(storage.total_bytes)}</small>}</div>
         </>}
       </section>}
       {!admin && <p className="muted">Chỉ quản trị viên có quyền thay đổi cấu hình máy chủ.</p>}
-      {error && <div className="notice error" role="alert">{error}</div>}
-      {notice && <div className="notice success" role="status">{notice}</div>}
-      {admin && <div className="settings-save">{dirty && <span>Có thay đổi chưa lưu</span>}<button className="primary" type="submit" disabled={saving || loading || !form || !dirty}><Icon name="check" size={18} />{saving ? 'Đang lưu…' : 'Lưu cấu hình'}</button></div>}
+      {error && <div className="notice error" role="alert">{error}{!saving && desired.current && JSON.stringify(desired.current) !== JSON.stringify(applied.current) && <button type="button" onClick={() => { if (desired.current) enqueueSave(desired.current); }}>Thử lại</button>}</div>}
+      {(saving || notice) && <p className="settings-save-status" role="status">{saving ? 'Đang áp dụng…' : notice}</p>}
     </form>
   </section>;
 }
