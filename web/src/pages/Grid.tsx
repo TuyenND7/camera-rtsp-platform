@@ -121,7 +121,7 @@ export default function Grid() {
     <section className={`mi-live-page${fullscreen ? ' is-fullscreen' : ''}`} ref={livePage}>
       <PageHeader title="Live view" actions={<div className="mi-live-actions">
           <EmergencyControls cameras={cameras} talk={cameraTalk} compact />
-          <button type="button" className="mi-camera-picker-button" onClick={() => openPicker()} aria-label="Chọn camera Live view"><Icon name="video" size={18} />{selected.size} camera <Icon name="chevronDown" size={15} /></button>
+          <button type="button" className="mi-camera-picker-button" onClick={() => openPicker()} aria-label={`Chọn camera Live view, đang chọn ${selected.size} camera`}><Icon name="video" size={18} />{selected.size}<Icon name="chevronDown" size={15} /></button>
           <div className="mi-layout-picker" role="group" aria-label="Bố cục camera">
             {([1, 4, 9, 16] as LayoutSize[]).map((size) => <button key={size} className={layout === size ? 'active' : ''} type="button" onClick={() => changeLayout(size)} title={`Bố cục ${size} camera`}>{size === 1 ? '1' : size === 4 ? '2×2' : size === 9 ? '3×3' : '4×4'}</button>)}
           </div>
