@@ -56,7 +56,7 @@ async function body(req: IncomingMessage): Promise<Record<string, any>> {
 /** Installed only by `vite --mode ui-preview`; it has no database or network client. */
 export function uiPreviewPlugin(): Plugin {
   let settings = { public_base_url: '', storage_label: 'Ổ lưu trữ mẫu', record_retention_hours: 0,
-    cleanup_threshold_percent: 90, cleanup_target_percent: 85, cleanup_interval_minutes: 10 };
+    cleanup_threshold_percent: 90, cleanup_target_percent: 85, cleanup_interval_minutes: 10, alarm_duration_seconds: 30 };
   let cameras = [
     camera(1, 'Phòng khách · ONVIF mẫu'),
     camera(2, 'Sân trước · chỉ RTSP', { onvif_url: null }),

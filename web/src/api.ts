@@ -8,6 +8,8 @@ export interface DeviceControls {
   reason?: string;
   alarm_supported: boolean;
   alarm_active: boolean | null;
+  alarm_command_active?: boolean;
+  alarm_until_stopped?: boolean;
   light_supported: boolean;
   light_enabled: boolean | null;
   talking?: boolean;
@@ -24,6 +26,7 @@ export interface ServerSettings {
   cleanup_threshold_percent: number;
   cleanup_target_percent: number;
   cleanup_interval_minutes: number;
+  alarm_duration_seconds: number;
 }
 export interface SettingsInfo { settings: ServerSettings; storage_root: string; record_timezone: string }
 let csrf = '';

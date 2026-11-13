@@ -16,7 +16,7 @@ const { startRetentionJob } = require('../dist/stream/retention');
 
 const originalConfig = { ...config };
 const initial = { public_base_url: '', storage_label: 'Test storage', record_retention_hours: 0,
-  cleanup_threshold_percent: 90, cleanup_target_percent: 85, cleanup_interval_minutes: 10 };
+  cleanup_threshold_percent: 90, cleanup_target_percent: 85, cleanup_interval_minutes: 10, alarm_duration_seconds: 30 };
 let server, origin, originalQuery, stored = null, writes = [], failWrite = false, delayWrite = false;
 const admin = signToken({ sub: 1, username: 'admin-test', role: 'admin' });
 const viewer = signToken({ sub: 2, username: 'viewer-test', role: 'viewer' });
@@ -90,6 +90,20 @@ test('concurrent saves apply in order despite a delayed first database write', a
   const a = saveSettings({ ...initial, storage_label: 'First' }, 1);
   const b = saveSettings({ ...initial, storage_label: 'Second' }, 1);
   await Promise.all([a, b]); assert.equal(currentSettings().storage_label, 'Second'); assert.equal(stored.storage_label, 'Second');
+});
+test('alarm duration presets persist, reload, reject unknown values and migrate older settings', async () => {
+  for (const seconds of [0,10,15,30,60]) {
+    const r=await request('PUT',{...initial,alarm_duration_seconds:seconds}); assert.equal(r.status,200);
+    assert.equal((await r.json()).settings.alarm_duration_seconds,seconds); config.alarmDurationSeconds=99;
+    await loadSettings(); assert.equal(currentSettings().alarm_duration_seconds,seconds);
+  }
+  const count=writes.length;
+  for (const value of [-1,5,20,61,1.5,'30',false,null]) assert.equal((await request('PUT',{...initial,alarm_duration_seconds:value})).status,400);
+  assert.equal(writes.length,count);
+  await saveSettings({...initial,alarm_duration_seconds:0},1); const legacy={...initial}; delete legacy.alarm_duration_seconds;
+  assert.equal((await request('PUT',legacy)).status,200); assert.equal(currentSettings().alarm_duration_seconds,0);
+  stored={...initial}; delete stored.alarm_duration_seconds;
+  await loadSettings(); assert.equal(currentSettings().alarm_duration_seconds,30); await saveSettings(initial,1);
 });
 
 test('retention reads an updated interval and policy without restarting or deleting current-day recordings', async () => {

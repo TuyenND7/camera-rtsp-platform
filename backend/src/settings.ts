@@ -11,6 +11,7 @@ export function currentSettings(): ServerSettings {
     cleanup_threshold_percent: config.storageCleanupThresholdPercent,
     cleanup_target_percent: config.storageCleanupTargetPercent,
     cleanup_interval_minutes: config.storageCleanupIntervalMinutes,
+    alarm_duration_seconds: config.alarmDurationSeconds,
   };
 }
 
@@ -21,6 +22,7 @@ function applySettings(value: ServerSettings): void {
   config.storageCleanupThresholdPercent = value.cleanup_threshold_percent;
   config.storageCleanupTargetPercent = value.cleanup_target_percent;
   config.storageCleanupIntervalMinutes = value.cleanup_interval_minutes;
+  config.alarmDurationSeconds = value.alarm_duration_seconds;
 }
 
 export async function loadSettings(): Promise<void> {
@@ -31,7 +33,7 @@ export async function loadSettings(): Promise<void> {
 // Serialize writes so a delayed database response cannot apply an older policy.
 let saveQueue: Promise<unknown> = Promise.resolve();
 export function saveSettings(input: unknown, userId: number): Promise<ServerSettings> {
-  const value = validateSettings(input);
+  const value = validateSettings(input, config.alarmDurationSeconds);
   const save = saveQueue.then(async () => {
     await pool.query(
       'INSERT INTO application_settings (id, value, updated_by) VALUES (1, $1::jsonb, $2) ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()',

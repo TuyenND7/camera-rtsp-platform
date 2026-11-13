@@ -3,6 +3,8 @@ import { api, type ServerSettings, type SettingsInfo, type StorageStatus } from 
 import Icon from '../Icon';
 import { formatBytes, PageHeader, SessionContext } from '../ui';
 import { TEXT_SIZES, useTheme } from '../theme';
+import CameraSettingSelect from '../CameraSettingSelect';
+import { alarmDurations, alarmDurationLabel } from '../alarm';
 
 export default function Settings() {
   const user = useContext(SessionContext);
@@ -42,7 +44,7 @@ export default function Settings() {
     try {
       const result = await api.saveSettings(form);
       setForm(result.settings); setInfo(current => current ? { ...current, settings: result.settings } : current);
-      setNotice('Đã lưu cấu hình máy chủ. Chính sách lưu trữ áp dụng cho các lần kiểm tra tiếp theo.');
+      setNotice('Đã lưu cấu hình máy chủ.');
       window.dispatchEvent(new Event('camera-station.settings-updated'));
       void api.storageStatus().then(setStorage).catch(() => undefined);
     } catch (err: any) { setError(err.message); }
@@ -103,7 +105,12 @@ export default function Settings() {
         {admin && form && <label>Địa chỉ web để chia sẻ<div className="settings-address"><input type="url" value={form.public_base_url} onChange={event => change('public_base_url', event.target.value)} placeholder={window.location.origin} maxLength={2048} /><button type="button" onClick={() => void copyAddress()}>{copied ? 'Đã sao chép' : 'Sao chép link'}</button></div><small>Nhập IP hoặc tên máy trong LAN/VPN, ví dụ http://camera.local:8081. Dùng địa chỉ này để mở web trên điện thoại.</small></label>}
       </section>
 
-      {admin && <section className="panel settings-section">
+      {admin && form && <section className="panel settings-section alarm-settings-section">
+        <header className="settings-heading"><Icon name="bell" size={22} /><div><h2>Báo động</h2><p>Thời lượng mặc định khi bật còi từ Live view.</p></div></header>
+        <CameraSettingSelect label="Thời lượng báo động" value={String(form.alarm_duration_seconds ?? 30)} options={alarmDurations.map(seconds => ({ value: String(seconds), label: alarmDurationLabel(seconds), description: seconds === 0 ? 'Giữ còi cho đến khi nhấn Dừng còi' : 'Tự dừng khi hết thời gian' }))} onChange={value => change('alarm_duration_seconds', Number(value))} disabled={saving} description="Chọn thời gian phát còi cho lần báo động tiếp theo." icon="bell" />
+        <p className="settings-help">Luôn hỏi xác nhận trước khi bật còi. Nút Dừng còi tắt ngay, không cần xác nhận.</p>
+      </section>}
+      {admin && <section className="panel settings-section storage-settings-section">
         <header className="settings-heading"><Icon name="database" size={22} /><div><h2>Lưu trữ & ghi hình</h2><p>Tự dọn bản ghi cũ theo dung lượng và thời gian lưu.</p></div>{storage && <span className="subtle-badge">Đã dùng {storage.used_percent}%</span>}</header>
         {loading && <p className="muted" role="status">Đang tải cấu hình…</p>}
         {form && <>

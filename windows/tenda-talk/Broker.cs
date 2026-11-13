@@ -13,8 +13,12 @@ public static partial class TalkAgent
     {
         public Process Process;
         public string Directory;
-        public long Started;
+        public long Started, StopRequested;
         public bool Control;
+    }
+    static bool WorkerExpired(WorkerProcess worker)
+    {
+        return Now - worker.Started > 70000 && !(worker.Control && ControlLeaseHealthy(worker.Directory));
     }
     static Process Launch(string configuration, string arguments)
     {
@@ -115,10 +119,11 @@ public static partial class TalkAgent
                 foreach (var item in workers)
                 {
                     var worker = item.Value;
-                    if (!worker.Process.HasExited && (Now - worker.Started > 70000 || !ready))
+                    if (!worker.Process.HasExited && (WorkerExpired(worker) || !ready))
                     {
                         try { File.WriteAllText(Path.Combine(worker.Directory, "stop"), ""); } catch {}
-                        if (Now - worker.Started > 72000) try { worker.Process.Kill(); } catch {}
+                        if (worker.StopRequested == 0) worker.StopRequested = Now;
+                        if (Now - worker.StopRequested > 2000) try { worker.Process.Kill(); } catch {}
                     }
                     if (worker.Process.HasExited)
                     {

@@ -32,3 +32,16 @@ test('a result from a previous SDK generation cannot confirm a new control reque
  const agent=setInterval(()=>{for(const n of fs.readdirSync(f.root)){const d=path.join(f.root,n);if(!fs.existsSync(path.join(d,'request.json'))||fs.existsSync(path.join(d,'result.json')))continue;directory=d;f.g.instance=randomUUID();f.publish();fs.writeFileSync(path.join(d,'result.json'),JSON.stringify({ok:true,state}));}},10);
  try{await assert.rejects(()=>f.client.get(camera),/khởi động lại/);assert.ok(fs.existsSync(path.join(directory,'stop')));}finally{clearInterval(agent);f.client.close()}
 });
+
+test('manual alarm metadata survives backend client restart and stays active until explicit stop',async()=>{
+ const f=fixture();let second,alarmDirectory;
+ const agent=setInterval(()=>{for(const n of fs.readdirSync(f.root)){const d=path.join(f.root,n);if(!fs.existsSync(d)||!fs.statSync(d).isDirectory())continue;
+  if(d===alarmDirectory&&fs.existsSync(path.join(d,'stop'))&&!fs.existsSync(path.join(d,'finished.json'))){fs.unlinkSync(path.join(f.root,'alarm-2.json'));fs.writeFileSync(path.join(d,'finished.json'),JSON.stringify({ok:true,state}));continue}
+  if(!fs.existsSync(path.join(d,'request.json'))||fs.existsSync(path.join(d,'result.json')))continue;
+  const c=JSON.parse(fs.readFileSync(path.join(d,'request.json')));if(c.action==='alarm'&&c.enabled){assert.equal(c.duration_seconds,0);alarmDirectory=d;fs.writeFileSync(path.join(f.root,'alarm-2.json'),JSON.stringify({camera_id:2,url_hash:hash,request:n,duration_seconds:0,ends_at:null}))}
+  fs.writeFileSync(path.join(d,'result.json'),JSON.stringify({ok:true,state}));}},10);
+ try{const result=await f.client.set(camera,'alarm',true,0);assert.equal(result.alarm_command_active,true);assert.equal(result.alarm_until_stopped,true);assert.equal(result.ends_at,null);
+ second=new TendaControls(f.base);const loaded=await second.get(camera);assert.equal(loaded.alarm_command_active,true);assert.equal(loaded.alarm_active,null);
+ const stopped=await second.set(camera,'alarm',false);assert.equal(stopped.alarm_command_active,false);assert.equal(stopped.alarm_until_stopped,false);assert.equal(second.alarmActive(camera),false);
+ }finally{clearInterval(agent);second?.close();f.client.close()}
+});

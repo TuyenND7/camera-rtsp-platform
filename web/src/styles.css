@@ -1020,7 +1020,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .emergency-scope-count { padding: 2px 4px; border: 1px solid #d83b5260; border-radius: 4px; font-size: calc(10px * var(--text-scale, 1)); font-weight: 700; }
 .emergency-controls.compact .emergency-scope-count { padding: 1px 3px; }
 .emergency-controls.compact .emergency-actions { display: flex; flex-wrap: nowrap; gap: 4px; }
-.emergency-controls.compact .emergency-actions > button { position: relative; min-width: 44px; min-height: 36px; padding: 4px 6px; border-radius: 5px; font-size: calc(11px * var(--text-scale, 1)); line-height: 1.3; white-space: nowrap; }
+.emergency-controls.compact .emergency-actions > button { position: relative; min-width: 44px; min-height: 32px; padding: 3px 6px; border-radius: 5px; font-size: calc(11px * var(--text-scale, 1)); line-height: 1.3; white-space: nowrap; }
 .emergency-controls.compact .emergency-status { position: absolute; z-index: 8; top: calc(100% + 8px); right: 0; display: grid; grid-template-columns: minmax(0, 1fr) 44px; width: 420px; max-width: calc(100vw - 24px); padding: 8px 10px; border: 1px solid #d83b52; border-radius: 8px; color: inherit; background: inherit; box-shadow: 0 8px 24px #0003; }
 .emergency-status-close { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; color: inherit; border: 0; background: transparent; }
 .emergency-controls.compact .emergency-level { grid-column: 1 / -1; }
@@ -1042,7 +1042,18 @@ tbody tr:last-child td { border-bottom: 0; }
 .emergency-camera-dialog .emergency-apply { color: #fff; border-color: #bd213b; background: #bd213b; }
 @media (pointer: coarse) {
   .emergency-controls.compact .emergency-selector::after, .emergency-controls.compact .emergency-actions > button::after { position: absolute; top: -4px; right: 0; bottom: -4px; left: 0; content: ''; }
+  .emergency-controls.compact .emergency-actions > button::after { top: -6px; bottom: -6px; }
 }
+.alarm-confirm-dialog { width: min(560px, calc(100vw - 24px)); }
+.alarm-confirm-dialog[open] { display: flex; flex-direction: column; }
+.alarm-confirm-dialog .dialog-heading, .alarm-confirm-dialog .dialog-footer { flex-shrink: 0; }
+.alarm-confirm-dialog .dialog-heading h2 { display: flex; align-items: center; gap: 8px; color: var(--danger-text, #bd213b); }
+.alarm-confirm-body { flex: 1; min-height: 0; padding: 0 24px 18px; overflow-y: auto; overflow-wrap: anywhere; }
+.alarm-confirm-body ul { margin: 0 0 16px; padding-left: 22px; font-weight: 700; }
+.alarm-confirm-body p { margin: 10px 0 0; }
+.alarm-confirm-dialog .alarm-confirm-start { color: #fff; border-color: #bd213b; background: #bd213b; }
+.alarm-confirm-dialog .alarm-confirm-start:hover { color: #fff; border-color: #95192f; background: #95192f; }
+.storage-settings-section { grid-column: 1 / -1; }
 @media (max-width: 760px) {
   .emergency-controls { grid-template-columns: minmax(0, 1fr); gap: 7px; padding: 8px; }
   .emergency-description { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; }

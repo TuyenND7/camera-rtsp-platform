@@ -14,7 +14,7 @@ router.get('/', (_req, res) => res.json({
 
 router.put('/', async (req: AuthedRequest, res) => {
   let value;
-  try { value = validateSettings(req.body); }
+  try { value = validateSettings(req.body, config.alarmDurationSeconds); }
   catch (error) { res.status(400).json({ error: (error as Error).message }); return; }
   try { res.json({ settings: await saveSettings(value, req.user!.sub) }); }
   catch (error) {

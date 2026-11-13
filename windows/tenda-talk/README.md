@@ -94,18 +94,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\tenda-talk\Tes
 
 ## Nút còi và đèn trên web
 
-Mở Live → biểu tượng chuông cạnh phóng to/mic, hoặc chạm một ô camera rồi chọn biểu tượng chuông. Từng thiết bị có **Bật còi / Dừng còi** và **Bật đèn / Tắt đèn**. Chọn thời gian 5, 10 hoặc 30 giây; worker Windows tự gửi lệnh dừng còi khi hết thời gian, khi bị hủy hoặc agent dừng. Lease lệnh còn lại được xử lý bằng lệnh dừng khi agent khởi động lại hoặc phát hiện worker lỗi. Không bật thêm nhận dạng/cảnh báo chuyển động tự động.
+Mở **Live → Khẩn cấp** để chọn nhóm camera và bấm **Báo động**, hoặc chạm một ô rồi chọn biểu tượng chuông để điều khiển từng camera. Mọi lần bật còi cần xác nhận camera/thời lượng; dừng còi gửi ngay. Cài đặt thời lượng dùng chung trên web: 10, 15, 30, 60 giây hoặc đến khi người dùng tắt. Chế độ thủ công có `duration_seconds: 0`, lease không có deadline; worker phát heartbeat mỗi giây và được broker cho chạy quá 70 giây khi lease/binding/generation/heartbeat còn hợp lệ. Worker hết heartbeat hoặc agent dừng/mất xác thực được dừng và lease mồ côi được phục hồi bằng lệnh tắt. Còi thủ công tiếp tục khi đóng web nhưng dừng khi nhấn Dừng còi hoặc máy chủ/adapter kết thúc phiên. Không bật nhận dạng/cảnh báo chuyển động tự động.
 
 Đường này dùng [SDK vật mô hình PC của LinkVisual](https://help.aliyun.com/zh/linkvisual/object-model-sdk-2) trong `iottmp.dll`, cùng phiên SDK đã xác thực: gọi dịch vụ **oneKeyAlarm** với `operate=1/0` và thuộc tính **TurnLight=1/0**. DLL được kiểm SHA-256 như các thư viện hiện có. Không dùng phiên REST TDSEE đã hết hạn để điều khiển.
 
 Backend chỉ cho phép hai thao tác này trên camera đã liên kết đúng ID/fingerprint; API không nhận tên dịch vụ, thuộc tính, URL hay thông tin đăng nhập tùy ý. Toàn bộ thuộc tính thiết bị được đọc trong worker Windows; chỉ cờ còi/đèn và thời gian được đưa ra IPC/web, không trả thông tin Wi-Fi hay khóa thiết bị.
 
-CT3 đang dùng không cập nhật `AudibleStatus` cho lệnh còi thủ công dù đã phát tiếng. Vì vậy web hiển thị lệnh đã gửi và thời gian tự dừng; `alarm_active` để `null` khi không có phản hồi vật lý đáng tin cậy. Không coi ACK SDK là bằng chứng loa đã phát. Người dùng đã xác nhận nghe còi gốc trên CT3 ngoài sân trong lượt thử 5 giây. Đèn trắng ngoài sân đã kiểm tra trạng thái `TurnLight` đổi 0 → 1 → 0.
+CT3 đang dùng không cập nhật `AudibleStatus` cho lệnh còi thủ công dù đã phát tiếng. Vì vậy web hiển thị lệnh đã gửi và thời gian tự dừng; `alarm_active` để `null` khi không có phản hồi vật lý đáng tin cậy. `alarm_command_active` và `alarm_until_stopped` lấy từ lease đã kiểm tra, giúp web giữ nút Dừng còi cả khi không có deadline. Không coi ACK SDK là bằng chứng loa đã phát. Người dùng đã xác nhận nghe còi gốc trên CT3 ngoài sân trong lượt thử 5 giây. Đèn trắng ngoài sân đã kiểm tra trạng thái `TurnLight` đổi 0 → 1 → 0.
 
 API dành cho admin:
 
 - `GET /api/cameras/:id/controls`: đọc khả năng và trạng thái đã lọc.
-- `POST /api/cameras/:id/controls`: HTTPS + phiên admin + CSRF; JSON `{ "action": "alarm" | "light", "enabled": true | false, "duration_seconds": 5 | 10 | 30 }`.
+- `POST /api/cameras/:id/controls`: HTTPS + phiên admin + CSRF; JSON `{ "action": "alarm" | "light", "enabled": true | false, "duration_seconds": 0 | 10 | 15 | 30 | 60 }`.
 
 App Android vẫn chỉ hiển thị website. Snapshot PNG được tạo từ video đang phát trong trình duyệt; hỗ trợ lưu/chia sẻ file của từng WebView có thể khác Chrome/Safari.
 

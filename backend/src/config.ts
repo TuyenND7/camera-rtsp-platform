@@ -28,6 +28,7 @@ export const config = {
   storageRoot: process.env.STORAGE_ROOT ?? '/storage',
   storageLabel: process.env.STORAGE_LABEL ?? 'Camera storage',
   publicBaseUrl: process.env.PUBLIC_BASE_URL ?? '',
+  alarmDurationSeconds: 30,
   // 0 = giữ recording cho tới khi quota dung lượng yêu cầu dọn.
   recordRetentionHours: Math.max(0, num(process.env.RECORD_RETENTION_HOURS, 0)),
   storageCleanupThresholdPercent: percent(process.env.STORAGE_CLEANUP_THRESHOLD_PERCENT, 90),

@@ -12,6 +12,8 @@ export interface DeviceControls {
   reason?: string;
   alarm_supported: boolean;
   alarm_active: boolean | null;
+  alarm_command_active?: boolean;
+  alarm_until_stopped?: boolean;
   light_supported: boolean;
   light_enabled: boolean | null;
   talking?: boolean;
@@ -73,6 +75,11 @@ export class TendaControls {
     } catch { return undefined; }
   }
   alarmActive(camera: TalkCamera) { return this.busy.get(camera.id)?.alarm === true || !!this.lease(camera); }
+  private withLease(camera: TalkCamera, state: DeviceControls): DeviceControls {
+    const lease = this.lease(camera);
+    return { ...state, ends_at: time(lease?.ends_at), alarm_command_active: !!lease, alarm_until_stopped: !!lease && lease.duration_seconds === 0 };
+  }
+  unavailable(camera: TalkCamera, reason: string) { return this.withLease(camera, unavailableControls(camera.id, reason)); }
   private settingsGateway(camera: TalkCamera) {
     if (this.gateway(camera).settings_version !== 1) throw new ControlError(503, 'Adapter trên máy chủ chưa hỗ trợ cài đặt TDSEE.');
   }
@@ -96,7 +103,7 @@ export class TendaControls {
     const generation = this.gateway(camera).instance;
     const key = `${camera.id}:${fingerprint(camera)}:${generation}`;
     const cached = this.cache.get(key);
-    if (cached && cached.expires > Date.now()) return { ...cached.state, ends_at: time(this.lease(camera)?.ends_at) };
+    if (cached && cached.expires > Date.now()) return this.withLease(camera, cached.state);
     const existing = this.reads.get(camera.id);
     if (existing) return existing;
     const pending = this.request(camera, 'get').then(state => {
@@ -115,7 +122,13 @@ export class TendaControls {
         if (lease) {
           const directory = path.join(this.root(), lease.request);
           this.stop(directory);
-          try { return await this.wait(camera.id, directory, 'finished.json', Date.now() + 12000); }
+          try {
+            const state = await this.wait(camera.id, directory, 'finished.json', Date.now() + 12000);
+            const deadline = Date.now() + 1000;
+            while (this.lease(camera)?.request === lease.request && Date.now() < deadline) await delay(40);
+            if (this.lease(camera)?.request === lease.request) throw new ControlError(502, errors.sdk_control_stop_unconfirmed);
+            return this.withLease(camera, state);
+          }
           catch { /* An orphaned worker needs a fresh authenticated stop below. */ }
         }
       }
@@ -132,14 +145,14 @@ export class TendaControls {
       fs.renameSync(path.join(directory, 'request.tmp'), path.join(directory, 'request.json'));
       const state = await this.wait(camera.id, directory, 'result.json', Date.now() + 25000);
       if (this.gateway(camera).instance !== gateway.instance) throw new ControlError(503, 'Kênh điều khiển vừa khởi động lại. Hãy thử lại.');
-      return { ...state, ends_at: time(this.lease(camera)?.ends_at) ?? state.ends_at };
+      return this.withLease(camera, state);
     } catch (error) {
       this.stop(directory);
       throw error instanceof ControlError ? error : new ControlError(503, 'Chưa gửi được lệnh điều khiển tới camera.');
     } finally {
       this.requests.delete(directory);
       const cleanup = setTimeout(() => {
-        // Active timed alarms must remain for the native watchdog and recovery.
+        // Active alarms remain for the native watchdog and recovery, including manual mode.
         if (action === 'alarm' && enabled && !fs.existsSync(path.join(directory, 'finished.json'))) return;
         try { fs.rmSync(directory, { recursive: true, force: true }); } catch {}
       }, action === 'alarm' && enabled ? (seconds + 15) * 1000 : 5000); cleanup.unref();

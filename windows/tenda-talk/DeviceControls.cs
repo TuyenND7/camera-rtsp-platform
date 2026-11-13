@@ -84,8 +84,30 @@ public static partial class TalkAgent
         if (action != "get" && action != "light" && action != "alarm" && action != "settings") throw new ControlFailure(400, "sdk_control_request_invalid");
         if (action == "settings") ValidateSettingsCommand(command);
         if (action != "get" && !(command["enabled"] is bool)) throw new ControlFailure(400, "sdk_control_request_invalid");
-        if (action == "alarm" && Convert.ToBoolean(command["enabled"]) && !new List<int>{5,10,30}.Contains(Convert.ToInt32(command["duration_seconds"]))) throw new ControlFailure(400, "sdk_control_request_invalid");
+        if (action == "alarm" && Convert.ToBoolean(command["enabled"])) AlarmSeconds(command["duration_seconds"]);
         return command;
+    }
+    static int AlarmSeconds(object raw)
+    {
+        if (!(raw is int) && !(raw is long)) throw new ControlFailure(400, "sdk_control_request_invalid");
+        int seconds = Convert.ToInt32(raw);
+        if (!new List<int>{0,5,10,15,30,60}.Contains(seconds)) throw new ControlFailure(400, "sdk_control_request_invalid");
+        return seconds;
+    }
+    static bool ControlLeaseHealthy(string directory)
+    {
+        try {
+            if (File.Exists(Path.Combine(directory, "stop"))) return false;
+            var pulse = Read(Path.Combine(directory, "heartbeat.json")); int id = Convert.ToInt32(pulse["camera_id"]); var binding = Binding(id);
+            string request = Path.GetFileName(directory); Guid parsed;
+            if (!Guid.TryParseExact(request, "D", out parsed) || binding == null || (string)pulse["agent_instance"] != instance || (string)pulse["request"] != request || Math.Abs(Now - Convert.ToInt64(pulse["updated_at"])) > 5000) return false;
+            var lease = Read(Path.Combine(ControlRoot, "alarm-" + id + ".json"));
+            if (Convert.ToInt32(lease["camera_id"]) != id || (string)lease["request"] != request || (string)lease["agent_instance"] != instance || (string)lease["url_hash"] != (string)binding["url_hash"]) return false;
+            int seconds = AlarmSeconds(lease["duration_seconds"]);
+            if (seconds == 0) return lease["ends_at"] == null;
+            long ends = Convert.ToInt64(lease["ends_at"]), created = Convert.ToInt64(lease["created_at"]);
+            return Now <= ends + 5000 && ends <= created + seconds * 1000 + 1000;
+        } catch { return false; }
     }
     static bool OwnLease(string lease, string request)
     {
@@ -124,15 +146,21 @@ public static partial class TalkAgent
                 Write(Path.Combine(directory, "result.json"), new { ok = true, acknowledged = true, confirmed = false, state = state }); return;
             }
             if (state.talking) throw new ControlFailure(409, "sdk_control_camera_talking");
-            int seconds = Convert.ToInt32(command["duration_seconds"]); long ends = Now + seconds * 1000;
+            int seconds = AlarmSeconds(command["duration_seconds"]); long? ends = seconds == 0 ? (long?)null : Now + seconds * 1000;
             try {
                 using (var file = new FileStream(lease, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
-                using (var writer = new StreamWriter(file, utf8)) writer.Write(json.Serialize(new { camera_id = id, url_hash = command["url_hash"], request = request.ToString("D"), agent_instance = instance, created_at = Now, ends_at = ends }));
+                using (var writer = new StreamWriter(file, utf8)) writer.Write(json.Serialize(new { camera_id = id, url_hash = command["url_hash"], request = request.ToString("D"), agent_instance = instance, created_at = Now, duration_seconds = seconds, ends_at = ends }));
                 leaseOwned = true;
             } catch (IOException) { throw new ControlFailure(409, "sdk_control_alarm_busy"); }
             alarmMayBeActive = true; client.Alarm(true); state = ControlState(client);
             Write(Path.Combine(directory, "result.json"), new { ok = true, acknowledged = true, confirmed = false, state = state, ends_at = ends });
-            while (Now < ends && ParentAlive() && OwnLease(lease, request.ToString("D")) && !File.Exists(Path.Combine(directory, "stop")) && !File.Exists(Path.Combine(Path.GetDirectoryName(configuration), "stop-agent"))) TendaNative.Pump(50);
+            long pulsed = 0;
+            while ((!ends.HasValue || Now < ends.Value) && ParentAlive() && OwnLease(lease, request.ToString("D")) && !File.Exists(Path.Combine(directory, "stop")) && !File.Exists(Path.Combine(Path.GetDirectoryName(configuration), "stop-agent"))) {
+                if (Now - pulsed >= 1000) {
+                    try { Write(Path.Combine(directory, "heartbeat.json"), new { camera_id = id, request = request.ToString("D"), agent_instance = instance, updated_at = Now }); pulsed = Now; } catch (IOException) {}
+                }
+                TendaNative.Pump(50);
+            }
             client.Alarm(false); state = ControlState(client);
             alarmMayBeActive = false;
             Write(Path.Combine(directory, "finished.json"), new { ok = true, acknowledged = true, confirmed = false, state = state });
@@ -177,7 +205,7 @@ public static partial class TalkAgent
                 var value = Read(lease); Guid request;
                 if (!Guid.TryParseExact((string)value["request"], "D", out request) || Convert.ToInt32(value["camera_id"]) != id || (string)value["url_hash"] != (string)binding["url_hash"]) continue;
                 if (workers.ContainsKey("control:" + request.ToString("D"))) continue;
-                // Stop an orphaned timed alarm before accepting another start.
+                // Stop an orphaned alarm before accepting another start.
                 string next = Guid.NewGuid().ToString("D"), directory = Path.Combine(ControlRoot, next); Directory.CreateDirectory(directory);
                 Write(Path.Combine(directory, "request.json"), new { version = 1, agent_instance = instance, created_at = Now, camera_id = id, url_hash = binding["url_hash"], action = "alarm", enabled = false });
                 recoveryAfter[id] = Now + 15000;

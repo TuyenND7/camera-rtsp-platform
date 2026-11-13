@@ -70,6 +70,36 @@ try {
     $command.created_at=Now; $command.agent_instance=[guid]::NewGuid().ToString('D'); Assert-Command $false
     $command.agent_instance=$generation; $command.action='alarm'; $command.duration_seconds=999; Assert-Command $false
     $command.duration_seconds=5; Assert-Command $true
+    foreach ($duration in @(0,10,15,30,60)) { $command.duration_seconds=$duration; Assert-Command $true }
+    foreach ($duration in @(-1,1,59,61,999,'30',$false,$null)) { $command.duration_seconds=$duration; Assert-Command $false }
+    $requestId = Split-Path $requestDirectory -Leaf
+    $alarmLease = @{camera_id=2;url_hash=('a' * 64);request=$requestId;agent_instance=$generation;created_at=(Now);duration_seconds=0;ends_at=$null}
+    $pulse = @{camera_id=2;request=$requestId;agent_instance=$generation;updated_at=(Now)}
+    $workerType=$agent.GetNestedType('WorkerProcess',[Reflection.BindingFlags]'NonPublic')
+    $worker=[Activator]::CreateInstance($workerType,$true)
+    $workerType.GetField('Directory').SetValue($worker,$requestDirectory)
+    $workerType.GetField('Control').SetValue($worker,$true)
+    $workerType.GetField('Started').SetValue($worker,[long]((Now)-90000))
+    function Assert-AlarmLease([bool]$healthy) {
+        $alarmLease | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $temporary 'controls\alarm-2.json') -Encoding UTF8
+        $pulse | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $requestDirectory 'heartbeat.json') -Encoding UTF8
+        $actual=$agent.GetMethod('ControlLeaseHealthy',$flags).Invoke($null,[object[]]@(([string]$requestDirectory).ToString()))
+        $expired=$agent.GetMethod('WorkerExpired',$flags).Invoke($null,[object[]]@($worker.PSObject.BaseObject))
+        if ($actual -ne $healthy -or $expired -eq $healthy) { throw 'Alarm duration/heartbeat watchdog failed' }
+    }
+    Assert-AlarmLease $true
+    $alarmLease.duration_seconds=60; $alarmLease.ends_at=(Now)+60000; Assert-AlarmLease $true
+    $alarmLease.ends_at=(Now)-6000; Assert-AlarmLease $false
+    $alarmLease.duration_seconds=0; $alarmLease.ends_at=$null; $pulse.updated_at=(Now)-6000; Assert-AlarmLease $false
+    $pulse.updated_at=Now; $pulse.agent_instance=[guid]::NewGuid().ToString('D'); Assert-AlarmLease $false
+    $pulse.agent_instance=$generation; $alarmLease.url_hash=('b' * 64); Assert-AlarmLease $false
+    $alarmLease.url_hash=('a' * 64); Assert-AlarmLease $true
+    New-Item -ItemType File -Path (Join-Path $requestDirectory 'stop') | Out-Null
+    Assert-AlarmLease $false
+    Remove-Item -LiteralPath (Join-Path $requestDirectory 'stop')
+    $workerType.GetField('Control').SetValue($worker,$false)
+    if (-not $agent.GetMethod('WorkerExpired',$flags).Invoke($null,[object[]]@($worker.PSObject.BaseObject))) { throw 'Voice worker lifetime was extended' }
+    Write-Output 'PASS: timed/manual alarms, typed durations, heartbeat expiry, stop and voice lifetime isolation'
     $settingsProperties = $serializer.DeserializeObject('{"TurnLight":{"value":0},"ImageFlipState":{"value":0},"stNightVisionMode":{"value":{"enFillLightMode":3,"bMenuLight":1,"s32LightVal":50}},"AudibleAlarm":{"value":{"AlarmSwitch":0,"LightSwitch":1}},"StorageRecordMode":{"value":1},"StorageStatus":{"value":0},"WifiConfiguration":{"value":{"password":"fixture-secret"}}}')
     $snapshot = $agent.GetMethod('SettingsFromProperties',$flags).Invoke($null,@($settingsProperties))
     if ($snapshot.values['image_flip'] -ne 0 -or $snapshot.values['night_vision'] -ne 3 -or $snapshot.values.ContainsKey('WifiConfiguration')) { throw 'Settings whitelist failed' }
