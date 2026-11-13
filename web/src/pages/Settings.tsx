@@ -81,57 +81,52 @@ export default function Settings() {
   return <section className="settings-page">
     <PageHeader title="Cài đặt" />
     <section className="panel settings-section">
-      <header className="settings-heading"><Icon name="sun" size={22} /><div><h2>Giao diện</h2><p>Chọn giao diện cho trình duyệt hoặc thiết bị đang dùng.</p></div></header>
+      <header className="settings-heading"><Icon name="sun" size={22} /><div><h2>Giao diện</h2></div></header>
       <div className="theme-options" role="group" aria-label="Chế độ giao diện">
-        {(['light', 'dark'] as const).map(value => <button type="button" key={value} className={`theme-option${theme === value ? ' active' : ''}`} onClick={() => setTheme(value)} aria-pressed={theme === value}><span className={`theme-swatch ${value}`}><i /><i /><i /></span><span className="theme-option-label"><Icon name={value === 'light' ? 'sun' : 'moon'} size={18} />{value === 'light' ? 'Sáng' : 'Tối'}</span>{theme === value && <Icon name="check" size={18} />}</button>)}
+        {(['light', 'dark'] as const).map(value => <button type="button" key={value} className={`theme-option${theme === value ? ' active' : ''}`} onClick={() => setTheme(value)} aria-pressed={theme === value}><span className="theme-option-label"><Icon name={value === 'light' ? 'sun' : 'moon'} size={18} />{value === 'light' ? 'Sáng' : 'Tối'}</span>{theme === value && <Icon name="check" size={18} />}</button>)}
       </div>
       <div className="text-size-setting">
         <h3 id="text-size-title">Cỡ chữ</h3>
-        <p id="text-size-description">Chọn chữ lớn hơn để dễ đọc. Lựa chọn được áp dụng và lưu ngay trên thiết bị này.</p>
-        <div className="text-size-options" role="group" aria-labelledby="text-size-title" aria-describedby="text-size-description">
+        <div className="text-size-options" role="group" aria-labelledby="text-size-title">
           {TEXT_SIZES.map(option => <button type="button" key={option.value} className={`text-size-option${textSize === option.value ? ' active' : ''}`} data-text-size-option={option.value} aria-pressed={textSize === option.value} aria-label={`Cỡ chữ ${option.label}, ${option.value}%`} onClick={() => setTextSize(option.value)}>
-            <span className="text-size-sample" style={{ fontSize: `${18 * option.value / 100}px` }} aria-hidden="true">Aa</span>
             <strong>{option.label}</strong><small>{option.value}%</small>
             {textSize === option.value && <Icon name="check" size={18} />}
           </button>)}
         </div>
-        <p className="text-size-preview" aria-live="polite">Phòng khách · Sân trước — chữ rõ hơn, dễ đọc hơn.</p>
       </div>
     </section>
 
     <ViewingDeviceSettings />
     <form onSubmit={save} className="settings-form">
       <section className="panel settings-section">
-        <header className="settings-heading"><Icon name="server" size={22} /><div><h2>Máy chủ</h2><p>Cấu hình web camera dùng trên máy tính, tablet và điện thoại.</p></div><span className={`status-badge ${connection === true ? 'online' : connection === false ? 'error' : 'connecting'}`}><i className={`status-dot ${connection === true ? 'online' : connection === false ? 'error' : 'connecting'}`} />{connection === null ? 'Đang kiểm tra' : connection ? 'Trực tuyến' : 'Mất kết nối'}</span></header>
-        <div className="server-current"><span>Máy chủ hiện tại</span><code>{window.location.origin}</code><button type="button" onClick={() => void check()} disabled={checking}><Icon name="refresh" size={16} />{checking ? 'Đang kiểm tra…' : 'Kiểm tra kết nối'}</button></div>
-        {admin && form && <label>Địa chỉ web để chia sẻ<div className="settings-address"><input type="url" value={form.public_base_url} onChange={event => change('public_base_url', event.target.value)} placeholder={window.location.origin} maxLength={2048} /><button type="button" onClick={() => void copyAddress()}>{copied ? 'Đã sao chép' : 'Sao chép link'}</button></div><small>Nhập IP hoặc tên máy trong LAN/VPN, ví dụ http://camera.local:8081. Dùng địa chỉ này để mở web trên điện thoại.</small></label>}
+        <header className="settings-heading"><Icon name="server" size={22} /><div><h2>Máy chủ</h2></div><span className={`status-badge ${connection === true ? 'online' : connection === false ? 'error' : 'connecting'}`}><i className={`status-dot ${connection === true ? 'online' : connection === false ? 'error' : 'connecting'}`} />{connection === null ? 'Đang kiểm tra' : connection ? 'Trực tuyến' : 'Mất kết nối'}</span></header>
+        <div className="server-current"><code>{window.location.origin}</code><button type="button" onClick={() => void check()} disabled={checking}><Icon name="refresh" size={16} />{checking ? 'Đang kiểm tra…' : 'Kiểm tra kết nối'}</button></div>
+        {admin && form && <label>Địa chỉ truy cập<div className="settings-address"><input type="url" value={form.public_base_url} onChange={event => change('public_base_url', event.target.value)} placeholder={window.location.origin} maxLength={2048} /><button type="button" onClick={() => void copyAddress()}>{copied ? 'Đã sao chép' : 'Sao chép link'}</button></div></label>}
       </section>
 
       {admin && form && <section className="panel settings-section alarm-settings-section">
-        <header className="settings-heading"><Icon name="bell" size={22} /><div><h2>Báo động</h2><p>Thời lượng mặc định khi bật còi từ Live view.</p></div></header>
-        <CameraSettingSelect label="Thời lượng báo động" value={String(form.alarm_duration_seconds ?? 30)} options={alarmDurations.map(seconds => ({ value: String(seconds), label: alarmDurationLabel(seconds), description: seconds === 0 ? 'Giữ còi cho đến khi nhấn Dừng còi' : 'Tự dừng khi hết thời gian' }))} onChange={value => change('alarm_duration_seconds', Number(value))} disabled={saving} description="Chọn thời gian phát còi cho lần báo động tiếp theo." icon="bell" />
-        <p className="settings-help">Luôn hỏi xác nhận trước khi bật còi. Nút Dừng còi tắt ngay, không cần xác nhận.</p>
+        <header className="settings-heading"><Icon name="bell" size={22} /><div><h2>Báo động</h2></div></header>
+        <CameraSettingSelect label="Thời lượng báo động" value={String(form.alarm_duration_seconds ?? 30)} options={alarmDurations.map(seconds => ({ value: String(seconds), label: alarmDurationLabel(seconds) }))} onChange={value => change('alarm_duration_seconds', Number(value))} disabled={saving} description="Chọn thời lượng phát còi." icon="bell" />
       </section>}
       {admin && <section className="panel settings-section storage-settings-section">
-        <header className="settings-heading"><Icon name="database" size={22} /><div><h2>Lưu trữ & ghi hình</h2><p>Tự dọn bản ghi cũ theo dung lượng và thời gian lưu.</p></div>{storage && <span className="subtle-badge">Đã dùng {storage.used_percent}%</span>}</header>
+        <header className="settings-heading"><Icon name="database" size={22} /><div><h2>Lưu trữ & ghi hình</h2></div>{storage && <span className="subtle-badge">Đã dùng {storage.used_percent}%</span>}</header>
         {loading && <p className="muted" role="status">Đang tải cấu hình…</p>}
         {form && <>
           <div className="settings-fields">
             <label>Tên ổ lưu trữ<input value={form.storage_label} onChange={event => change('storage_label', event.target.value)} required maxLength={100} /></label>
-            <label>Thời gian giữ tối đa (giờ)<input type="number" min={0} max={87600} step={1} value={form.record_retention_hours} onChange={event => change('record_retention_hours', Number(event.target.value))} required /><small>0 = giữ đến khi cần dọn theo dung lượng.</small></label>
+            <label>Thời gian giữ tối đa (giờ)<input type="number" min={0} max={87600} step={1} value={form.record_retention_hours} onChange={event => change('record_retention_hours', Number(event.target.value))} required /><small>0 = theo dung lượng.</small></label>
             <label>Bắt đầu dọn khi đầy (%)<input type="number" min={1} max={99} step={1} value={form.cleanup_threshold_percent} onChange={event => change('cleanup_threshold_percent', Number(event.target.value))} required /></label>
             <label>Dọn về mức sử dụng (%)<input type="number" min={0} max={98} step={1} value={form.cleanup_target_percent} onChange={event => change('cleanup_target_percent', Number(event.target.value))} required /></label>
             <label>Chu kỳ kiểm tra (phút)<input type="number" min={1} max={1440} step={1} value={form.cleanup_interval_minutes} onChange={event => change('cleanup_interval_minutes', Number(event.target.value))} required /></label>
             <div className="settings-readonly"><span>Múi giờ ghi hình</span><strong>{info?.record_timezone}</strong></div>
           </div>
-          <div className="storage-location"><span>Thư mục dữ liệu đang dùng</span><code>{info?.storage_root}</code><small>Thư mục gốc được chọn khi cài đặt máy chủ.</small>{storage && <small>Còn {formatBytes(storage.free_bytes)} / {formatBytes(storage.total_bytes)}</small>}</div>
-          <p className="settings-help">Dọn các ngày ghi hình cũ nhất trước; giữ lại ngày đang ghi.</p>
+          <details className="settings-details"><summary>Chi tiết lưu trữ</summary><div className="storage-location"><span>Thư mục dữ liệu</span><code>{info?.storage_root}</code>{storage && <small>Còn {formatBytes(storage.free_bytes)} / {formatBytes(storage.total_bytes)}</small>}</div><p className="settings-help">Dọn ngày cũ trước, giữ ngày đang ghi.</p></details>
         </>}
       </section>}
       {!admin && <p className="muted">Chỉ quản trị viên có quyền thay đổi cấu hình máy chủ.</p>}
       {error && <div className="notice error" role="alert">{error}</div>}
       {notice && <div className="notice success" role="status">{notice}</div>}
-      {admin && <div className="settings-save"><span>{dirty ? 'Có thay đổi chưa lưu' : 'Cấu hình dùng chung cho máy chủ'}</span><button className="primary" type="submit" disabled={saving || loading || !form || !dirty}><Icon name="check" size={18} />{saving ? 'Đang lưu…' : 'Lưu cấu hình'}</button></div>}
+      {admin && <div className="settings-save">{dirty && <span>Có thay đổi chưa lưu</span>}<button className="primary" type="submit" disabled={saving || loading || !form || !dirty}><Icon name="check" size={18} />{saving ? 'Đang lưu…' : 'Lưu cấu hình'}</button></div>}
     </form>
   </section>;
 }
