@@ -8,6 +8,7 @@ type Transport = Pick<RtspTalk, 'open' | 'describe' | 'send' | 'close' | 'onClos
 type Call = {
   id: string; owner: string; cameras: TalkCamera[]; clients: Transport[]; queue: Buffer[];
   created: number; lastAudio: number; lastValidation: number; sequence: number; ready: boolean; checking: boolean;
+  nextAudio: number;
   validate: () => Promise<boolean>;
 };
 
@@ -53,7 +54,7 @@ export class TalkManager {
     if (cameras.some(c => this.locks.has(c.id))) throw new TalkError(409, 'Một camera đang được sử dụng trong cuộc đàm thoại khác.');
     if (!cameras.length || cameras.length > 16 || new Set(cameras.map(c => c.id)).size !== cameras.length) throw new TalkError(400, 'Chọn từ 1 đến 16 camera khác nhau.');
     const id = randomUUID(), time = this.now();
-    const call: Call = { id, owner, cameras, clients: [], queue: [], created: time, lastAudio: time, lastValidation: time, sequence: -1, ready: false, checking: false, validate };
+    const call: Call = { id, owner, cameras, clients: [], queue: [], created: time, lastAudio: time, lastValidation: time, nextAudio: time + 20, sequence: -1, ready: false, checking: false, validate };
     this.calls.set(id, call); cameras.forEach(c => this.locks.set(c.id, id));
     try {
       // Assign every client before opening, so partial failures can close all sockets.
@@ -63,7 +64,8 @@ export class TalkManager {
       if (failure) throw failure.reason;
       if (!await validate() || !this.calls.has(id)) throw new TalkError(403, 'Phiên đăng nhập hoặc cấu hình camera đã thay đổi.');
       call.ready = true; call.created = this.now(); call.lastAudio = call.created; call.lastValidation = call.created;
-      call.clients.forEach(c => { c.onClose = () => this.stop(id); });
+      call.nextAudio = call.created + 20;
+      call.clients.forEach(c => { c.onClose = () => this.stop(id, 'transport_closed'); });
       return { id, camera_ids: cameras.map(c => c.id), sample_rate: 8000, max_seconds: 60 };
     } catch (error) {
       this.stop(id);
@@ -76,7 +78,9 @@ export class TalkManager {
     if (!call.ready) throw new TalkError(409, 'Kênh đàm thoại chưa sẵn sàng.');
     if (!Number.isSafeInteger(sequence) || sequence !== call.sequence + 1) throw new TalkError(409, 'Gói audio không đúng thứ tự.');
     if (!Buffer.isBuffer(pcm) || pcm.length < 320 || pcm.length > 6400 || pcm.length % 320) throw new TalkError(400, 'Audio phải là PCM 16-bit mono 8 kHz, từ 20 đến 400 ms.');
-    if (call.queue.length * 320 + pcm.length > 8000) { this.stop(id); throw new TalkError(409, 'Đường truyền chậm. Hãy nhấn giữ để nói lại.'); }
+    // Live speech favors current audio after network jitter. Discard the oldest
+    // queued frames rather than ending an otherwise healthy speaker connection.
+    while (call.queue.length * 320 + pcm.length > 8000) call.queue.shift();
     call.sequence = sequence; call.lastAudio = this.now();
     for (let i = 0; i < pcm.length; i += 320) call.queue.push(Buffer.from(pcm.subarray(i, i + 320)));
   }
@@ -93,9 +97,15 @@ export class TalkManager {
   private tick() {
     const time = this.now();
     for (const call of this.calls.values()) {
-      if (time - call.created >= 60_000 || (!call.ready && time - call.created > 12_000) || (call.ready && time - call.lastAudio > 1500)) { this.stop(call.id); continue; }
+      if (time - call.created >= 60_000 || (!call.ready && time - call.created > 12_000) || (call.ready && time - call.lastAudio > 1500)) { this.stop(call.id, call.ready && time - call.lastAudio > 1500 ? 'audio_idle' : 'time_limit'); continue; }
       if (!call.ready) continue;
-      try { const frame = call.queue.shift() ?? this.silence; call.clients.forEach(c => c.send(frame)); }
+      // setInterval is not a sample clock. Catch up a bounded number of frames
+      // when shared-storage IO delays a tick, without stretching every packet.
+      try {
+        for (let sent = 0; sent < 5 && time >= call.nextAudio; sent++, call.nextAudio += 20) {
+          const frame = call.queue.shift() ?? this.silence; call.clients.forEach(c => c.send(frame));
+        }
+      }
       catch { this.stop(call.id); continue; }
       if (!call.checking && time - call.lastValidation >= 1000) {
         call.checking = true; call.lastValidation = time;
@@ -104,9 +114,10 @@ export class TalkManager {
     }
   }
 
-  private stop(id: string) {
+  private stop(id: string, reason?: string) {
     const call = this.calls.get(id);
     if (!call) return;
+    if (reason && reason !== 'time_limit') console.warn('talk_closed', { reason, camera_ids: call.cameras.map(c => c.id), idle_ms: this.now() - call.lastAudio });
     this.calls.delete(id); call.queue.length = 0;
     call.cameras.forEach(c => { if (this.locks.get(c.id) === id) this.locks.delete(c.id); });
     call.clients.forEach(c => c.close());

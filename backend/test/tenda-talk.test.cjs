@@ -22,6 +22,13 @@ test('audio is accepted after SDK readiness, never includes camera credentials, 
  const pcm=Buffer.alloc(320);for(let n=0;n<160;n++)pcm.writeInt16LE(n*100,n*2);client.send(pcm);assert.deepEqual(fs.readFileSync(path.join(session,'audio.pcm')),pcm);assert.throws(()=>client.send(Buffer.alloc(640)),/đã đóng/);client.close();assert.ok(fs.existsSync(path.join(session,'stop')));assert.throws(()=>client.send(pcm),/đã đóng/);
  }finally{clearInterval(agent);client.close()}
 });
+test('transient manifest replacement preserves only a fresh verified record and never masks revocation',async()=>{
+ const base=directory(),g=gateway(base),file=path.join(base,'status.json'),saved=path.join(base,'status.saved');
+ assert.ok(tendaGateway(camera,base));fs.renameSync(file,saved);assert.ok(tendaGateway(camera,base));assert.equal(tendaGateway({...camera,rtsp_url:'rtsp://changed'},base),undefined);fs.renameSync(saved,file);
+ g.state.authenticated=false;g.publish();assert.equal(tendaGateway(camera,base).authenticated,false);fs.renameSync(file,saved);assert.equal(tendaGateway(camera,base).authenticated,false);fs.renameSync(saved,file);
+ g.state.authenticated=true;g.state.updated_at=Date.now()-4000;g.publish();tendaGateway(camera,base);fs.renameSync(file,saved);assert.equal(tendaGateway(camera,base),undefined);fs.renameSync(saved,file);
+ g.state.updated_at=Date.now();g.publish();assert.ok(tendaGateway(camera,base));fs.writeFileSync(file,'invalid json');assert.equal(tendaGateway(camera,base),undefined);fs.unlinkSync(file);assert.equal(tendaGateway(camera,base),undefined);
+});
 test('a gateway restart closes an existing voice session and invokes onClose once',async()=>{
  const base=directory(),g=gateway(base),client=new TendaTalk(camera,base);let notices=0;client.onClose=()=>notices++;
  const opening=client.open();await wait(30);const session=fs.readdirSync(base).map(n=>path.join(base,n)).find(p=>fs.existsSync(path.join(p,'start.json')));fs.writeFileSync(path.join(session,'state.json'),JSON.stringify({state:'ready'}));await opening;

@@ -260,7 +260,9 @@ public static class CameraSdkPcmSource  {
         }
         public int ReleaseBuffer(uint frames) {
             position+=frames;
-            client.next=Stopwatch.GetTimestamp()+Stopwatch.Frequency/50;
+            long now=Stopwatch.GetTimestamp();
+            client.next+=Stopwatch.Frequency/50;
+            if(client.next<now-Stopwatch.Frequency/10)client.next=now+Stopwatch.Frequency/50;
             return 0;
         }
         public int GetNextPacketSize(out uint frames) {

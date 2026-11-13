@@ -64,6 +64,21 @@ test('partial setup failure closes transports and allows a later retry',async()=
  let count=0;const clients=[],m=new TalkManager(()=>{const c={open:async()=>{if(++count===2)throw Error('private transport error')},describe:async()=>null,send:()=>{},close:()=>{c.closed=true},closed:false};clients.push(c);return c});
  try{await assert.rejects(()=>m.start('o',[{id:1,rtsp_url:'rtsp://a'},{id:2,rtsp_url:'rtsp://b'}],async()=>true),e=>e.message==='Không mở được kênh đàm thoại tới camera.');assert.ok(clients.every(c=>c.closed));const s=await m.start('o',[{id:1,rtsp_url:'rtsp://a'}],async()=>true);m.end(s.id,'o')}finally{m.close()}
 });
+test('jittered server ticks keep up with a real-time microphone without growing the audio queue',async()=>{
+ let time=0,frames=0;const manager=new TalkManager(()=>({open:async()=>({codec:'PCMA'}),describe:async()=>null,send:()=>{frames++},close:()=>{}}),()=>time);
+ try{const call=await manager.start('owner',[{id:1,rtsp_url:'rtsp://fixture'}],async()=>true);clearInterval(manager.timer);
+ for(let batch=0;batch<25;batch++){manager.push(call.id,'owner',batch,Buffer.alloc(3200));for(let tick=0;tick<8;tick++){time+=25;manager.tick()}await Promise.resolve()}
+ assert.equal(frames,250);manager.end(call.id,'owner');
+ }finally{manager.close()}
+});
+test('a burst after network jitter retains recent speech within the buffer limit and keeps the call usable',async()=>{
+ let time=0;const received=[],manager=new TalkManager(()=>({open:async()=>({codec:'PCMA'}),describe:async()=>null,send:pcm=>received.push(pcm.readInt16LE(0)),close:()=>{}}),()=>time);
+ try{const call=await manager.start('owner',[{id:1,rtsp_url:'rtsp://fixture'}],async()=>true);clearInterval(manager.timer);
+ const block=value=>{const b=Buffer.alloc(6400);for(let i=0;i<b.length;i+=2)b.writeInt16LE(value,i);return b};manager.push(call.id,'owner',0,block(100));manager.push(call.id,'owner',1,block(200));
+ for(let tick=0;tick<25;tick++){time+=20;manager.tick()}assert.deepEqual(received,[...Array(5).fill(100),...Array(20).fill(200)]);
+ manager.push(call.id,'owner',2,Buffer.alloc(320));time+=20;manager.tick();assert.equal(received.at(-1),0);manager.end(call.id,'owner');
+ }finally{manager.close()}
+});
 test('worklet resamples to PCM 8 kHz and never plays mic through the tablet speaker',()=>{
  let Processor;const sent=[],context={sampleRate:48000,AudioWorkletProcessor:class{constructor(){this.port={postMessage:b=>sent.push(b)}}},registerProcessor:(_name,type)=>{Processor=type}};
  vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../../web/public/audio/pcm-capture.js'),'utf8'),context);const p=new Processor();

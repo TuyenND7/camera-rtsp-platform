@@ -113,7 +113,9 @@ public static class CameraSdkPcmDmo  {
             IntPtr buffer=Marshal.ReadIntPtr(buffers);
             IntPtr vt=Marshal.ReadIntPtr(buffer);
             BufferLength set=(BufferLength)Marshal.GetDelegateForFunctionPointer(Marshal.ReadIntPtr(vt,24),typeof(BufferLength));
-            if(Stopwatch.GetTimestamp()<next) {
+            long now=Stopwatch.GetTimestamp();
+            if(next==0)next=now;
+            if(now<next) {
                 set(buffer,0);
                 Marshal.WriteInt32(buffers,8,0);
                 return 1;
@@ -131,7 +133,10 @@ public static class CameraSdkPcmDmo  {
             Marshal.WriteInt64(buffers,16,sample*1250);
             Marshal.WriteInt64(buffers,24,200000);
             sample+=160;
-            next=Stopwatch.GetTimestamp()+Stopwatch.Frequency/50;
+            // Keep an absolute sample clock: delayed Windows polls must not
+            // stretch every 20 ms frame and slowly fill the web audio queue.
+            next+=Stopwatch.Frequency/50;
+            if(next<now-Stopwatch.Frequency/10)next=now+Stopwatch.Frequency/50;
             return 0;
         }
         public int Lock(int locked) {

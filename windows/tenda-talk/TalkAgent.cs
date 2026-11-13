@@ -29,8 +29,11 @@ public static partial class TalkAgent
     public static long Now { get { return (long)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalMilliseconds; } }
     static Dictionary<string, object> Read(string path)
     {
-        if (new FileInfo(path).Length > 16384) throw new Exception("ipc_size");
-        return json.Deserialize<Dictionary<string, object>>(File.ReadAllText(path, utf8));
+        using (var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+        {
+            if (file.Length > 16384) throw new Exception("ipc_size");
+            using (var reader = new StreamReader(file, utf8)) return json.Deserialize<Dictionary<string, object>>(reader.ReadToEnd());
+        }
     }
     static void Write(string path, object value)
     {
@@ -112,6 +115,7 @@ public static partial class TalkAgent
             bool ready = job.TalkReady && job.RecorderReady && job.PcmCallbacks > 0;
             if (job.Failed || stopped || expired || (!ready && Now - job.Created > 10000))
             {
+                if (!job.Failed && !stopped) job.ErrorCode = expired ? 40801 : 40802;
                 client.Close(); State(job.Directory, job.Failed || (!ready && !stopped) ? "error" : "closed", job.Consumed, job.ErrorCode, job);
             }
             else

@@ -10,6 +10,7 @@ const root = () => path.join(config.storageRoot, '.tenda-talk');
 const hash = (camera: Camera) => createHash('sha256').update(camera.rtsp_url).digest('hex');
 const track: TalkTrack = { control: 'tenda-sdk', codec: 'PCMA', payload: 8 };
 const guid = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/;
+const manifests = new Map<string, Gateway>();
 
 function json(file: string): any {
   if (fs.lstatSync(file).isSymbolicLink() || fs.statSync(file).size > 16384) throw new Error('Invalid SDK status');
@@ -17,12 +18,21 @@ function json(file: string): any {
 }
 
 export function tendaGateway(camera: Camera, directory = root()): Gateway | undefined {
+  let value: Gateway;
   try {
-    const value = json(path.join(directory, 'status.json'));
-    if (value.version !== 1 || !guid.test(value.instance) || !Number.isFinite(value.updated_at) || !Array.isArray(value.bindings) || value.bindings.length > 16) return;
-    if (!value.bindings.some((b: any) => b.id === camera.id && b.url_hash === hash(camera) && ['CT3V1.0', 'RH7V2.0'].includes(b.model))) return;
-    return value;
-  } catch { return; }
+    value = json(path.join(directory, 'status.json'));
+    if (value.version !== 1 || !guid.test(value.instance) || !Number.isFinite(value.updated_at) || !Array.isArray(value.bindings) || value.bindings.length > 16) { manifests.delete(directory); return; }
+    if (manifests.size >= 64 && !manifests.has(directory)) manifests.delete(manifests.keys().next().value!);
+    manifests.set(directory, value);
+  } catch (error) {
+    const previous = manifests.get(directory);
+    // Docker's Windows bind mount can briefly hide an atomically replaced file.
+    // A prior verified record keeps its original 3 s expiry, never a new TTL.
+    if (!['ENOENT', 'EACCES', 'EPERM', 'EBUSY'].includes((error as NodeJS.ErrnoException).code ?? '') || !previous || Math.abs(Date.now() - previous.updated_at) >= 3000) { manifests.delete(directory); return; }
+    value = previous;
+  }
+  if (!value.bindings.some(b => b?.id === camera.id && b.url_hash === hash(camera) && ['CT3V1.0', 'RH7V2.0'].includes(b.model))) return;
+  return value;
 }
 
 // Include the gateway generation in capability caching: installing/restarting the
@@ -87,7 +97,7 @@ export class TendaTalk {
     } catch (error) { this.close(); throw error instanceof TalkError ? error : new TalkError(503, 'Không tạo được phiên đàm thoại SDK Tenda.'); }
   }
 
-  private state(): { state: string } | undefined {
+  private state(): { state: string; code?: number } | undefined {
     try { return this.directory ? json(path.join(this.directory, 'state.json')) : undefined; } catch { return; }
   }
 
@@ -96,7 +106,11 @@ export class TendaTalk {
     try { fs.writeSync(this.fd, pcm); } catch { this.fail(); throw new TalkError(503, 'Kênh SDK Tenda đã ngắt kết nối.'); }
   }
 
-  private fail() { if (this.closed) return; this.close(); this.onClose?.(); }
+  private fail() {
+    if (this.closed) return;
+    const state = this.state(); console.warn('tenda_talk_closed', { camera_id: this.camera.id, state: state?.state, code: state?.code });
+    this.close(); this.onClose?.();
+  }
 
   close() {
     if (this.closed) return;

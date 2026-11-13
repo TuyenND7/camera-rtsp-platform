@@ -8,6 +8,7 @@ using System.Collections.Generic;
 // and avoids sharing its legacy capture/P2P state between simultaneous cameras.
 public static partial class TalkAgent
 {
+    static long providerUpdated, parentUpdated;
     sealed class WorkerProcess
     {
         public Process Process;
@@ -26,8 +27,14 @@ public static partial class TalkAgent
         try
         {
             var provider = Read(Path.Combine(root, "provider.json"));
-            return (string)provider["instance"] == instance && Convert.ToBoolean(provider["authenticated"]) && Math.Abs(Now - Convert.ToInt64(provider["updated_at"])) < 600000;
+            bool valid = (string)provider["instance"] == instance && Convert.ToBoolean(provider["authenticated"]);
+            providerUpdated = valid ? Convert.ToInt64(provider["updated_at"]) : 0;
+            return valid && Math.Abs(Now - providerUpdated) < 600000;
         }
+        // Atomic replacement on the Windows/Docker shared directory can briefly
+        // deny a read. Reuse only the last verified record within its original
+        // expiry; an explicit revoked generation/account still fails at once.
+        catch (IOException) { return providerUpdated > 0 && Math.Abs(Now - providerUpdated) < 600000; }
         catch { return false; }
     }
     static bool ParentAlive()
@@ -35,8 +42,11 @@ public static partial class TalkAgent
         try
         {
             var parent = Read(Path.Combine(root, "status.json"));
-            return (string)parent["instance"] == instance && Convert.ToBoolean(parent["authenticated"]) && Math.Abs(Now - Convert.ToInt64(parent["updated_at"])) < 3000;
+            bool valid = (string)parent["instance"] == instance && Convert.ToBoolean(parent["authenticated"]);
+            parentUpdated = valid ? Convert.ToInt64(parent["updated_at"]) : 0;
+            return valid && Math.Abs(Now - parentUpdated) < 3000;
         }
+        catch (IOException) { return parentUpdated > 0 && Math.Abs(Now - parentUpdated) < 3000; }
         catch { return false; }
     }
     static void Provider(bool authenticated)
@@ -64,10 +74,11 @@ public static partial class TalkAgent
                 bool active = false;
                 foreach (var client in clients.Values) if (client.Job != null) active = true;
                 if (!active) break;
-                if (!TendaNative.Authenticated || !ParentAlive() || File.Exists(Path.Combine(Path.GetDirectoryName(configuration), "stop-agent")))
+                bool authenticated = TendaNative.Authenticated, parentAlive = ParentAlive();
+                if (!authenticated || !parentAlive || File.Exists(Path.Combine(Path.GetDirectoryName(configuration), "stop-agent")))
                 {
                     foreach (var client in clients.Values) client.Close();
-                    State(directory, "closed", 0, 0); break;
+                    State(directory, "closed", 0, !authenticated ? 50301 : !parentAlive ? 50302 : 0); break;
                 }
                 Tick(config, false); TendaNative.Pump(40);
             }

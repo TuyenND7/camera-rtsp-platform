@@ -74,7 +74,15 @@ export default function TalkPanel({ cameras, initial, onClose, onActive }: { cam
     current.sending = true;
     try {
       while (run.current === current && current.queue.length) {
-        const pcm = current.queue.shift()!;
+        // Catch up after a slow VPN response with one bounded 400 ms request,
+        // instead of making another round trip for each queued 200 ms block.
+        const chunks = current.queue.splice(0, 2);
+        let pcm = chunks[0];
+        if (chunks.length > 1) {
+          const merged = new Uint8Array(chunks[0].byteLength + chunks[1].byteLength);
+          merged.set(new Uint8Array(chunks[0])); merged.set(new Uint8Array(chunks[1]), chunks[0].byteLength);
+          pcm = merged.buffer;
+        }
         await api.talkAudio(current.id, current.sequence++, pcm, current.controller.signal);
         if (run.current === current) setPhase('talking');
       }
@@ -95,7 +103,7 @@ export default function TalkPanel({ cameras, initial, onClose, onActive }: { cam
         let peak = 0; for (const sample of samples) peak = Math.max(peak, Math.abs(sample) / 32768);
         setLevel(Math.min(1, peak * 2));
         if (test || !current.id) return;
-        if (current.queue.length >= 2) { stop(); setError('Đường truyền chậm. Hãy nhấn giữ để nói lại.'); return; }
+        if (current.queue.length >= 2) current.queue.shift();
         current.queue.push(pcm); void send(current);
       });
       if (run.current !== current) { current.microphone.stop(); return; }

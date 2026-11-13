@@ -75,3 +75,19 @@ Web gửi PCM mono 16-bit 8 kHz qua API HTTPS/admin/CSRF hiện có. Backend t�
 Agent dùng nguồn PCM riêng trong process của nó để thay input thiết bị của SDK, cùng output sink im lặng. Phần thay factory COM chỉ áp dụng cho module SDK đã kiểm hash; không cài audio driver và không sửa DLL trên đĩa hay audio của ứng dụng khác. SDK vẫn thực hiện xác thực, kết nối, mã hóa và gửi âm thanh tới camera.
 
 IPC không có listening port và không nằm dưới các alias HTTP `/live`, `/rec`, `/playback`, `/thumbs` hay `/events`. Gói mic tạm được xóa sau cuộc gọi; agent dọn phiên bỏ lại khi process/backend chết. Agent đóng loa khi heartbeat mất hơn 1,5 giây, SDK lỗi hoặc đạt giới hạn thời gian. Backend vẫn kiểm tra quyền đăng nhập/cấu hình camera trong suốt cuộc gọi.
+
+Backend và nguồn PCM SDK giữ mốc thời gian tuyệt đối cho frame 20 ms, bù những lần timer chạy chậm để bộ đệm không tăng dần. Khi Windows/Docker tạm khóa file đang thay thế, chỉ bản trạng thái đã kiểm tra còn trong thời hạn gốc được dùng lại; việc đọc hụt không gia hạn phiên. Trạng thái thu hồi tài khoản hoặc đổi generation vẫn vô hiệu hóa ngay khi đọc được.
+
+Kiểm thử lỗi tranh chấp file và thu hồi trạng thái, không cần runtime hay tài khoản TDSEE:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\tenda-talk\Test.ps1
+```
+
+## Kết quả kiểm tra trên máy CAMERA ngày 13/11/2026
+
+- Backend và web đã build bằng Docker và triển khai trên Windows; task SDK đang chạy và tự khởi động cùng máy.
+- App Camera Station trên Lenovo mở HTTPS qua Tailscale: mic thật truyền được tới hai CT3 đồng thời trong hai phiên liên tiếp, mỗi phiên hơn 20 giây. API tạo phiên trả `201`, các gói audio trả `204`; nhả tay trả `204` và hai worker SDK đóng kênh. Gọi riêng camera ngoài sân cũng đã kiểm tra hơn 20 giây.
+- Hai SDK báo đầu camera/recorder sẵn sàng và tiêu thụ PCM; Live tiếp tục cập nhật playlist, recording tiếp tục tạo segment. Đây là xác nhận đường truyền, không thay thế nghe tại loa. Người dùng đã xác nhận âm bíp SDK ở camera ngoài sân trước đó; giọng nói từ web ở từng loa cần được nghe thử thực tế.
+- RH7 đã liên kết cấu hình nhưng đang tắt theo xác nhận của chủ thiết bị; chưa kiểm tra lại đàm thoại web trong lần triển khai này.
+- Build backend/web, 32 kiểm thử đàm thoại/bảo mật/IPC backend và kiểm thử tranh chấp file trên Windows đạt. Web còn cảnh báo kích thước chunk Vite hiện có.
