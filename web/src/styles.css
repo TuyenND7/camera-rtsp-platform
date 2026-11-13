@@ -994,3 +994,5 @@ tbody tr:last-child td { border-bottom: 0; }
 .mi-camera-talk.active { color: #fff; background: #c72c43; border-color: #ff9aa8; box-shadow: 0 0 0 2px #ee61752e; }
 .mi-camera-talk-level { position: absolute; left: 5px; right: 5px; bottom: 3px; height: 3px; border-radius: 2px; overflow: hidden; background: #ffffff40; }
 .mi-camera-talk-level > span { display: block; height: 100%; background: #fff; transition: width .1s; }
+.mi-camera-controls .mi-camera-close { color: #ff8796; border-color: #ef6b8066; }
+.mi-camera-controls .mi-camera-close:hover { color: #ffb5be; border-color: #ff8796; background: #501d2be6; }
