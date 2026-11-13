@@ -86,3 +86,39 @@ test('audio failure closes microphone and a new call starts with sequence zero',
   fail = false; await f.talk.start(3); f.capture(pcm(.1)); await flush();
   assert.equal(f.events.audio[1].seq, 0); f.talk.dispose();
 });
+test('broadcast uses one microphone/session for every selected camera and stops all after silence', async () => {
+  const f = fixture(); await f.talk.start([2, 3]);
+  assert.equal(JSON.stringify(f.events.starts), '[[2,3]]'); assert.equal(f.talk.state.broadcast, true);
+  assert.equal(JSON.stringify(f.talk.state.cameraIds), '[2,3]');
+  f.capture(pcm(.1)); await flush(); assert.equal(f.events.audio.length, 1);
+  f.advance(5000); assert.equal(f.talk.state.phase, 'idle'); assert.equal(f.events.stops.length, 1); assert.equal(f.events.micStops, 1);
+});
+test('broadcast preparation stops sirens before opening the voice channel and can be cancelled', async () => {
+  let prepared; const f = fixture();
+  const start = f.talk.start([2, 3], () => new Promise(resolve => { prepared = resolve; }));
+  await flush(); assert.equal(f.events.starts.length, 0); const stopped = f.talk.stop(); prepared(); await start; await stopped;
+  assert.equal(f.events.starts.length, 0); assert.equal(f.timers.size, 0);
+});
+test('preparation failure releases microphone without starting a camera channel', async () => {
+  const f = fixture(); await f.talk.start([2, 3], async () => { throw new Error('Siren stop failed'); });
+  assert.equal(f.events.starts.length, 0); assert.equal(f.talk.state.phase, 'idle'); assert.equal(f.talk.state.message, 'Siren stop failed'); assert.equal(f.timers.size, 0);
+});
+test('invalid all-camera targets never request microphone or start a session', async () => {
+  const f = fixture(); for (const ids of [[], [2, 2], [0], Array.from({ length: 17 }, (_, i) => i + 1)]) await f.talk.start(ids);
+  assert.equal(f.events.starts.length, 0); assert.equal(f.events.micStops, 0); assert.equal(f.timers.size, 0);
+});
+test('repeated stop waits for late camera-session cleanup before an alarm or another call', async () => {
+  let ready; const f = fixture({ start: () => new Promise(resolve => { ready = resolve; }) });
+  const start = f.talk.start([2, 3]); await flush(); f.talk.stop(); let closed = false;
+  const stop = f.talk.stop().then(() => { closed = true; }); await flush(); assert.equal(closed, false);
+  ready({ id: 'late-broadcast', max_seconds: 60 }); await start; await stop;
+  assert.equal(closed, true); assert.equal(f.events.stops[0], 'late-broadcast');
+});
+test('switching from a single camera to broadcast waits for its cancelled channel to close', async () => {
+  let ready, calls = 0; const f = fixture({ start: () => ++calls === 1 ? new Promise(resolve => { ready = resolve; }) : { id: 'new-broadcast', max_seconds: 60 } });
+  const first = f.talk.start(2); await flush(); f.talk.stop(); const second = f.talk.start([2, 3]);
+  await flush(); assert.equal(f.events.starts.length, 1);
+  ready({ id: 'old-single', max_seconds: 60 }); await first; await second;
+  assert.equal(f.events.stops[0], 'old-single'); assert.equal(JSON.stringify(f.events.starts), '[[2],[2,3]]');
+  await f.talk.stop(); assert.equal(f.events.stops[1], 'new-broadcast');
+});

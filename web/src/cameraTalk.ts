@@ -2,14 +2,15 @@ import { api } from './api';
 import { Microphone } from './microphone';
 import { SpeechActivity } from './speechActivity';
 
-export type CameraTalkState = { cameraId: number | null; phase: 'idle' | 'preparing' | 'talking'; level: number; message: string };
-export const idleCameraTalk: CameraTalkState = { cameraId: null, phase: 'idle', level: 0, message: '' };
-type Run = { cameraId: number; microphone: Microphone; controller: AbortController; activity: SpeechActivity; queue: ArrayBuffer[]; sending: boolean; sequence: number; id?: string; limit?: number; silence?: number };
+export type CameraTalkState = { cameraId: number | null; cameraIds: number[]; broadcast: boolean; phase: 'idle' | 'preparing' | 'talking'; level: number; message: string };
+export const idleCameraTalk: CameraTalkState = { cameraId: null, cameraIds: [], broadcast: false, phase: 'idle', level: 0, message: '' };
+type Run = { microphone: Microphone; controller: AbortController; activity: SpeechActivity; queue: ArrayBuffer[]; sending: boolean; sequence: number; opening: Promise<void>; id?: string; limit?: number; silence?: number };
 
-/** One explicitly started per-tile call; late permission/session replies are always cleaned up. */
+/** One explicitly started single-camera or broadcast call; late replies are cleaned up. */
 export class CameraTalk {
   state: CameraTalkState = idleCameraTalk;
   private run: Run | null = null;
+  private closing: Promise<void> = Promise.resolve();
   constructor(private onChange: (state: CameraTalkState) => void) {}
   private update(change: Partial<CameraTalkState>) { this.state = { ...this.state, ...change }; this.onChange(this.state); }
 
@@ -18,17 +19,26 @@ export class CameraTalk {
     if (current) {
       current.microphone.stop(); current.controller.abort(); current.queue.length = 0;
       window.clearTimeout(current.limit); window.clearInterval(current.silence);
-      if (current.id) void api.stopTalk(current.id).catch(() => undefined);
     }
     this.update({ phase: 'idle', level: 0, message });
+    if (current?.id) this.closing = api.stopTalk(current.id).catch(() => undefined);
+    else if (current) this.closing = current.opening;
+    return this.closing;
   }
 
   dispose() { this.onChange = () => undefined; this.stop(); }
 
-  async start(cameraId: number) {
+  async start(target: number | number[], prepare?: () => Promise<void>) {
     if (this.run) return;
-    const current: Run = { cameraId, microphone: new Microphone(), controller: new AbortController(), activity: new SpeechActivity(), queue: [], sending: false, sequence: 0 };
-    this.run = current; this.update({ cameraId, phase: 'preparing', level: 0, message: '' });
+    const cameraIds = Array.isArray(target) ? [...target] : [target], broadcast = Array.isArray(target);
+    if (!cameraIds.length || cameraIds.length > 16 || new Set(cameraIds).size !== cameraIds.length || cameraIds.some(id => !Number.isSafeInteger(id) || id < 1)) {
+      this.update({ message: 'Chọn từ 1 đến 16 camera khác nhau để đàm thoại.' }); return;
+    }
+    let opened!: () => void;
+    const opening = new Promise<void>(resolve => { opened = resolve; });
+    const closing = this.closing;
+    const current: Run = { microphone: new Microphone(), controller: new AbortController(), activity: new SpeechActivity(), queue: [], sending: false, sequence: 0, opening };
+    this.run = current; this.update({ cameraId: broadcast ? null : cameraIds[0], cameraIds, broadcast, phase: 'preparing', level: 0, message: '' });
     try {
       await current.microphone.start(pcm => {
         if (this.run !== current) return;
@@ -38,8 +48,12 @@ export class CameraTalk {
         current.queue.push(pcm); void this.send(current);
       });
       if (this.run !== current) { current.microphone.stop(); return; }
-      const session = await api.startTalk([cameraId]);
-      if (this.run !== current) { void api.stopTalk(session.id).catch(() => undefined); return; }
+      await closing;
+      if (this.run !== current) return;
+      if (prepare) await prepare();
+      if (this.run !== current) return;
+      const session = await api.startTalk(cameraIds);
+      if (this.run !== current) { await api.stopTalk(session.id).catch(() => undefined); return; }
       current.id = session.id; current.activity.start(performance.now());
       current.silence = window.setInterval(() => {
         if (this.run === current && current.activity.expired(performance.now())) this.stop('Đàm thoại đã kết thúc vì không có giọng nói trong 5 giây.');
@@ -55,7 +69,7 @@ export class CameraTalk {
         : error instanceof DOMException && error.name === 'NotFoundError' ? 'Thiết bị này không có mic.'
         : error instanceof Error ? error.message : 'Không mở được đàm thoại.';
       this.stop(message);
-    }
+    } finally { opened(); }
   }
 
   private async send(current: Run) {

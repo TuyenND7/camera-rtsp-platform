@@ -996,3 +996,24 @@ tbody tr:last-child td { border-bottom: 0; }
 .mi-camera-talk-level > span { display: block; height: 100%; background: #fff; transition: width .1s; }
 .mi-camera-controls .mi-camera-close { color: #ff8796; border-color: #ef6b8066; }
 .mi-camera-controls .mi-camera-close:hover { color: #ffb5be; border-color: #ff8796; background: #501d2be6; }
+.emergency-controls { flex-shrink: 0; display: grid; grid-template-columns: minmax(145px, 1fr) auto; align-items: center; gap: 8px 14px; padding: 10px 12px; border: 2px solid #d83b52; border-radius: 9px; color: #922238; background: #fff3f5; }
+.emergency-description h2 { display: flex; align-items: center; gap: 7px; margin: 0 0 3px; color: inherit; font-size: calc(14px * var(--text-scale, 1)); font-weight: 800; }
+.emergency-description > span { font-size: calc(10px * var(--text-scale, 1)); font-weight: 650; }
+.emergency-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.emergency-actions > button { min-height: 44px; padding: 9px 14px; border: 1px solid #bd213b; border-radius: 7px; color: #fff; background: #bd213b; font-size: calc(12px * var(--text-scale, 1)); font-weight: 750; }
+.emergency-actions > button:hover:not(:disabled) { color: #fff; border-color: #95192f; background: #95192f; }
+.emergency-actions > button.active { color: #fff; border-color: #fc8fa0; background: #8c172b; box-shadow: 0 0 0 2px #d83b5226; }
+.emergency-actions > button:focus-visible { outline: 2px solid #bd213b; outline-offset: 3px; }
+.emergency-status { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: calc(11px * var(--text-scale, 1)); font-weight: 600; overflow-wrap: anywhere; }
+.emergency-status.error { font-weight: 750; }
+.emergency-level { display: block; width: 90px; height: 4px; border-radius: 3px; overflow: hidden; background: #d83b5230; }
+.emergency-level > span { display: block; height: 100%; background: #d83b52; transition: width .1s; }
+:root[data-theme=dark] .emergency-controls { color: #ffd2da; border-color: #e15b70; background: #2b1822; }
+:root[data-theme=dark] .emergency-actions > button { border-color: #e15b70; }
+@media (max-width: 760px) {
+  .emergency-controls { grid-template-columns: minmax(0, 1fr); gap: 7px; padding: 8px; }
+  .emergency-description { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; }
+  .emergency-description h2 { margin: 0; }
+  .emergency-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .emergency-actions > button { padding: 8px 6px; line-height: 1.35; }
+}

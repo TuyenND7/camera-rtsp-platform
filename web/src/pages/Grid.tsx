@@ -11,6 +11,7 @@ import DeviceControlPanel from '../DeviceControlPanel';
 import CameraSettingsDialog from '../CameraSettingsDialog';
 import CameraFlashButton from '../CameraFlashButton';
 import useCameraTalk from '../useCameraTalk';
+import EmergencyControls from '../EmergencyControls';
 import { PageHeader, statusLabels } from '../ui';
 
 type LayoutSize = 1 | 4 | 9 | 16;
@@ -135,6 +136,7 @@ export default function Grid() {
         </div>} />
 
       {err && <div className="notice error">Không tải được camera: {err}</div>}
+      <EmergencyControls cameras={cameras} talk={cameraTalk} />
       {!err && layout === 1 && visible[0] && <FocusView cameraTalk={cameraTalk} talkActive={talkActive} camera={visible[0]} cameras={cameras.filter(camera => camera.enabled)} onChoose={id => chooseCamera(id, 0)} onClose={() => closeSlot(0)} onSettings={() => { cameraTalk.stop(); setSettingsCameraId(visible[0]!.id); }} />}
       {!err && (layout !== 1 || !visible[0]) && <>
         <div className={`mi-camera-grid layout-${layout}`}>
@@ -207,8 +209,8 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
   const [snapshot, setSnapshot] = useState<LiveSnapshot | null>(null);
   const [capturing, setCapturing] = useState(false);
   const [controlsOpen, setControlsOpen] = useState(false);
-  const ownTalk = cameraTalk.cameraId === camera.id && cameraTalk.phase !== 'idle';
-  const micLabel = ownTalk ? `${cameraTalk.phase === 'preparing' ? 'Hủy kết nối mic' : 'Kết thúc đàm thoại'} ${camera.name}` : `Nói với ${camera.name}`;
+  const ownTalk = cameraTalk.cameraIds.includes(camera.id) && cameraTalk.phase !== 'idle';
+  const micLabel = ownTalk ? `${cameraTalk.phase === 'preparing' ? 'Hủy kết nối mic' : 'Kết thúc đàm thoại'}${cameraTalk.broadcast ? ' tất cả ·' : ''} ${camera.name}` : `Nói với ${camera.name}`;
 
   useEffect(() => { if (cameraTalk.cameraId === camera.id && cameraTalk.message) setNotice(cameraTalk.message); }, [cameraTalk.cameraId, cameraTalk.message, camera.id]);
 
