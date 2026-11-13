@@ -98,17 +98,26 @@ export default function EmergencyControls({ cameras, talk, compact = false }: { 
     let cancelled = false;
     const list = cameras.filter(camera => camera.enabled && camera.status === 'online');
     setLoading(true); setCapabilities({}); const stamp = revision.current;
+    let unresolved = list, retry: number | undefined;
+    async function refreshCapabilities() {
+      if (cancelled || !unresolved.length) return;
+      if (document.hidden) { retry = window.setTimeout(() => void refreshCapabilities(), 10_000); return; }
+      const capabilities: Record<number, TalkCapability> = {};
+      for (let offset = 0; offset < unresolved.length && !cancelled; offset += 16) {
+        try { for (const item of await api.talkCapabilities(unresolved.slice(offset, offset + 16).map(camera => camera.id))) capabilities[item.camera_id] = item; }
+        catch { /* Retry unavailable SDK/network state without enabling an unverified mic. */ }
+      }
+      if (cancelled) return;
+      setCapabilities(value => ({ ...value, ...capabilities }));
+      unresolved = unresolved.filter(camera => capabilities[camera.id]?.supported !== true);
+      if (unresolved.length) retry = window.setTimeout(() => void refreshCapabilities(), 10_000);
+    }
     async function load() {
       // An RTSP failure can coexist with an active siren lease. Read its stop state too.
       const controlResults = commands(cameras.map(camera => camera.id), id => api.deviceControls(id));
-      const capabilities: Record<number, TalkCapability> = {};
-      for (let offset = 0; offset < list.length && !cancelled; offset += 16) {
-        try { for (const item of await api.talkCapabilities(list.slice(offset, offset + 16).map(camera => camera.id))) capabilities[item.camera_id] = item; }
-        catch { /* A failed probe must not be treated as ready. */ }
-      }
+      await refreshCapabilities();
       const controls = await controlResults;
       if (cancelled) return;
-      setCapabilities(capabilities);
       setStates(value => {
         const next = { ...value };
         for (const item of controls) if (stamp === revision.current && item.result.status === 'fulfilled') next[item.id] = item.result.value;
@@ -116,7 +125,7 @@ export default function EmergencyControls({ cameras, talk, compact = false }: { 
       });
       setLoading(false);
     }
-    void load(); return () => { cancelled = true; };
+    void load(); return () => { cancelled = true; window.clearTimeout(retry); };
   }, [cameraKey, admin]);
 
   function names(ids: number[]) { return ids.map(id => current.current.cameras.find(camera => camera.id === id)?.name ?? `Camera ${id}`).join(', '); }
