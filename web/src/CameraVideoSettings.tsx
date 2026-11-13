@@ -4,6 +4,11 @@ import Icon from './Icon';
 
 type Values = { resolution: string; fps: string; bitrate: string };
 const values = (p: CameraVideoProfile): Values => ({ resolution: `${p.width}x${p.height}`, fps: p.fps?.toString() ?? '', bitrate: p.bitrate?.toString() ?? '' });
+function choices(common: number[], limits: { min: number; max: number } | null, current: number | null) {
+  const available = limits ? [...common, Math.ceil(limits.min), Math.floor(limits.max)].filter(value => Number.isInteger(value) && value >= limits.min && value <= limits.max) : [];
+  if (current !== null) available.push(current);
+  return [...new Set(available)].sort((a, b) => a - b);
+}
 export default function CameraVideoSettings({ camera, onBusy }: { camera: Camera; onBusy: (value: boolean) => void }) {
   const [settings, setSettings] = useState<VideoSettings | null>(null), [token, setToken] = useState('');
   const [form, setForm] = useState<Values>({ resolution: '', fps: '', bitrate: '' });
@@ -27,7 +32,7 @@ export default function CameraVideoSettings({ camera, onBusy }: { camera: Camera
     setSaving(true); onBusy(true); setError(''); setNotice('');
     try {
       const result = await api.setCameraVideoSettings(camera.id, { profile_token: token, revision: profile.revision, width, height,
-        ...(profile.fps_range && form.fps ? { fps: Number(form.fps) } : {}), ...(profile.bitrate_range && form.bitrate ? { bitrate: Number(form.bitrate) } : {}) });
+        ...(profile.fps_range && form.fps && Number(form.fps) !== profile.fps ? { fps: Number(form.fps) } : {}), ...(profile.bitrate_range && form.bitrate && Number(form.bitrate) !== profile.bitrate ? { bitrate: Number(form.bitrate) } : {}) });
       if (alive.current) { accept(result, token); setNotice(result.confirmed ? 'Camera đã xác nhận cài đặt mới. Live có thể cần vài giây để cập nhật.' : 'Đã gửi lệnh. Camera chưa xác nhận đủ thông số; hãy đọc lại trạng thái.'); }
     } catch (e) { if (alive.current) setError(e instanceof Error ? e.message : 'Chưa áp dụng được cài đặt.'); }
     finally { if (alive.current) setSaving(false); onBusy(false); }
@@ -44,7 +49,7 @@ export default function CameraVideoSettings({ camera, onBusy }: { camera: Camera
       {!profile.editable && <p className="notice">Luồng này chỉ đọc được thông tin. Camera chưa cung cấp lựa chọn chỉnh sửa tương thích.</p>}
       <fieldset disabled={saving || !profile.editable}>
         <label>Độ phân giải<select value={form.resolution} onChange={event => setForm({ ...form, resolution: event.target.value })}>{!profile.resolutions.some(r => `${r.width}x${r.height}` === form.resolution) && <option value={form.resolution}>{profile.width}×{profile.height} · hiện tại</option>}{profile.resolutions.map(r => <option key={`${r.width}x${r.height}`} value={`${r.width}x${r.height}`}>{r.width}×{r.height}{r.height === 1080 ? ' · Full HD' : r.height === 720 ? ' · HD' : ''}</option>)}</select></label>
-        <div className="form-grid"><label>Tốc độ khung hình (FPS)<input type="number" step={1} min={profile.fps_range?.min} max={profile.fps_range?.max} value={form.fps} disabled={!profile.fps_range} onChange={event => setForm({ ...form, fps: event.target.value })} required={!!profile.fps_range} /><small>{profile.fps_range ? `${profile.fps_range.min}–${profile.fps_range.max} FPS` : 'Thiết bị không cung cấp lựa chọn FPS'}</small></label><label>Bitrate (kbps)<input type="number" step={1} min={profile.bitrate_range?.min} max={profile.bitrate_range?.max} value={form.bitrate} disabled={!profile.bitrate_range} onChange={event => setForm({ ...form, bitrate: event.target.value })} required={!!profile.bitrate_range} /><small>{profile.bitrate_range ? `${profile.bitrate_range.min}–${profile.bitrate_range.max} kbps` : 'Thiết bị không cung cấp lựa chọn bitrate'}</small></label></div>
+        <div className="form-grid"><label>Tốc độ khung hình<select value={form.fps} disabled={!profile.fps_range} onChange={event => setForm({ ...form, fps: event.target.value })} aria-label="Chọn tốc độ khung hình">{profile.fps === null && <option value="" disabled>Chọn tốc độ khung hình</option>}{choices([1, 2, 5, 10, 12, 15, 20, 24, 25, 30, 50, 60], profile.fps_range, profile.fps).map(value => <option key={value} value={value}>{value} FPS{value === profile.fps ? ' · hiện tại' : ''}</option>)}</select><small>{profile.fps_range ? 'FPS cao giúp hình chuyển động mượt hơn.' : 'Thiết bị không cung cấp lựa chọn FPS'}</small></label><label>Chất lượng luồng (bitrate)<select value={form.bitrate} disabled={!profile.bitrate_range} onChange={event => setForm({ ...form, bitrate: event.target.value })} aria-label="Chọn bitrate video">{profile.bitrate === null && <option value="" disabled>Chọn bitrate</option>}{choices([32, 64, 128, 256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096, 6144, 8192, 12288, 16384, 24576, 32768, 49152, 65536], profile.bitrate_range, profile.bitrate).map(value => <option key={value} value={value}>{value.toLocaleString('vi-VN')} kbps{value === profile.bitrate ? ' · hiện tại' : ''}</option>)}</select><small>{profile.bitrate_range ? 'Bitrate cao cho ảnh rõ hơn, dùng thêm mạng và bộ nhớ.' : 'Thiết bị không cung cấp lựa chọn bitrate'}</small></label></div>
       </fieldset>
       <p className="camera-settings-note">Áp dụng trực tiếp vào camera, ảnh hưởng luồng live và các bản ghi mới sử dụng luồng này.</p>
       {notice && <p className="notice" role="status">{notice}</p>}

@@ -893,7 +893,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .camera-video-current span { display: flex; flex-direction: column; gap: 4px; color: var(--text-muted); font-size: calc(12px * var(--text-scale, 1)); }
 .camera-video-current strong { color: var(--text-body); font-size: calc(14px * var(--text-scale, 1)); }
 .camera-settings-note, .camera-settings-tip { font-size: calc(13px * var(--text-scale, 1)); color: var(--text-muted); line-height: 1.6; }
-.camera-settings-apply { display: flex; justify-content: flex-end; margin-top: 18px; }
+.camera-settings-apply { position: sticky; bottom: 0; z-index: 1; display: flex; justify-content: flex-end; margin-top: 18px; padding: 14px 0; border-top: 1px solid var(--line); background: var(--surface); }
 .camera-settings-apply button { min-height: 44px; }
 .camera-settings-tip { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--line); margin-top: 24px; padding-top: 18px; }
 @media (max-width: 800px) {
