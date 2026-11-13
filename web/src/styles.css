@@ -711,6 +711,11 @@ tbody tr:last-child td { border-bottom: 0; }
 .text-size-option strong { max-width: 100%; font-size: inherit; font-weight: 600; overflow-wrap: anywhere; }
 .text-size-option small { color: var(--muted); font-size: calc(10px * var(--text-scale, 1)); }
 .text-size-setting > .text-size-preview { margin-top: 12px; padding: 12px; border-radius: 6px; color: var(--ink); background: var(--blue-light); font-size: calc(14px * var(--text-scale, 1)); line-height: 1.65; }
+.appearance-settings { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px; }
+.appearance-settings > .theme-setting { flex: 0 1 330px; min-width: 0; }
+.appearance-settings > .text-size-setting { flex: 1 1 400px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.appearance-settings .text-size-setting > h3 { font-size: calc(15px * var(--text-scale, 1)); line-height: 1.5; }
+.appearance-settings .text-size-options { max-width: none; margin-top: 18px; }
 :root[data-text-size]:not([data-text-size="100"]) .icon-button { min-width: 44px; min-height: 44px; width: 44px; height: 44px; }
 :root[data-text-size]:not([data-text-size="100"]) .pt-zoom button { min-width: 44px; min-height: 44px; }
 @media (max-width: 760px) { .text-size-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

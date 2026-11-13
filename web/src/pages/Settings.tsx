@@ -81,10 +81,12 @@ export default function Settings() {
   const connectionButton = <button type="button" onClick={() => void check()} disabled={checking}><Icon name="refresh" size={16} />{checking ? 'Đang kiểm tra…' : 'Kiểm tra kết nối'}</button>;
   return <section className="settings-page">
     <PageHeader title="Cài đặt" />
-    <section className="panel settings-section">
-      <header className="settings-heading"><Icon name="sun" size={22} /><div><h2>Giao diện</h2></div></header>
-      <div className="theme-options" role="group" aria-label="Chế độ giao diện">
-        {(['light', 'dark'] as const).map(value => <button type="button" key={value} className={`theme-option${theme === value ? ' active' : ''}`} onClick={() => setTheme(value)} aria-pressed={theme === value}><span className={`theme-swatch ${value}`}><i /><i /><i /></span><span className="theme-option-label"><Icon name={value === 'light' ? 'sun' : 'moon'} size={18} />{value === 'light' ? 'Sáng' : 'Tối'}</span>{theme === value && <Icon name="check" size={18} />}</button>)}
+    <section className="panel settings-section appearance-settings">
+      <div className="theme-setting">
+        <header className="settings-heading"><Icon name="sun" size={22} /><div><h2>Giao diện</h2></div></header>
+        <div className="theme-options" role="group" aria-label="Chế độ giao diện">
+          {(['light', 'dark'] as const).map(value => <button type="button" key={value} className={`theme-option${theme === value ? ' active' : ''}`} onClick={() => setTheme(value)} aria-pressed={theme === value}><span className={`theme-swatch ${value}`}><i /><i /><i /></span><span className="theme-option-label"><Icon name={value === 'light' ? 'sun' : 'moon'} size={18} />{value === 'light' ? 'Sáng' : 'Tối'}</span>{theme === value && <Icon name="check" size={18} />}</button>)}
+        </div>
       </div>
       <div className="text-size-setting">
         <h3 id="text-size-title">Cỡ chữ</h3>
