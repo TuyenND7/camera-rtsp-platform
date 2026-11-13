@@ -648,12 +648,9 @@ tbody tr:last-child td { border-bottom: 0; }
 .theme-swatch i { border-radius: 2px; background: #dfe8f4; }
 .theme-swatch.dark i { background: #2c3d55; }
 .theme-swatch i:first-child { grid-row: span 2; }
-.server-current { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; padding: 12px; border: 1px solid var(--line, #e0e9f4); border-radius: 7px; background: var(--app-bg, #f5f8fc); }
-.server-current > span:not(.app-icon) { width: 100%; color: var(--text-muted, #8a9db7); font-size: calc(10px * var(--text-scale, 1)); }
-.server-current code { min-width: 0; flex: 1; overflow-wrap: anywhere; font-size: calc(11px * var(--text-scale, 1)); }
-.server-current button { min-height: 36px; padding: 6px 9px; font-size: calc(10px * var(--text-scale, 1)); }
-.settings-address { display: flex; gap: 8px; margin-top: 7px; }
-.settings-address input { flex: 1; }
+.settings-address { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 7px; }
+.settings-address input { flex: 1 1 180px; }
+.settings-address-actions { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; max-width: 100%; }
 .settings-address button { flex-shrink: 0; }
 .settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .settings-readonly { display: flex; flex-direction: column; gap: 7px; font-size: calc(12px * var(--text-scale, 1)); }

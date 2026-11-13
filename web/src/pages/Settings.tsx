@@ -78,6 +78,7 @@ export default function Settings() {
   }
 
   const dirty = form && info && JSON.stringify(form) !== JSON.stringify(info.settings);
+  const connectionButton = <button type="button" onClick={() => void check()} disabled={checking}><Icon name="refresh" size={16} />{checking ? 'Đang kiểm tra…' : 'Kiểm tra kết nối'}</button>;
   return <section className="settings-page">
     <PageHeader title="Cài đặt" />
     <section className="panel settings-section">
@@ -102,8 +103,8 @@ export default function Settings() {
     <form onSubmit={save} className="settings-form">
       <section className="panel settings-section">
         <header className="settings-heading"><Icon name="server" size={22} /><div><h2>Máy chủ</h2></div><span className={`status-badge ${connection === true ? 'online' : connection === false ? 'error' : 'connecting'}`}><i className={`status-dot ${connection === true ? 'online' : connection === false ? 'error' : 'connecting'}`} />{connection === null ? 'Đang kiểm tra' : connection ? 'Trực tuyến' : 'Mất kết nối'}</span></header>
-        <div className="server-current"><span>Máy chủ hiện tại</span><code>{window.location.origin}</code><button type="button" onClick={() => void check()} disabled={checking}><Icon name="refresh" size={16} />{checking ? 'Đang kiểm tra…' : 'Kiểm tra kết nối'}</button></div>
-        {admin && form && <label>Địa chỉ web để chia sẻ<div className="settings-address"><input type="url" value={form.public_base_url} onChange={event => change('public_base_url', event.target.value)} placeholder={window.location.origin} maxLength={2048} /><button type="button" onClick={() => void copyAddress()}>{copied ? 'Đã sao chép' : 'Sao chép link'}</button></div></label>}
+        {admin && form && <label>Địa chỉ web để chia sẻ<div className="settings-address"><input type="url" value={form.public_base_url} onChange={event => change('public_base_url', event.target.value)} placeholder={window.location.origin} maxLength={2048} /><div className="settings-address-actions"><button type="button" onClick={() => void copyAddress()}>{copied ? 'Đã sao chép' : 'Sao chép link'}</button>{connectionButton}</div></div></label>}
+        {!admin && connectionButton}
       </section>
 
       {admin && form && <section className="panel settings-section alarm-settings-section">
