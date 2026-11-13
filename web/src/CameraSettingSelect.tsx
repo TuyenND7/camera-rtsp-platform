@@ -46,7 +46,12 @@ function ChoiceDialog({ label, description, icon, columns, value, options, onClo
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + step + buttons.length) % buttons.length;
     setDraft(buttons[next].dataset.value!); buttons[next].focus(); buttons[next].scrollIntoView({ block: 'nearest' });
   }
-  return <dialog ref={dialog} className="device-dialog camera-choice-dialog" aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`} onCancel={event => { event.preventDefault(); event.stopPropagation(); onClose(); }} onClick={event => {
+  return <dialog ref={dialog} className="device-dialog camera-choice-dialog" aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`} onKeyDown={event => {
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); }
+  }} onKeyUp={event => {
+    // Consume the whole Escape press before unmounting, so the underlying editor stays open in WebView.
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(); }
+  }} onCancel={event => { event.preventDefault(); event.stopPropagation(); onClose(); }} onClick={event => {
     if (event.target !== event.currentTarget) return;
     const box = event.currentTarget.getBoundingClientRect();
     if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) onClose();
