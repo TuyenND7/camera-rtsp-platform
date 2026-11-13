@@ -6,6 +6,8 @@ import Icon from '../Icon';
 import PtzPanel from '../PtzPanel';
 import LiveDevicePicker from '../LiveDevicePicker';
 import TalkPanel from '../TalkPanel';
+import SnapshotDialog, { LiveSnapshot } from '../SnapshotDialog';
+import DeviceControlPanel from '../DeviceControlPanel';
 import { PageHeader, statusLabels } from '../ui';
 
 type LayoutSize = 1 | 4 | 9 | 16;
@@ -19,6 +21,7 @@ export default function Grid() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [talkOpen, setTalkOpen] = useState(false);
   const [talkActive, setTalkActive] = useState(false);
+  const [deviceControlsOpen, setDeviceControlsOpen] = useState(false);
   const [pickerSlot, setPickerSlot] = useState<number | null>(null);
   const [err, setErr] = useState('');
   const livePage = useRef<HTMLElement>(null);
@@ -118,6 +121,7 @@ export default function Grid() {
             {([1, 4, 9, 16] as LayoutSize[]).map((size) => <button key={size} className={layout === size ? 'active' : ''} type="button" onClick={() => changeLayout(size)} title={`Bố cục ${size} camera`}>{size === 1 ? '1' : size === 4 ? '2×2' : size === 9 ? '3×3' : '4×4'}</button>)}
           </div>
           <div className="mi-live-utility-actions">
+            <button type="button" className="mi-live-alarm-button" onClick={() => setDeviceControlsOpen(true)} aria-label="Điều khiển còi và đèn camera" title="Còi và đèn"><Icon name="bell" size={20} /></button>
             <button type="button" className="mi-live-fullscreen-button" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen} aria-label={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'} title={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'}><Icon name={fullscreen ? 'minimize' : 'maximize'} size={20} /></button>
             <button type="button" className="mi-live-talk-button" onClick={() => setTalkOpen(true)} aria-label="Đàm thoại với camera" title="Đàm thoại"><Icon name="microphone" size={21} /></button>
           </div>
@@ -133,6 +137,7 @@ export default function Grid() {
         </div>
       </>}
       {talkOpen && <TalkPanel cameras={cameras} initial={Array.from(selected)} onClose={() => setTalkOpen(false)} onActive={setTalkActive} />}
+      {deviceControlsOpen && <DeviceControlPanel cameras={cameras} onClose={() => setDeviceControlsOpen(false)} />}
       {pickerOpen && <LiveDevicePicker cameras={cameras} selected={selected} slot={pickerSlot} onChoose={id => { if (pickerSlot !== null) chooseCamera(id, pickerSlot); }} onClose={() => setPickerOpen(false)} />}
     </section>
   );
@@ -191,6 +196,9 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
   const [muted, setMuted] = useState(true);
   const [hasAudio, setHasAudio] = useState<boolean | null>(null);
   const offline = camera.status !== 'online';
+  const [snapshot, setSnapshot] = useState<LiveSnapshot | null>(null);
+  const [capturing, setCapturing] = useState(false);
+  const [controlsOpen, setControlsOpen] = useState(false);
 
   useEffect(() => { setControlsVisible(false); setNotice(''); setMuted(true); setHasAudio(null); }, [camera.id]);
 
@@ -244,6 +252,14 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
     }
   }
 
+  async function capture() {
+    if (!player.current || capturing) return;
+    setCapturing(true);
+    try { const blob = await player.current.snapshot(); setSnapshot({ blob, cameraId: camera.id, name: camera.name, capturedAt: new Date() }); }
+    catch (error) { setNotice(error instanceof Error ? error.message : 'Chưa chụp được ảnh.'); }
+    finally { setCapturing(false); }
+  }
+
   return (
     <div ref={container} className={`${className}${controlsVisible ? ' controls-visible' : ''}`} tabIndex={0} role="group" aria-label={`${camera.name}, nhấn Enter để hiện hoặc ẩn điều khiển`} onClick={event => {
       if (!(event.target as Element).closest('button, a')) setControlsVisible(value => !value);
@@ -261,7 +277,9 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
       {notice && !offline && <div className="mi-live-notice" role="status">{notice}</div>}
       {children}
       <button type="button" className={`mi-camera-control mi-camera-audio${!muted ? ' active' : ''}`} disabled={offline || hasAudio === false || talkActive} onClick={() => setMuted(value => !value)} aria-pressed={!muted} aria-label={`${muted ? 'Bật' : 'Tắt'} âm thanh ${camera.name}`} title={offline ? 'Camera chưa trực tuyến' : hasAudio === false ? 'Luồng camera không có âm thanh' : `${muted ? 'Bật' : 'Tắt'} âm thanh`} data-audio-state={muted ? 'muted' : 'audible'}><Icon name={muted ? 'volumeMuted' : 'volume'} size={20} /></button>
-      <div ref={controls} className="mi-camera-controls" hidden={!controlsVisible}>{actions}<button type="button" className="mi-camera-control mi-camera-close" onClick={onClose} aria-label={`Bỏ ${camera.name} khỏi Live view`} title="Bỏ camera khỏi ô này"><Icon name="close" size={20} /></button></div>
+      <div ref={controls} className="mi-camera-controls" hidden={!controlsVisible}>{actions}<button type="button" className="mi-camera-control" disabled={offline} onClick={() => setControlsOpen(true)} aria-label={`Điều khiển còi và đèn ${camera.name}`} title="Còi và đèn camera"><Icon name="bell" size={20} /></button><button type="button" className="mi-camera-control" disabled={offline || capturing} onClick={() => void capture()} aria-label={`Chụp ảnh ${camera.name}`} title="Chụp khung hình đang xem"><Icon name="camera" size={20} /></button><button type="button" className="mi-camera-control mi-camera-close" onClick={onClose} aria-label={`Bỏ ${camera.name} khỏi Live view`} title="Bỏ camera khỏi ô này"><Icon name="close" size={20} /></button></div>
+      {snapshot && <SnapshotDialog snapshot={snapshot} onClose={() => setSnapshot(null)} />}
+      {controlsOpen && <DeviceControlPanel cameras={[camera]} onClose={() => setControlsOpen(false)} />}
     </div>
   );
 }

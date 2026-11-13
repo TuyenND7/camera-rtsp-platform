@@ -124,6 +124,7 @@ export class TalkManager {
   }
 
   invalidateCamera(id: number) { const call = this.locks.get(id); if (call) this.stop(call); this.probes.clear(); }
+  isCameraBusy(id: number) { return this.locks.has(id); }
   close() { clearInterval(this.timer); for (const id of this.calls.keys()) this.stop(id); this.probes.clear(); }
 }
 

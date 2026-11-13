@@ -43,7 +43,34 @@ try {
         Publish-Test $path $generation $true
         Assert-Ready $case.method $true
     }
-    Write-Output 'PASS: shared-file contention, expiry, account revocation and generation changes'
+    Add-Type -AssemblyName System.Web.Extensions
+    $serializer = New-Object Web.Script.Serialization.JavaScriptSerializer
+    $properties = $serializer.DeserializeObject('{"FunctionSet":{"value":{"oneKeyAlarm":1}},"AudibleStatus":{"value":0,"time":100},"TurnLight":{"value":1,"time":101},"WifiConfiguration":{"value":{"password":"fixture-private-camera-password"}}}')
+    $state = $agent.GetMethod('ControlStateFromProperties',$flags).Invoke($null,@($properties))
+    if (-not $state.alarm_supported -or $null -ne $state.alarm_active -or -not $state.light_supported -or $state.light_enabled -ne $true) { throw 'Invalid device control state' }
+    if (($state | ConvertTo-Json -Compress) -match 'fixture-private|WifiConfiguration') { throw 'Private camera properties leaked' }
+    $unknown = $agent.GetMethod('ControlStateFromProperties',$flags).Invoke($null,@($serializer.DeserializeObject('{}')))
+    if ($unknown.alarm_supported -or $unknown.light_supported -or $null -ne $unknown.alarm_active) { throw 'Unknown state must not become supported/off' }
+    $bindings = $agent.GetField('bindings',$flags).GetValue($null)
+    $binding = New-Object 'Collections.Generic.Dictionary[string,object]'
+    $binding.Add('id',2); $binding.Add('model','CT3V1.0'); $binding.Add('url_hash',('a' * 64)); $bindings.Add($binding)
+    $requestDirectory = Join-Path $temporary ('controls\' + [guid]::NewGuid().ToString('D'))
+    New-Item -ItemType Directory -Path $requestDirectory -Force | Out-Null
+    $command = @{version=1;camera_id=2;url_hash=('a' * 64);agent_instance=$generation;created_at=(Now);action='light';enabled=$true}
+    function Assert-Command([bool]$valid) {
+        $command | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $requestDirectory 'request.json') -Encoding UTF8
+        $accepted=$true
+        try { $null=$agent.GetMethod('ControlCommand',$flags).Invoke($null,[object[]]@(([string]$requestDirectory).ToString())) } catch { $accepted=$false }
+        if ($accepted -ne $valid) { throw 'Control command validation failed' }
+    }
+    Assert-Command $true
+    $command.action='reboot'; Assert-Command $false
+    $command.action='light'; $command.url_hash=('b' * 64); Assert-Command $false
+    $command.url_hash=('a' * 64); $command.created_at=(Now)-31000; Assert-Command $false
+    $command.created_at=Now; $command.agent_instance=[guid]::NewGuid().ToString('D'); Assert-Command $false
+    $command.agent_instance=$generation; $command.action='alarm'; $command.duration_seconds=999; Assert-Command $false
+    $command.duration_seconds=5; Assert-Command $true
+    Write-Output 'PASS: IPC contention/expiry/revocation, safe control state and bound command validation'
 } finally {
     Remove-Item -LiteralPath $temporary -Recurse -Force
 }

@@ -5,6 +5,7 @@ import { streamManager, CameraRow } from '../stream/manager';
 import { probeOnvif, safeOnvifError, validateOnvifInput } from '../onvif';
 import { invalidatePtz } from '../ptz';
 import { talkManager } from '../talk/manager';
+import { deviceControls } from '../controls/tenda';
 import { rediscoverCamera } from '../discovery';
 import { deviceDiscovery, discoveryNetworks, KnownCamera, normalizeDiscoverySubnet } from '../deviceDiscovery';
 
@@ -164,6 +165,7 @@ router.put('/:id', async (req, res) => {
   const cam = rows[0];
   invalidatePtz(cam.id);
   talkManager.invalidateCamera(cam.id);
+  deviceControls.cancelCamera(cam.id);
   // Áp dụng thay đổi lên worker
   if (cam.enabled) {
     await streamManager.restart(cam.id);
@@ -179,6 +181,7 @@ router.delete('/:id', async (req, res) => {
   streamManager.stop(id);
   invalidatePtz(id);
   talkManager.invalidateCamera(id);
+  deviceControls.cancelCamera(id);
   await pool.query('DELETE FROM cameras WHERE id = $1', [id]);
   res.status(204).end();
 });
@@ -228,6 +231,7 @@ router.post('/:id/stop', async (req, res) => {
   await pool.query('UPDATE cameras SET enabled = false WHERE id = $1', [id]);
   streamManager.stop(id);
   talkManager.invalidateCamera(id);
+  deviceControls.cancelCamera(id);
   res.json({ ok: true });
 });
 

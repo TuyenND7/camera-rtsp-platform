@@ -91,3 +91,20 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\tenda-talk\Tes
 - Hai SDK báo đầu camera/recorder sẵn sàng và tiêu thụ PCM; Live tiếp tục cập nhật playlist, recording tiếp tục tạo segment. Đây là xác nhận đường truyền, không thay thế nghe tại loa. Người dùng đã xác nhận âm bíp SDK ở camera ngoài sân trước đó; giọng nói từ web ở từng loa cần được nghe thử thực tế.
 - RH7 đã liên kết cấu hình nhưng đang tắt theo xác nhận của chủ thiết bị; chưa kiểm tra lại đàm thoại web trong lần triển khai này.
 - Build backend/web, 32 kiểm thử đàm thoại/bảo mật/IPC backend và kiểm thử tranh chấp file trên Windows đạt. Web còn cảnh báo kích thước chunk Vite hiện có.
+
+## Nút còi và đèn trên web
+
+Mở Live → biểu tượng chuông cạnh phóng to/mic, hoặc chạm một ô camera rồi chọn biểu tượng chuông. Từng thiết bị có **Bật còi / Dừng còi** và **Bật đèn / Tắt đèn**. Chọn thời gian 5, 10 hoặc 30 giây; worker Windows tự gửi lệnh dừng còi khi hết thời gian, khi bị hủy hoặc agent dừng. Lease lệnh còn lại được xử lý bằng lệnh dừng khi agent khởi động lại hoặc phát hiện worker lỗi. Không bật thêm nhận dạng/cảnh báo chuyển động tự động.
+
+Đường này dùng [SDK vật mô hình PC của LinkVisual](https://help.aliyun.com/zh/linkvisual/object-model-sdk-2) trong `iottmp.dll`, cùng phiên SDK đã xác thực: gọi dịch vụ **oneKeyAlarm** với `operate=1/0` và thuộc tính **TurnLight=1/0**. DLL được kiểm SHA-256 như các thư viện hiện có. Không dùng phiên REST TDSEE đã hết hạn để điều khiển.
+
+Backend chỉ cho phép hai thao tác này trên camera đã liên kết đúng ID/fingerprint; API không nhận tên dịch vụ, thuộc tính, URL hay thông tin đăng nhập tùy ý. Toàn bộ thuộc tính thiết bị được đọc trong worker Windows; chỉ cờ còi/đèn và thời gian được đưa ra IPC/web, không trả thông tin Wi-Fi hay khóa thiết bị.
+
+CT3 đang dùng không cập nhật `AudibleStatus` cho lệnh còi thủ công dù đã phát tiếng. Vì vậy web hiển thị lệnh đã gửi và thời gian tự dừng; `alarm_active` để `null` khi không có phản hồi vật lý đáng tin cậy. Không coi ACK SDK là bằng chứng loa đã phát. Người dùng đã xác nhận nghe còi gốc trên CT3 ngoài sân trong lượt thử 5 giây. Đèn trắng ngoài sân đã kiểm tra trạng thái `TurnLight` đổi 0 → 1 → 0.
+
+API dành cho admin:
+
+- `GET /api/cameras/:id/controls`: đọc khả năng và trạng thái đã lọc.
+- `POST /api/cameras/:id/controls`: HTTPS + phiên admin + CSRF; JSON `{ "action": "alarm" | "light", "enabled": true | false, "duration_seconds": 5 | 10 | 30 }`.
+
+App Android vẫn chỉ hiển thị website. Snapshot PNG được tạo từ video đang phát trong trình duyệt; hỗ trợ lưu/chia sẻ file của từng WebView có thể khác Chrome/Safari.

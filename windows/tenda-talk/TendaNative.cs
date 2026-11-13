@@ -11,7 +11,7 @@ using System.Reflection;
 
 // Interop is pinned to the verified TDSEE Studio 1.0.7 runtime. The proprietary
 // DLLs and application/account credentials are supplied outside this repository.
-public static class TendaNative
+public static partial class TendaNative
 {
     [DllImport("kernel32", CharSet=CharSet.Unicode, SetLastError=true)] static extern IntPtr LoadLibrary(string name);
     [DllImport("kernel32", CharSet=CharSet.Ansi)] static extern IntPtr GetProcAddress(IntPtr module, string name);

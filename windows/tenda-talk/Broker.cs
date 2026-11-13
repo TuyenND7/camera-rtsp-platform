@@ -14,6 +14,7 @@ public static partial class TalkAgent
         public Process Process;
         public string Directory;
         public long Started;
+        public bool Control;
     }
     static Process Launch(string configuration, string arguments)
     {
@@ -121,6 +122,10 @@ public static partial class TalkAgent
                     }
                     if (worker.Process.HasExited)
                     {
+                        if (worker.Control) {
+                            if (!File.Exists(Path.Combine(worker.Directory, "result.json"))) Write(Path.Combine(worker.Directory, "result.json"), new { ok = false, status = 503, error = "sdk_control_worker_stopped" });
+                            worker.Process.Dispose(); finished.Add(item.Key); continue;
+                        }
                         try
                         {
                             var state = Read(Path.Combine(worker.Directory, "state.json"));
@@ -131,6 +136,8 @@ public static partial class TalkAgent
                     }
                 }
                 foreach (string session in finished) workers.Remove(session);
+                ScanControls(configuration, workers, ready);
+                if (ready) RecoverControls(workers);
                 int scanned = 0;
                 foreach (string directory in Directory.GetDirectories(root))
                 {
@@ -159,6 +166,11 @@ public static partial class TalkAgent
             Publish(false);
             foreach (var worker in workers.Values) try { File.WriteAllText(Path.Combine(worker.Directory, "stop"), ""); } catch {}
             Thread.Sleep(500);
+            long deadline = Now + 10000;
+            while (Now < deadline) {
+                bool activeControl = false; foreach (var worker in workers.Values) if (worker.Control && !worker.Process.HasExited) activeControl = true;
+                if (!activeControl) break; Thread.Sleep(100);
+            }
             foreach (var worker in workers.Values) { try { if (!worker.Process.HasExited) worker.Process.Kill(); } catch {} worker.Process.Dispose(); }
             if (health != null) { try { if (!health.HasExited) health.Kill(); } catch {} health.Dispose(); }
         }

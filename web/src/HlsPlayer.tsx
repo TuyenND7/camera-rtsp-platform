@@ -26,6 +26,7 @@ export interface HlsPlayerHandle {
   togglePlay(): void;
   setRate(rate: number): void;
   currentTime(): number;
+  snapshot(): Promise<Blob>;
 }
 
 /** Player HLS dùng hls.js, fallback native HLS (Safari). */
@@ -90,6 +91,20 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
       if (videoRef.current) videoRef.current.playbackRate = value;
     },
     currentTime() { return videoRef.current?.currentTime ?? 0; },
+    snapshot() {
+      return new Promise((resolve, reject) => {
+        const video = videoRef.current;
+        if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) { reject(new Error('Chờ camera có hình rồi chụp lại.')); return; }
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+        try {
+          const context = canvas.getContext('2d');
+          if (!context) throw new Error('Thiết bị chưa hỗ trợ chụp ảnh.');
+          context.drawImage(video, 0, 0);
+          canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Chưa tạo được ảnh. Hãy thử lại.')), 'image/png');
+        } catch { reject(new Error('Không chụp được khung hình hiện tại.')); }
+      });
+    },
   }), []);
 
   useEffect(() => {

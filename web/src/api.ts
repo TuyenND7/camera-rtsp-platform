@@ -2,6 +2,19 @@ import { isUiPreview } from './preview';
 
 const API_BASE = isUiPreview ? '/api' : (import.meta as any).env?.VITE_API_BASE ?? '/api';
 export interface SessionUser { id: number; username: string; role: string }
+export interface DeviceControls {
+  camera_id: number;
+  available: boolean;
+  reason?: string;
+  alarm_supported: boolean;
+  alarm_active: boolean | null;
+  light_supported: boolean;
+  light_enabled: boolean | null;
+  talking?: boolean;
+  observed_at?: number;
+  ends_at?: number | null;
+  confirmed?: boolean;
+}
 export interface TalkCapability { camera_id: number; supported: boolean; reason: string; codec?: string }
 export interface TalkSession { id: string; camera_ids: number[]; sample_rate: number; max_seconds: number }
 export interface ServerSettings {
@@ -168,6 +181,12 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 export const api = {
+  async deviceControls(cameraId: number) {
+    return handle<DeviceControls>(await fetch(`${API_BASE}/cameras/${cameraId}/controls`, { headers: authHeaders(), cache: 'no-store' }));
+  },
+  async setDeviceControl(cameraId: number, action: 'alarm' | 'light', enabled: boolean, durationSeconds = 10) {
+    return handle<DeviceControls>(await fetch(`${API_BASE}/cameras/${cameraId}/controls`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ action, enabled, duration_seconds: durationSeconds }) }));
+  },
   async talkCapabilities(cameraIds: number[]) {
     return handle<TalkCapability[]>(await fetch(`${API_BASE}/talk/capabilities`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ camera_ids: cameraIds }) }));
   },

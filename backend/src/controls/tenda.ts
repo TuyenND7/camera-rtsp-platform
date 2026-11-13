@@ -1,0 +1,147 @@
+import fs from 'fs';
+import path from 'path';
+import { createHash, randomUUID } from 'crypto';
+import { config } from '../config';
+import { tendaGateway } from '../talk/tenda';
+import type { TalkCamera } from '../talk/manager';
+
+export interface DeviceControls {
+  camera_id: number;
+  available: boolean;
+  reason?: string;
+  alarm_supported: boolean;
+  alarm_active: boolean | null;
+  light_supported: boolean;
+  light_enabled: boolean | null;
+  talking?: boolean;
+  observed_at?: number;
+  alarm_reported_at?: number | null;
+  light_reported_at?: number | null;
+  ends_at?: number | null;
+  confirmed?: boolean;
+}
+export class ControlError extends Error {
+  constructor(readonly status: number, message: string) { super(message); }
+}
+const guid = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/;
+const fingerprint = (camera: TalkCamera) => createHash('sha256').update(camera.rtsp_url).digest('hex');
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const errors: Record<string, string> = {
+  sdk_control_unsupported: 'Camera chưa cung cấp chức năng này.',
+  sdk_control_camera_talking: 'Camera đang đàm thoại. Dừng mic trước khi bật còi.',
+  sdk_control_alarm_busy: 'Còi đang hoạt động hoặc đang dừng. Hãy chờ camera xác nhận.',
+  sdk_control_stop_unconfirmed: 'Chưa xác nhận được còi đã tắt. Nhấn Dừng còi để thử lại.',
+  sdk_control_cancelled: 'Đã hủy lệnh điều khiển.',
+};
+function read(file: string): any {
+  const stat = fs.lstatSync(file);
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 16384) throw new Error('Invalid control result');
+  return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
+}
+const bool = (value: unknown): boolean | null => typeof value === 'boolean' ? value : null;
+const time = (value: unknown): number | null => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+export function controlState(cameraId: number, value: any): DeviceControls {
+  if (!value || typeof value.alarm_supported !== 'boolean' || typeof value.light_supported !== 'boolean' || time(value.observed_at) === null) throw new ControlError(502, 'Camera chưa trả về trạng thái điều khiển hợp lệ.');
+  return { camera_id: cameraId, available: true, alarm_supported: value.alarm_supported, alarm_active: bool(value.alarm_active), light_supported: value.light_supported, light_enabled: bool(value.light_enabled), talking: value.talking === true, observed_at: value.observed_at, alarm_reported_at: time(value.alarm_reported_at), light_reported_at: time(value.light_reported_at) };
+}
+export const unavailableControls = (id: number, reason: string): DeviceControls => ({ camera_id: id, available: false, reason, alarm_supported: false, alarm_active: null, light_supported: false, light_enabled: null });
+
+export class TendaControls {
+  private reads = new Map<number, Promise<DeviceControls>>();
+  private cache = new Map<string, { expires: number; state: DeviceControls }>();
+  private busy = new Map<number, { alarm: boolean }>();
+  private requests = new Map<string, number>();
+  private closed = false;
+  constructor(private base = path.join(config.storageRoot, '.tenda-talk')) {}
+  private root() { return path.join(this.base, 'controls'); }
+  private gateway(camera: TalkCamera) {
+    const gateway = tendaGateway(camera, this.base) as (ReturnType<typeof tendaGateway> & { control_version?: number });
+    if (!gateway || gateway.authenticated !== true || Math.abs(Date.now() - gateway.updated_at) >= 3000 || gateway.control_version !== 1) throw new ControlError(503, 'Kênh điều khiển Tenda trên máy chủ chưa sẵn sàng.');
+    return gateway;
+  }
+  private lease(camera: TalkCamera) {
+    try {
+      const lease = read(path.join(this.root(), `alarm-${camera.id}.json`));
+      return lease.camera_id === camera.id && lease.url_hash === fingerprint(camera) && guid.test(lease.request) ? lease : undefined;
+    } catch { return undefined; }
+  }
+  alarmActive(camera: TalkCamera) { return this.busy.get(camera.id)?.alarm === true || !!this.lease(camera); }
+  async get(camera: TalkCamera): Promise<DeviceControls> {
+    const generation = this.gateway(camera).instance;
+    const key = `${camera.id}:${fingerprint(camera)}:${generation}`;
+    const cached = this.cache.get(key);
+    if (cached && cached.expires > Date.now()) return { ...cached.state, ends_at: time(this.lease(camera)?.ends_at) };
+    const existing = this.reads.get(camera.id);
+    if (existing) return existing;
+    const pending = this.request(camera, 'get').then(state => {
+      if (this.cache.size >= 128) this.cache.delete(this.cache.keys().next().value!);
+      this.cache.set(key, { expires: Date.now() + 2000, state }); return state;
+    }).finally(() => this.reads.delete(camera.id));
+    this.reads.set(camera.id, pending); return pending;
+  }
+  async set(camera: TalkCamera, action: 'alarm' | 'light', enabled: boolean, seconds = 10): Promise<DeviceControls> {
+    if (this.busy.has(camera.id)) throw new ControlError(409, 'Camera đang xử lý một lệnh. Hãy chờ trong giây lát.');
+    if (action === 'alarm' && enabled && this.lease(camera)) throw new ControlError(409, errors.sdk_control_alarm_busy);
+    this.busy.set(camera.id, { alarm: action === 'alarm' && enabled }); this.cache.clear();
+    try {
+      if (action === 'alarm' && !enabled) {
+        const lease = this.lease(camera);
+        if (lease) {
+          const directory = path.join(this.root(), lease.request);
+          this.stop(directory);
+          try { return await this.wait(camera.id, directory, 'finished.json', Date.now() + 12000); }
+          catch { /* An orphaned worker needs a fresh authenticated stop below. */ }
+        }
+      }
+      return await this.request(camera, action, enabled, seconds);
+    } finally { this.busy.delete(camera.id); this.cache.clear(); }
+  }
+  private async request(camera: TalkCamera, action: 'get' | 'light' | 'alarm', enabled = false, seconds = 10): Promise<DeviceControls> {
+    if (this.closed || this.requests.size >= 8) throw new ControlError(503, 'Máy chủ đang bận xử lý điều khiển camera.');
+    const gateway = this.gateway(camera);
+    const directory = path.join(this.root(), randomUUID());
+    fs.mkdirSync(directory, { recursive: true, mode: 0o700 }); this.requests.set(directory, camera.id);
+    try {
+      fs.writeFileSync(path.join(directory, 'request.tmp'), JSON.stringify({ version: 1, camera_id: camera.id, url_hash: fingerprint(camera), agent_instance: gateway.instance, created_at: Date.now(), action, enabled, duration_seconds: seconds }), { mode: 0o600, flag: 'wx' });
+      fs.renameSync(path.join(directory, 'request.tmp'), path.join(directory, 'request.json'));
+      const state = await this.wait(camera.id, directory, 'result.json', Date.now() + 25000);
+      if (this.gateway(camera).instance !== gateway.instance) throw new ControlError(503, 'Kênh điều khiển vừa khởi động lại. Hãy thử lại.');
+      return { ...state, ends_at: time(this.lease(camera)?.ends_at) ?? state.ends_at };
+    } catch (error) {
+      this.stop(directory);
+      throw error instanceof ControlError ? error : new ControlError(503, 'Chưa gửi được lệnh điều khiển tới camera.');
+    } finally {
+      this.requests.delete(directory);
+      const cleanup = setTimeout(() => {
+        // Active timed alarms must remain for the native watchdog and recovery.
+        if (action === 'alarm' && enabled && !fs.existsSync(path.join(directory, 'finished.json'))) return;
+        try { fs.rmSync(directory, { recursive: true, force: true }); } catch {}
+      }, action === 'alarm' && enabled ? (seconds + 15) * 1000 : 5000); cleanup.unref();
+    }
+  }
+  private async wait(cameraId: number, directory: string, name: string, deadline: number): Promise<DeviceControls> {
+    while (Date.now() < deadline && !this.closed) {
+      let response;
+      try { response = read(path.join(directory, name)); } catch {}
+      if (response) {
+        if (response.ok !== true) throw new ControlError([400, 403, 409, 422, 502, 503].includes(response.status) ? response.status : 502, errors[response.error] ?? 'Camera chưa thực hiện được lệnh điều khiển.');
+        return { ...controlState(cameraId, response.state), ...(typeof response.confirmed === 'boolean' ? { confirmed: response.confirmed } : {}), ends_at: time(response.ends_at) };
+      }
+      await delay(80);
+    }
+    throw new ControlError(504, 'Camera chưa phản hồi. Hãy kiểm tra kết nối rồi thử lại.');
+  }
+  private stop(directory: string) { try { fs.writeFileSync(path.join(directory, 'stop'), '', { mode: 0o600 }); } catch {} }
+  cancelCamera(id: number) {
+    for (const [directory, cameraId] of this.requests) if (cameraId === id) this.stop(directory);
+    try { const lease = read(path.join(this.root(), `alarm-${id}.json`)); if (guid.test(lease.request)) this.stop(path.join(this.root(), lease.request)); } catch {}
+    this.cache.clear();
+  }
+  close() {
+    this.closed = true;
+    for (const directory of this.requests.keys()) this.stop(directory);
+    try { for (const name of fs.readdirSync(this.root())) if (/^alarm-\d+\.json$/.test(name)) this.cancelCamera(Number(name.slice(6, -5))); } catch {}
+    this.cache.clear();
+  }
+}
+export const deviceControls = new TendaControls();

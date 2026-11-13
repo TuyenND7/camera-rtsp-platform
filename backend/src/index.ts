@@ -12,6 +12,8 @@ import recordingRoutes from './routes/recordings';
 import eventRoutes from './routes/events';
 import settingsRoutes from './routes/settings';
 import talkRoutes from './routes/talk';
+import controlRoutes from './routes/controls';
+import { deviceControls } from './controls/tenda';
 import { talkManager } from './talk/manager';
 import { loadSettings } from './settings';
 import { browserRequestGuard } from './middleware/security';
@@ -30,6 +32,7 @@ async function main() {
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.use('/api/auth', authRoutes);
   app.use('/api/cameras/:id/ptz', ptzRoutes);
+  app.use('/api/cameras/:id/controls', controlRoutes);
   app.use('/api/cameras', cameraRoutes);
   app.use('/api/recordings', recordingRoutes);
   app.use('/api/events', eventRoutes);
@@ -50,6 +53,7 @@ async function main() {
     clearInterval(retentionTimer);
     thumbnailJob.stop();
     talkManager.close();
+    deviceControls.close();
     streamManager.stopAll();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 5000);

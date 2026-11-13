@@ -4,6 +4,7 @@ import { AuthedRequest, requireAdmin, requireAuth } from '../middleware/auth';
 import { sessionUser, tokenHash } from '../sessions';
 import { TalkCamera, talkManager } from '../talk/manager';
 import { TalkError } from '../talk/rtsp';
+import { deviceControls } from '../controls/tenda';
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
@@ -36,6 +37,7 @@ router.post('/sessions', async (req: AuthedRequest, res) => {
     if (!req.secure) throw new TalkError(426, 'Mở web bằng HTTPS để sử dụng mic.');
     const rows = await cameras(ids(req.body?.camera_ids));
     if (rows.some(c => !c.enabled || c.status !== 'online')) throw new TalkError(409, 'Một camera đã chọn chưa trực tuyến.');
+    if (rows.some(c => deviceControls.alarmActive(c))) throw new TalkError(409, 'Camera đang phát còi cảnh báo. Dừng còi trước khi dùng mic.');
     const token = req.sessionToken!;
     const result = await talkManager.start(tokenHash(token), rows, async () => {
       const user = await sessionUser(token);
