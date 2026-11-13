@@ -1,4 +1,5 @@
 import { isUiPreview } from './preview';
+import { cameraTalkGains } from './cameraAudio';
 
 const API_BASE = isUiPreview ? '/api' : (import.meta as any).env?.VITE_API_BASE ?? '/api';
 export interface SessionUser { id: number; username: string; role: string }
@@ -30,6 +31,7 @@ export interface ServerSettings {
 }
 export interface SettingsInfo { settings: ServerSettings; storage_root: string; record_timezone: string }
 let csrf = '';
+const talkTargets = new Map<string, number[]>();
 // Retire browser-readable bearer credentials from older builds.
 localStorage.removeItem('token'); localStorage.removeItem('user');
 
@@ -224,13 +226,17 @@ export const api = {
     return handle<TalkCapability[]>(await fetch(`${API_BASE}/talk/capabilities`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ camera_ids: cameraIds }) }));
   },
   async startTalk(cameraIds: number[]) {
-    return handle<TalkSession>(await fetch(`${API_BASE}/talk/sessions`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ camera_ids: cameraIds }) }));
+    const result = await handle<TalkSession>(await fetch(`${API_BASE}/talk/sessions`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ camera_ids: cameraIds }) }));
+    talkTargets.set(result.id, [...cameraIds]);
+    return result;
   },
   async talkAudio(id: string, sequence: number, pcm: ArrayBuffer, signal: AbortSignal) {
-    const response = await fetch(`${API_BASE}/talk/sessions/${encodeURIComponent(id)}/audio`, { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/octet-stream', 'X-Audio-Sequence': String(sequence) }, body: pcm, signal });
+    const targets = talkTargets.get(id);
+    const response = await fetch(`${API_BASE}/talk/sessions/${encodeURIComponent(id)}/audio`, { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/octet-stream', 'X-Audio-Sequence': String(sequence), ...(targets ? { 'X-Camera-Talk-Gains': JSON.stringify(cameraTalkGains(targets)) } : {}) }, body: pcm, signal });
     if (!response.ok) await handle<never>(response);
   },
   async stopTalk(id: string) {
+    talkTargets.delete(id);
     // Keep cleanup alive during navigation/pagehide. No URL credentials.
     await fetch(`${API_BASE}/talk/sessions/${encodeURIComponent(id)}`, { method: 'DELETE', headers: authHeaders(), keepalive: true });
   },

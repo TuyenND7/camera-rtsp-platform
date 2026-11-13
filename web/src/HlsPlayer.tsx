@@ -8,6 +8,7 @@ interface Props {
   live?: boolean;
   controls?: boolean;
   muted?: boolean;
+  volume?: number;
   startPosition?: number;
   /** Gọi khoảng 4 lần/giây khi video chạy, và ngay sau khi seek. */
   onTime?: (seconds: number) => void;
@@ -32,12 +33,12 @@ export interface HlsPlayerHandle {
 
 /** Player HLS dùng hls.js, fallback native HLS (Safari). */
 const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
-  { src, live = false, controls = true, muted = true, startPosition = -1, onTime, onPlayingChange, onWaitingChange, onPlaybackError, onAudioAvailable },
+  { src, live = false, controls = true, muted = true, volume = 1, startPosition = -1, onTime, onPlayingChange, onWaitingChange, onPlaybackError, onAudioAvailable },
   ref
 ) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { playbackVolume } = useDevice();
-  useEffect(() => { if (videoRef.current) videoRef.current.volume = playbackVolume; }, [playbackVolume]);
+  useEffect(() => { if (videoRef.current) videoRef.current.volume = Math.max(0, Math.min(1, playbackVolume * volume)); }, [playbackVolume, volume]);
   const callbacks = useRef({ onTime, onPlayingChange, onWaitingChange, onPlaybackError, onAudioAvailable });
   callbacks.current = { onTime, onPlayingChange, onWaitingChange, onPlaybackError, onAudioAvailable };
   const playRequested = useRef(true);

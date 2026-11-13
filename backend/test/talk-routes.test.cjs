@@ -1,6 +1,6 @@
 const {test,before,after}=require('node:test'),assert=require('node:assert/strict'),http=require('node:http'),express=require('express');
 const {pool}=require('../dist/db'),{signToken}=require('../dist/auth'),{tokenHash,csrfToken}=require('../dist/sessions'),{browserRequestGuard}=require('../dist/middleware/security'),{talkManager}=require('../dist/talk/manager'),routes=require('../dist/routes/talk').default;
-let server,origin,query,probe,start,push,end;
+let server,origin,query,probe,start,push,end,lastGains;
 const admin=signToken({sub:1,username:'talk-admin',role:'admin'}),viewer=signToken({sub:2,username:'talk-viewer',role:'viewer'}),sessions=new Map([[tokenHash(admin),{id:1,username:'talk-admin',role:'admin'}],[tokenHash(viewer),{id:2,username:'talk-viewer',role:'viewer'}]]);
 const camera={id:1,enabled:true,status:'online',rtsp_url:'rtsp://user:fixture-camera-password@127.0.0.1/stream'};let calls=0;
 before(async()=>{
@@ -11,7 +11,7 @@ before(async()=>{
  probe=talkManager.probe;start=talkManager.start;push=talkManager.push;end=talkManager.end;
  talkManager.probe=async c=>({camera_id:c.id,supported:true,reason:'ready',codec:'PCMA'});
  talkManager.start=async(owner,rows,validate)=>{assert.equal(owner,tokenHash(admin));assert.equal(rows.length,1);assert.equal(await validate(),true);calls++;return{id:'fixture-call',camera_ids:[1],sample_rate:8000,max_seconds:60}};
- talkManager.push=(id,owner,sequence,pcm)=>{assert.equal(id,'fixture-call');assert.equal(owner,tokenHash(admin));assert.equal(sequence,0);assert.ok(Buffer.isBuffer(pcm));calls++};
+ talkManager.push=(id,owner,sequence,pcm,gains)=>{assert.equal(id,'fixture-call');assert.equal(owner,tokenHash(admin));assert.equal(sequence,0);assert.ok(Buffer.isBuffer(pcm));if(gains!==undefined)require('../dist/talk/volume').talkGains(gains,[1]);lastGains=gains;calls++};
  talkManager.end=(id,owner)=>{assert.equal(id,'fixture-call');assert.equal(owner,tokenHash(admin));calls++};
  const app=express();app.set('trust proxy',1);app.use(browserRequestGuard,express.json({limit:'16kb'}));app.use('/api/talk',routes);app.use((err,_req,res,_next)=>res.status(err.status||500).json({error:'invalid payload'}));
  server=http.createServer(app);await new Promise(r=>server.listen(0,'127.0.0.1',r));origin=`http://127.0.0.1:${server.address().port}`;
@@ -40,4 +40,10 @@ test('only bounded raw audio requests are accepted',async()=>{
  assert.equal((await fetch(origin+'/api/talk/sessions/fixture-call/audio',{method:'POST',headers,body:Buffer.alloc(6401)})).status,413);
  assert.equal((await fetch(origin+'/api/talk/sessions/fixture-call/audio',{method:'POST',headers:{...headers,'X-Audio-Sequence':'-1'},body:Buffer.alloc(320)})).status,400);
  assert.equal((await fetch(origin+'/api/talk/sessions/fixture-call',{method:'DELETE',headers:{Authorization:'Bearer '+admin}})).status,204);assert.ok(calls>=3);
+});
+test('gain headers are parsed and invalid or unrelated camera gains are rejected',async()=>{
+ const headers={Authorization:'Bearer '+admin,'X-Forwarded-Proto':'https','Content-Type':'application/octet-stream','X-Audio-Sequence':'0'};
+ const send=value=>fetch(origin+'/api/talk/sessions/fixture-call/audio',{method:'POST',headers:{...headers,'X-Camera-Talk-Gains':value},body:Buffer.alloc(320)});
+ assert.equal((await send('{"1":2}')).status,204);assert.deepEqual(lastGains,{'1':2});
+ for(const value of ['broken','null','[]','{"2":2}','{"1":-1}','{"1":5}','{"1":"2"}',' '.repeat(1025)])assert.equal((await send(value)).status,400);
 });

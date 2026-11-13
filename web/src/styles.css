@@ -803,6 +803,16 @@ tbody tr:last-child td { border-bottom: 0; }
 .mi-camera-video > .mi-camera-audio, .mi-featured-video > .mi-camera-audio { position: absolute; z-index: 4; left: 8px; bottom: 8px; display: inline-flex; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; border: 1px solid #e2efff35; border-radius: 8px; color: #c4d3e9; background: #102039d9; }
 .mi-camera-video > .mi-camera-audio.active, .mi-featured-video > .mi-camera-audio.active { color: #fff; background: #1768efdf; border-color: #8fbaff; }
 .mi-camera-audio:disabled { opacity: .55; }
+.mi-camera-audio-settings { position: absolute; z-index: 4; bottom: 8px; left: 60px; display: inline-flex; width: 44px; height: 44px; min-height: 44px; padding: 0; border: 1px solid #e2efff35; border-radius: 8px; color: #c4d3e9; background: #102039d9; visibility: hidden; pointer-events: none; }
+.controls-visible > .mi-camera-audio-settings { visibility: visible; pointer-events: auto; }
+.camera-audio-dialog { width: min(420px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 0; overflow-y: auto; }
+.camera-audio-dialog .dialog-heading { padding: 16px; gap: 12px; }
+.camera-audio-dialog .dialog-heading > div { min-width: 0; }
+.camera-audio-dialog h2 { overflow-wrap: anywhere; }
+.camera-audio-fields { display: grid; gap: 18px; padding: 0 16px 16px; }
+.camera-audio-fields label > span { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.camera-audio-fields output { flex-shrink: 0; color: var(--blue); font-weight: 700; }
+.camera-audio-fields input[type=range] { display: block; width: 100%; min-height: 44px; margin: 4px 0 0; padding: 0; }
 
 .mi-live-talk-button { flex-shrink: 0; width: 44px; height: 44px; min-width: 44px; padding: 0; color: #d7354c; border-color: #d7354c55; background: var(--surface, #fff); }
 .mi-live-talk-button:hover:not(:disabled) { color: #e04358; border-color: #e04358; background: var(--danger-bg, #fff1f3); }

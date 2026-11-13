@@ -9,6 +9,8 @@ import SnapshotDialog, { LiveSnapshot } from '../SnapshotDialog';
 import DeviceControlPanel from '../DeviceControlPanel';
 import CameraSettingsDialog from '../CameraSettingsDialog';
 import CameraFlashButton from '../CameraFlashButton';
+import CameraAudioDialog from '../CameraAudioDialog';
+import { cameraAudioChanged, getCameraAudio, setCameraAudio, type CameraAudio } from '../cameraAudio';
 import useCameraTalk from '../useCameraTalk';
 import EmergencyControls from '../EmergencyControls';
 import LiveLayoutPicker, { LayoutSize } from '../LiveLayoutPicker';
@@ -193,6 +195,7 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
   const [controlsVisible, setControlsVisible] = useState(false);
   const [muted, setMuted] = useState(true);
   const [hasAudio, setHasAudio] = useState<boolean | null>(null);
+  const [audio, setAudio] = useState(() => getCameraAudio(camera.id)), [audioOpen, setAudioOpen] = useState(false);
   const offline = camera.status !== 'online';
   const [snapshot, setSnapshot] = useState<LiveSnapshot | null>(null);
   const [capturing, setCapturing] = useState(false);
@@ -202,7 +205,16 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
 
   useEffect(() => { if (cameraTalk.cameraId === camera.id && cameraTalk.message) setNotice(cameraTalk.message); }, [cameraTalk.cameraId, cameraTalk.message, camera.id]);
 
-  useEffect(() => { setControlsVisible(false); setNotice(''); setMuted(true); setHasAudio(null); }, [camera.id]);
+  useEffect(() => { setControlsVisible(false); setNotice(''); setMuted(true); setHasAudio(null); setAudioOpen(false); setAudio(getCameraAudio(camera.id)); }, [camera.id]);
+  useEffect(() => {
+    const update = () => setAudio(getCameraAudio(camera.id));
+    window.addEventListener(cameraAudioChanged, update); window.addEventListener('storage', update);
+    return () => { window.removeEventListener(cameraAudioChanged, update); window.removeEventListener('storage', update); };
+  }, [camera.id]);
+  function changeAudio(patch: Partial<CameraAudio>) {
+    setAudio(setCameraAudio(camera.id, patch));
+    if (patch.listen !== undefined) setMuted(patch.listen === 0);
+  }
 
   useEffect(() => {
     if (!controlsVisible) return;
@@ -264,11 +276,11 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
 
   return (
     <div ref={container} className={`${className}${controlsVisible ? ' controls-visible' : ''}`} tabIndex={0} role="group" aria-label={`${camera.name}, nhấn Enter để hiện hoặc ẩn điều khiển`} onClick={event => {
-      if (!(event.target as Element).closest('button, a')) setControlsVisible(value => !value);
+      if (!(event.target as Element).closest('button, a, input, label, dialog')) setControlsVisible(value => !value);
     }} onKeyDown={event => {
       if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setControlsVisible(value => !value); }
     }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setControlsVisible(false); }}>
-      {!offline && <HlsPlayer ref={player} src={`/live/${camera.id}/index.m3u8`} live controls={false} muted={muted || talkActive} onAudioAvailable={setHasAudio} />}
+      {!offline && <HlsPlayer ref={player} src={`/live/${camera.id}/index.m3u8`} live controls={false} volume={audio.listen / 100} muted={muted || audio.listen === 0 || talkActive} onAudioAvailable={setHasAudio} />}
       {offline && (
         <div className="mi-stream-state">
           <strong className="mi-stream-label"><i className={`status-dot ${camera.status}`} />{offlineLabel}</strong>
@@ -282,10 +294,12 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
         <Icon name="microphone" size={21} />
         {ownTalk && <span className="mi-camera-talk-level" aria-hidden="true"><span style={{ width: `${cameraTalk.level * 100}%` }} /></span>}
       </button>
-      <button type="button" className={`mi-camera-control mi-camera-audio${!muted ? ' active' : ''}`} disabled={offline || hasAudio === false || talkActive} onClick={() => setMuted(value => !value)} aria-pressed={!muted} aria-label={`${muted ? 'Bật' : 'Tắt'} âm thanh ${camera.name}`} title={offline ? 'Camera chưa trực tuyến' : hasAudio === false ? 'Luồng camera không có âm thanh' : `${muted ? 'Bật' : 'Tắt'} âm thanh`} data-audio-state={muted ? 'muted' : 'audible'}><Icon name={muted ? 'volumeMuted' : 'volume'} size={20} /></button>
+      <button type="button" className={`mi-camera-control mi-camera-audio${!muted && audio.listen > 0 ? ' active' : ''}`} disabled={offline || hasAudio === false || talkActive} onClick={() => { if (muted && audio.listen === 0) changeAudio({ listen: 100 }); else setMuted(value => !value); }} aria-pressed={!muted && audio.listen > 0} aria-label={`${muted || audio.listen === 0 ? 'Bật' : 'Tắt'} âm thanh ${camera.name}`} title={offline ? 'Camera chưa trực tuyến' : hasAudio === false ? 'Luồng camera không có âm thanh' : `${muted ? 'Bật' : 'Tắt'} âm thanh`} data-audio-state={muted || audio.listen === 0 ? 'muted' : 'audible'}><Icon name={muted || audio.listen === 0 ? 'volumeMuted' : 'volume'} size={20} /></button>
+      <button type="button" className="mi-camera-audio-settings" onClick={() => setAudioOpen(true)} aria-label={`Âm lượng ${camera.name}`} title="Âm lượng nghe và giọng nói"><Icon name="chevronDown" size={16} /></button>
       <div ref={controls} className="mi-camera-controls" hidden={!controlsVisible}>{actions}<button type="button" className="mi-camera-control" onClick={onSettings} aria-label={`Cài đặt ${camera.name}`} title="Cài đặt camera"><Icon name="settings" size={20} /></button><CameraFlashButton cameraId={camera.id} name={camera.name} online={!offline} visible={controlsVisible} onNotice={setNotice} /><button type="button" className="mi-camera-control" disabled={offline} onClick={() => setControlsOpen(true)} aria-label={`Điều khiển còi và đèn ${camera.name}`} title="Còi và đèn camera"><Icon name="bell" size={20} /></button><button type="button" className="mi-camera-control" disabled={offline || capturing} onClick={() => void capture()} aria-label={`Chụp ảnh ${camera.name}`} title="Chụp khung hình đang xem"><Icon name="camera" size={20} /></button><button type="button" className="mi-camera-control mi-camera-close" onClick={onClose} aria-label={`Bỏ ${camera.name} khỏi Live view`} title="Bỏ camera khỏi ô này"><Icon name="close" size={20} /></button></div>
       {snapshot && <SnapshotDialog snapshot={snapshot} onClose={() => setSnapshot(null)} />}
       {controlsOpen && <DeviceControlPanel cameras={[camera]} onClose={() => setControlsOpen(false)} />}
+      {audioOpen && <CameraAudioDialog name={camera.name} value={audio} onChange={changeAudio} onClose={() => setAudioOpen(false)} />}
     </div>
   );
 }

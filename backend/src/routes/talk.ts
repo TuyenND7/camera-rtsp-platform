@@ -55,7 +55,13 @@ router.post('/sessions/:id/audio', raw({ type: 'application/octet-stream', limit
     if (!req.secure) throw new TalkError(426, 'Mở web bằng HTTPS để sử dụng mic.');
     const sequence = req.get('X-Audio-Sequence');
     if (!sequence || !/^\d{1,8}$/.test(sequence)) throw new TalkError(400, 'Thiếu số thứ tự gói audio.');
-    talkManager.push(req.params.id, tokenHash(req.sessionToken!), Number(sequence), req.body);
+    const volume = req.get('X-Camera-Talk-Gains');
+    let gains: unknown;
+    if (volume !== undefined) {
+      if (volume.length > 1024) throw new TalkError(400, 'Mức giọng nói không hợp lệ.');
+      try { gains = JSON.parse(volume); } catch { throw new TalkError(400, 'Mức giọng nói không hợp lệ.'); }
+    }
+    talkManager.push(req.params.id, tokenHash(req.sessionToken!), Number(sequence), req.body, gains);
     res.status(204).end();
   } catch (error) { const e = errorResponse(error); res.status(e.status).json({ error: e.message }); }
 });
