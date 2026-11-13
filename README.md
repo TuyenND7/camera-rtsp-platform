@@ -1,6 +1,8 @@
 # Camera RTSP Platform
 
-Nền tảng self-hosted để một máy chủ kết nối nhiều kênh từ NVR/camera qua RTSP, ghi hình liên tục, xem live/playback và nhận dạng người/xe. Toàn bộ chạy bằng Docker Compose.
+Nền tảng self-hosted để một máy chủ kết nối nhiều kênh từ NVR/camera qua RTSP, ghi hình liên tục, xem live/playback và nhận dạng người/xe. Web, API, AI và lưu trữ chạy bằng Docker Compose; adapter SDK đàm thoại Tenda chạy riêng trên Windows.
+
+Mở [sơ đồ hệ thống HTML](docs/he-thong-camera.html) bằng trình duyệt để xem các luồng Live, Playback, mic, điều khiển và xác thực TDSEE. File chạy offline, có chế độ sáng/tối và tình huống xoá TDSEE/mất xác thực/mất VPN; không chứa thông tin đăng nhập. Sơ đồ phản ánh lần kiểm tra ngày 14/11/2026, không phải dashboard realtime.
 
 ## Luồng hoạt động
 

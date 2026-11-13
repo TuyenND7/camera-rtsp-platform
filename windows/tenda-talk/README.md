@@ -68,6 +68,14 @@ Start-ScheduledTask -TaskName 'Camera Station Tenda Talk'
 
 Lỗi `sdk_account_relink_required` yêu cầu cấp lại phiên TDSEE phù hợp. Lỗi `sdk_runtime_version_mismatch` yêu cầu runtime đúng phiên bản. Agent tự khởi chạy lại với thời gian chờ tăng dần khi process lỗi; lỗi đàm thoại không dừng FFmpeg/recording.
 
+### Giới hạn xác thực hiện tại
+
+Đường đàm thoại không chuyển tiếp từng gói tiếng qua app TDSEE trên tablet và không cần giữ app hãng mở thường xuyên. Khi SDK đã có phiên cache hợp lệ, agent có thể dùng lại. Khi SDK phải đăng nhập lại, agent dùng access token TDSEE đã provision trên PC để xin authorization code từ cloud hãng.
+
+Hiện chưa có luồng đăng nhập/gia hạn token TDSEE độc lập trên máy chủ. Nếu SDK mất phiên và token lưu trên PC đã hết hạn, phải cấp lại phiên cùng chủ tài khoản. Trong lần khôi phục ngày 14/11/2026, phiên mới được lấy từ TDSEE đang đăng nhập trên tablet, đối chiếu đúng tài khoản/project và xác thực thành công với hãng trước khi cập nhật cấu hình DPAPI; giữ nguyên cả ba liên kết camera. Xoá TDSEE không dừng Live/recording RTSP, nhưng có thể làm thiếu nguồn cấp lại phiên cho mic và các lệnh dùng SDK sau này. Không coi việc khôi phục này là đã giải quyết tự gia hạn.
+
+Ngày 14/11/2026, đã kiểm tra mở kênh/gửi PCM im lặng/đóng kênh qua HTTPS trên Lenovo: hai CT3 đồng thời và RH7 riêng đều trả `201`/`204`/`204`. RH7 đã bật lại; cả ba Live tiếp tục phát. Lần kiểm tra này chưa xác nhận giọng nói thực tế tại loa. Xem [sơ đồ các luồng và phụ thuộc](../../docs/he-thong-camera.html).
+
 ## Đường âm thanh và bảo vệ phiên
 
 Web gửi PCM mono 16-bit 8 kHz qua API HTTPS/admin/CSRF hiện có. Backend tạo phiên UUID trong `/storage/.tenda-talk`; agent Windows xác minh generation, tuổi lệnh, ID và fingerprint trước khi mở SDK. SDK phải báo đầu camera sẵn sàng, recorder sẵn sàng và có callback PCM thì backend mới cho gửi tiếng.
