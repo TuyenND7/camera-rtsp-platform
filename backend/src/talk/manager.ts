@@ -1,5 +1,6 @@
 import { randomUUID, createHash } from 'crypto';
 import { RtspTalk, TalkError } from './rtsp';
+import { TendaTalk, tendaGateway, tendaCacheKey } from './tenda';
 
 export type TalkCamera = { id: number; rtsp_url: string };
 export type TalkCapability = { camera_id: number; supported: boolean; reason: string; codec?: string };
@@ -16,12 +17,12 @@ export class TalkManager {
   private probes = new Map<string, { expires: number; promise: Promise<TalkCapability> }>();
   private timer: NodeJS.Timeout;
   private silence = Buffer.alloc(320);
-  constructor(private transport: (url: string) => Transport = url => new RtspTalk(url), private now = Date.now) {
+  constructor(private transport: (url: string, camera?: TalkCamera) => Transport = (url, camera) => camera && tendaGateway(camera) ? new TendaTalk(camera) : new RtspTalk(url), private now = Date.now) {
     this.timer = setInterval(() => this.tick(), 20); this.timer.unref();
   }
 
   async probe(camera: TalkCamera): Promise<TalkCapability> {
-    const key = createHash('sha256').update(`${camera.id}:${camera.rtsp_url}`).digest('hex');
+    const key = createHash('sha256').update(`${camera.id}:${camera.rtsp_url}:${tendaCacheKey(camera)}`).digest('hex');
     const cached = this.probes.get(key);
     if (cached && cached.expires > this.now()) return cached.promise;
     for (const [k, v] of this.probes) if (v.expires <= this.now()) this.probes.delete(k);
@@ -29,7 +30,7 @@ export class TalkManager {
     const promise = (async () => {
       let client: Transport | undefined;
       try {
-        client = this.transport(camera.rtsp_url);
+        client = this.transport(camera.rtsp_url, camera);
         const track = await client.describe();
         // A missing receive track is stable until camera configuration changes.
         // Avoid repeatedly opening RTSP connections on session-limited cameras.
@@ -56,7 +57,7 @@ export class TalkManager {
     this.calls.set(id, call); cameras.forEach(c => this.locks.set(c.id, id));
     try {
       // Assign every client before opening, so partial failures can close all sockets.
-      call.clients = cameras.map(c => this.transport(c.rtsp_url));
+      call.clients = cameras.map(c => this.transport(c.rtsp_url, c));
       const results = await Promise.allSettled(call.clients.map(c => c.open()));
       const failure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
       if (failure) throw failure.reason;

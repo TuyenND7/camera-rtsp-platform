@@ -31,3 +31,9 @@ android/**/build/
 android/local.properties
 *.jks
 *.keystore
+
+# Proprietary SDK runtime and private account provisioning stay off Git.
+windows/tenda-talk/runtime/
+windows/tenda-talk/*.private.json
+windows/tenda-talk/*.bin
+windows/tenda-talk/*.exe
