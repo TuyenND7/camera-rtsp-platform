@@ -38,6 +38,7 @@ export default function PtzPanel({ cameraId }: { cameraId: number }) {
   const heartbeat = useRef<number>();
   const moving = useRef(false);
   const speedRef = useRef(speed);
+  const infoRef = useRef(info); infoRef.current = info;
   speedRef.current = speed;
 
   const load = useCallback(() => {
@@ -60,6 +61,7 @@ export default function PtzPanel({ cameraId }: { cameraId: number }) {
   }, [cameraId]);
 
   const start = useCallback((key: string, vector: Vector) => {
+    if (!infoRef.current?.supported || ((vector.x || vector.y) && infoRef.current.pan_tilt === false) || (vector.zoom && infoRef.current.zoom !== true)) return;
     if (heartbeat.current) window.clearInterval(heartbeat.current);
     const s = speedRef.current;
     const body = { x: vector.x * s, y: vector.y * s, zoom: vector.zoom * s };
@@ -147,7 +149,7 @@ export default function PtzPanel({ cameraId }: { cameraId: number }) {
     return (
       <section className="ptz-panel">
         <h3>Điều khiển PTZ</h3>
-        <p className="ptz-muted">Camera không hỗ trợ PTZ qua ONVIF{info.reason ? `: ${info.reason}` : '.'}</p>
+        <p className="ptz-muted">Chưa có điều khiển PTZ qua ONVIF{info.reason ? `: ${info.reason}` : '.'}</p>
       </section>
     );
   }
@@ -167,17 +169,18 @@ export default function PtzPanel({ cameraId }: { cameraId: number }) {
             className={`ptz-dir ptz-${dir.area} ${active === dir.key || active === `Arrow${dir.key[0].toUpperCase()}${dir.key.slice(1)}` ? 'active' : ''}`}
             aria-label={`Quay ${dir.label.toLowerCase()} (giữ)`}
             title={`Giữ để quay ${dir.label.toLowerCase()}`}
+            disabled={info.pan_tilt === false}
             {...holdProps(dir.key, { x: dir.x, y: dir.y, zoom: 0 })}
           ><Icon name="chevronRight" size={20} className={`ptz-arrow ${dir.key}`} /></button>
         ))}
         <button type="button" className="ptz-center" onClick={stop} aria-label="Dừng" title="Dừng"><Icon name="pause" size={17} /></button>
       </div>
 
-      <div className="ptz-zoom-row">
+      {info.zoom === true ? <div className="ptz-zoom-row">
         <button type="button" className={active === 'zoomOut' ? 'active' : ''} aria-label="Thu nhỏ (giữ)" title="Giữ để thu nhỏ" {...holdProps('zoomOut', { x: 0, y: 0, zoom: -1 })}><Icon name="zoomOut" size={18} /></button>
-        <span>Zoom</span>
+        <span>Zoom camera</span>
         <button type="button" className={active === 'zoomIn' ? 'active' : ''} aria-label="Phóng to (giữ)" title="Giữ để phóng to" {...holdProps('zoomIn', { x: 0, y: 0, zoom: 1 })}><Icon name="zoomIn" size={18} /></button>
-      </div>
+      </div> : <p className="ptz-muted">Camera không công bố zoom qua ONVIF.</p>}
 
       <label className="ptz-speed">
         <span>Tốc độ <b>{Math.round(speed * 100)}%</b></span>

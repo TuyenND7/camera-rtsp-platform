@@ -36,6 +36,8 @@ Logo và icon ứng dụng được tạo bằng Imagegen, dùng cùng một bi�
 - **Âm thanh:** mỗi ô Live có nút loa ở góc dưới bên trái để bật/tắt tiếng riêng, gồm cả chế độ một camera. Mặc định tắt tiếng; camera ngoại tuyến hoặc luồng không có audio sẽ vô hiệu hóa nút. FFmpeg chuyển audio camera (ví dụ G.711) sang AAC cho Live và recording mới; video recording vẫn copy codec gốc. Playback có nút loa riêng. Các bản ghi cũ đã bị loại audio không thể khôi phục tiếng.
 - **Mic/đàm thoại:** nút mic đỏ cạnh nút toàn màn hình mở danh sách camera. Chọn một hoặc nhiều camera sẵn sàng rồi **nhấn giữ để nói**, nhả để dừng. Có nút **Kiểm tra mic** trong 3 giây, xử lý âm thanh trên thiết bị và không gửi đến camera. Cần HTTPS, quyền mic và RTSP backchannel hoặc adapter SDK Tenda trên Windows. Xem giới hạn tương thích và cách bật HTTPS dưới đây.
 - **Còi và đèn camera:** nút chuông cạnh phóng to/mic, hoặc trong điều khiển của từng ô Live, mở bảng bật/dừng còi và bật/tắt đèn trắng. Còi gốc Tenda tự được gửi lệnh dừng sau 5/10/30 giây đã chọn; có nút dừng sớm. Không cần cấp quyền mic cho chức năng này. Camera đang đàm thoại không nhận thêm lệnh bật còi. Chỉ mở các nút camera đã công bố hỗ trợ; cần HTTPS và adapter Windows mới.
+- **Sửa thiết bị:** có ba tab **Kết nối / Xem trước / Cài đặt**. Xem trước dùng HLS đang có trên máy chủ; zoom số 1–4×, kéo ảnh khi phóng to và bật/tắt tiếng. PTZ giữ để quay, thả để dừng, preset và zoom camera chỉ dùng khi ONVIF công bố hỗ trợ. Hai CT3 đang dùng không có PTZ trong media profile; zoom xem trước vẫn dùng được.
+- **Cài đặt video camera:** đọc luồng và tùy chọn độ phân giải/FPS/bitrate trực tiếp qua ONVIF; chỉ cho chọn giá trị thiết bị công bố. Nút **Áp dụng vào camera** lưu độc lập với thông tin kết nối rồi đọc lại để xác nhận. Cấu hình thay đổi từ phiên khác sẽ bị từ chối cho tới khi đọc lại. Đổi độ phân giải ảnh hưởng live và recording mới của luồng đó. Camera không kết nối/không cung cấp cài đặt được báo rõ; bộ ghi không tự bị thay thông số khi chỉ mở tab. Cấu hình codec H.265 vẫn đọc được, nhưng thao tác ghi encoder chỉ bật với cấu hình tương thích setter ONVIF đang dùng (H.264/JPEG/MPEG4).
 - **Chụp ảnh Live:** chạm ô camera để hiện điều khiển, bấm biểu tượng máy ảnh để xem ảnh PNG của khung hình đang phát, tải ảnh hoặc sao chép nếu trình duyệt hỗ trợ. Giữ nguyên độ phân giải khung hình và không mở lại RTSP; thao tác tải file phụ thuộc khả năng trình duyệt/WebView.
 
 - **Điều khiển ô camera:** các nút mặc định ẩn, chạm/nhấn ô để hiện; chạm lại, chạm bên ngoài hoặc chờ 5 giây để ẩn. Các nút cùng kích thước 44×44, icon 20px. Với bàn phím, Tab tới ô rồi nhấn Enter/Space để hiện nút; nút đang được bàn phím chọn không tự ẩn.
@@ -515,3 +517,10 @@ storage/events/<cameraId>/<YYYYMMDD>/ Snapshot AI
 models/                               Weight YOLO
 Docker volume pgdata                  PostgreSQL
 ```
+
+### API cài đặt video thiết bị
+
+- `GET /api/cameras/:id/video-settings`: admin, đọc cấu hình và các giới hạn ONVIF; không trả RTSP URL hay tài khoản.
+- `PUT /api/cameras/:id/video-settings`: HTTPS + admin + CSRF, JSON `{ profile_token, revision, width, height, fps?, bitrate? }`. Profile được lấy lại từ đúng camera, kiểm tra revision và giới hạn trước khi ghi. `confirmed` chỉ là `true` khi thông số đọc lại khớp. Không thay tên dịch vụ/URL/codec tùy ý từ request.
+
+Tham chiếu [ONVIF Media: Get/SetVideoEncoderConfiguration](https://www.onvif.org/ver10/media/wsdl/) và [PTZ: ContinuousMove/Stop](https://www.onvif.org/ver20/ptz/wsdl/).

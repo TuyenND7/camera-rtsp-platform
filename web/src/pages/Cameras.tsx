@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, Camera, DiscoveredDevice, OnvifProbeResult } from '../api';
 import DeviceDiscovery from '../DeviceDiscovery';
+import CameraPreview from '../CameraPreview';
+import CameraVideoSettings from '../CameraVideoSettings';
 import Icon from '../Icon';
 import { cameraHost, EmptyState, PageHeader, StatusBadge } from '../ui';
 
@@ -29,6 +31,8 @@ export default function Cameras() {
   const [formError, setFormError] = useState('');
   const [probing, setProbing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState<'connection' | 'preview' | 'settings'>('connection');
+  const [applying, setApplying] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const alive = useRef(true);
 
@@ -46,7 +50,7 @@ export default function Cameras() {
   }, [showForm]);
 
   function open(camera?: Camera, found?: DiscoveredDevice) {
-    setEditing(camera ?? null); setDevice(found ?? null); setFormError(''); setOnvifResult(null);
+    setTab('connection'); setApplying(false); setEditing(camera ?? null); setDevice(found ?? null); setFormError(''); setOnvifResult(null);
     const next = camera ? { ...emptyForm(), name: camera.name, rtsp_url: camera.rtsp_url, record: camera.record, enabled: camera.enabled, codec: camera.codec ?? 'auto', ai_enabled: camera.ai_enabled ?? false, ai_rtsp_url: camera.ai_rtsp_url ?? '', ai_fps: camera.ai_fps ?? 2, ai_confidence: camera.ai_confidence ?? 0.5, ai_labels: camera.ai_labels?.join(', ') ?? 'person, car, motorcycle', ptz_onvif_url: camera.onvif_url ?? '' } : { ...emptyForm(), name: found && !found.name.startsWith('Thiết bị ') ? found.name : '', onvif_url: found?.onvif_url ?? '' };
     setForm(next); setMethod(found?.onvif_url ? 'onvif' : 'rtsp'); setShowDiscovery(false); setShowForm(true);
   }
@@ -66,6 +70,7 @@ export default function Cameras() {
     finally { if (alive.current) setProbing(false); }
   }
 
+  const connectionChanged = !!editing && (form.rtsp_url.trim() !== editing.rtsp_url || form.ptz_onvif_url.trim() !== (editing.onvif_url ?? ''));
   const duplicate = form.rtsp_url ? cameras.find((camera) => camera.id !== editing?.id && streamKey(camera.rtsp_url) === streamKey(form.rtsp_url)) : undefined;
 
   async function save(event: React.FormEvent) {
@@ -99,9 +104,11 @@ export default function Cameras() {
     </section>
 
     {showDiscovery && <DeviceDiscovery onClose={() => setShowDiscovery(false)} onSelect={(found) => open(undefined, found)} />}
-    {showForm && <dialog ref={dialog} className="device-dialog compact-device-dialog" aria-labelledby="device-form-title" onCancel={(event) => { if (saving || probing) event.preventDefault(); else setShowForm(false); }}>
-      <form onSubmit={save}><header className="dialog-heading"><div><h2 id="device-form-title">{editing ? 'Sửa thiết bị' : 'Thêm thiết bị'}</h2>{device && <p>{device.ip}{device.rtsp_port ? ` · RTSP ${device.rtsp_port}` : ''}</p>}</div><button type="button" className="icon-button" onClick={() => setShowForm(false)} aria-label="Đóng cấu hình" disabled={saving || probing}><Icon name="close" size={20} /></button></header>
-        <div className="dialog-body">{formError && <div className="notice error" role="alert">{formError}</div>}
+    {showForm && <dialog ref={dialog} className={`device-dialog compact-device-dialog${editing ? ' device-editor-dialog' : ''}`} aria-labelledby="device-form-title" onCancel={(event) => { if (saving || probing || applying) event.preventDefault(); else setShowForm(false); }}>
+      <header className="dialog-heading"><div><h2 id="device-form-title">{editing ? 'Sửa thiết bị' : 'Thêm thiết bị'}</h2>{editing && <p>{editing.name}</p>}{device && <p>{device.ip}{device.rtsp_port ? ` · RTSP ${device.rtsp_port}` : ''}</p>}</div><button type="button" className="icon-button" onClick={() => setShowForm(false)} aria-label="Đóng cấu hình" disabled={saving || probing || applying}><Icon name="close" size={20} /></button></header>
+      {editing && <div className="form-tabs device-editor-tabs" role="tablist" aria-label="Cấu hình thiết bị">{([{ id: 'connection', label: 'Kết nối', icon: 'camera' }, { id: 'preview', label: 'Xem trước', icon: 'monitor' }, { id: 'settings', label: 'Cài đặt', icon: 'settings' }] as const).map(item => <button type="button" role="tab" id={`device-tab-${item.id}`} aria-selected={tab === item.id} aria-controls={`device-panel-${item.id}`} className={tab === item.id ? 'active' : ''} disabled={saving || probing || applying || (connectionChanged && item.id !== 'connection')} key={item.id} onClick={() => setTab(item.id)}><Icon name={item.icon} size={18} />{item.label}</button>)}</div>}
+      <form onSubmit={save} hidden={tab !== 'connection'} id="device-panel-connection" role={editing ? 'tabpanel' : undefined} aria-labelledby={editing ? 'device-tab-connection' : undefined}>
+        <div className="dialog-body">{formError && <div className="notice error" role="alert">{formError}</div>}{connectionChanged && <p className="notice">Lưu thay đổi kết nối trước khi xem trước hoặc cài đặt camera.</p>}
           {!device && <div className="form-method-switch" role="group" aria-label="Phương thức kết nối"><button type="button" className={method === 'rtsp' ? 'active' : ''} onClick={() => setMethod('rtsp')}>RTSP</button><button type="button" className={method === 'onvif' ? 'active' : ''} onClick={() => setMethod('onvif')}>ONVIF</button></div>}
           {method === 'onvif' && <div className="simple-onvif">{!device && <label>Địa chỉ ONVIF<input value={form.onvif_url} onChange={(event) => changeOnvif('onvif_url', event.target.value)} placeholder="http://192.168.0.100/onvif/device_service" /></label>}<div className="form-grid"><label>Tài khoản thiết bị<input autoComplete="off" value={form.onvif_username} onChange={(event) => changeOnvif('onvif_username', event.target.value)} placeholder="Tài khoản camera / NVR" /></label><label>Mật khẩu thiết bị<input type="password" autoComplete="new-password" value={form.onvif_password} onChange={(event) => changeOnvif('onvif_password', event.target.value)} placeholder="Mật khẩu camera / NVR" /></label></div><button type="button" onClick={() => void probe()} disabled={probing || !form.onvif_url.trim() || !form.onvif_username.trim()}><Icon name="video" size={16} />{probing ? 'Đang lấy luồng video…' : 'Lấy luồng video'}</button></div>}
           {onvifResult && <label>Luồng video<select value={onvifResult.profiles.find((profile) => addCredentials(profile.stream_uri, form) === form.rtsp_url)?.token ?? ''} onChange={(event) => { const profile = onvifResult.profiles.find((item) => item.token === event.target.value); if (profile) setForm({ ...form, rtsp_url: addCredentials(profile.stream_uri, form), codec: profile.codec === 'h265' ? 'h265' : 'auto' }); }}><option value="" disabled>Chọn luồng video</option>{onvifResult.profiles.map((profile) => <option key={profile.token} value={profile.token}>{profile.name}{profile.width ? ` · ${profile.width}×${profile.height}` : ''}{cameras.some((camera) => camera.id !== editing?.id && streamKey(camera.rtsp_url) === streamKey(profile.stream_uri)) ? ' · Đã thêm' : ''}</option>)}</select></label>}
@@ -112,6 +119,7 @@ export default function Cameras() {
           <details className="advanced-fields"><summary>Nâng cao<Icon name="chevronDown" size={16} /></summary><div className="advanced-content"><label>Định dạng video<select value={form.codec} onChange={(event) => setForm({ ...form, codec: event.target.value as CameraForm['codec'] })}><option value="auto">Tự động</option><option value="h264">H.264</option><option value="h265">H.265</option></select></label>{method === 'onvif' && <label>Địa chỉ ONVIF<input value={form.onvif_url} onChange={(event) => changeOnvif('onvif_url', event.target.value)} /></label>}<label>ONVIF cho PTZ<input value={form.ptz_onvif_url} onChange={(event) => setForm({ ...form, ptz_onvif_url: event.target.value })} placeholder="Tự động theo địa chỉ thiết bị" /></label><label className="simple-check"><input type="checkbox" checked={form.enabled} onChange={(event) => setForm({ ...form, enabled: event.target.checked })} />Bật thiết bị</label><label className="simple-check"><input type="checkbox" checked={form.ai_enabled} onChange={(event) => setForm({ ...form, ai_enabled: event.target.checked })} />Nhận dạng AI</label>{form.ai_enabled && <><label>RTSP luồng phụ<input value={form.ai_rtsp_url} onChange={(event) => setForm({ ...form, ai_rtsp_url: event.target.value })} placeholder="Bỏ trống để dùng live" /></label><div className="form-grid"><label>FPS AI<input type="number" min="0.1" max="10" step="0.1" value={form.ai_fps} onChange={(event) => setForm({ ...form, ai_fps: Number(event.target.value) })} /></label><label>Ngưỡng tin cậy<input type="number" min="0" max="1" step="0.05" value={form.ai_confidence} onChange={(event) => setForm({ ...form, ai_confidence: Number(event.target.value) })} /></label></div><label>Nhãn nhận dạng<input value={form.ai_labels} onChange={(event) => setForm({ ...form, ai_labels: event.target.value })} /></label></>}</div></details>
         </div><footer className="dialog-footer"><button type="button" onClick={() => setShowForm(false)} disabled={saving || probing}>Hủy</button><button type="submit" className="primary" disabled={saving || probing || !!duplicate || (method === 'onvif' && !onvifResult)}>{saving ? 'Đang lưu…' : editing ? 'Lưu' : 'Thêm'}</button></footer>
       </form>
+      {editing && tab !== 'connection' && <div className="device-editor-content" role="tabpanel" id={`device-panel-${tab}`} aria-labelledby={`device-tab-${tab}`}>{tab === 'preview' ? <CameraPreview key={editing.id} camera={cameras.find(item => item.id === editing.id) ?? editing} /> : <CameraVideoSettings key={editing.id} camera={cameras.find(item => item.id === editing.id) ?? editing} onBusy={setApplying} />}</div>}
     </dialog>}
   </section>;
 }

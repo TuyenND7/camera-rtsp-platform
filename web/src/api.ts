@@ -143,11 +143,24 @@ export interface PtzPreset {
 
 export interface PtzInfo {
   supported: boolean;
+  pan_tilt?: boolean;
+  zoom?: boolean;
   reason?: string;
   position?: { x: number; y: number; zoom: number } | null;
   moving?: boolean;
   presets?: PtzPreset[];
 }
+
+export interface CameraVideoProfile {
+  token: string; name: string; codec: string;
+  width: number | null; height: number | null; fps: number | null; bitrate: number | null;
+  resolutions: Array<{ width: number; height: number }>;
+  fps_range: { min: number; max: number } | null;
+  bitrate_range: { min: number; max: number } | null;
+  editable: boolean; revision: string;
+}
+export interface CameraVideoSettings { supported: boolean; reason?: string; profiles: CameraVideoProfile[]; confirmed?: boolean }
+export interface CameraVideoChange { profile_token: string; revision: string; width: number; height: number; fps?: number; bitrate?: number }
 
 export interface StorageStatus {
   label: string;
@@ -181,6 +194,12 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 export const api = {
+  async cameraVideoSettings(id: number) {
+    return handle<CameraVideoSettings>(await fetch(`${API_BASE}/cameras/${id}/video-settings`, { headers: authHeaders(), cache: 'no-store' }));
+  },
+  async setCameraVideoSettings(id: number, change: CameraVideoChange) {
+    return handle<CameraVideoSettings>(await fetch(`${API_BASE}/cameras/${id}/video-settings`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(change) }));
+  },
   async deviceControls(cameraId: number) {
     return handle<DeviceControls>(await fetch(`${API_BASE}/cameras/${cameraId}/controls`, { headers: authHeaders(), cache: 'no-store' }));
   },

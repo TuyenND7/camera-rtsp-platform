@@ -14,6 +14,8 @@ export interface PtzPreset {
 
 export interface PtzInfo {
   supported: boolean;
+  pan_tilt?: boolean;
+  zoom?: boolean;
   reason?: string;
   position?: { x: number; y: number; zoom: number } | null;
   moving?: boolean;
@@ -22,6 +24,7 @@ export interface PtzInfo {
 
 /** Typings của onvif/promises thiếu tham số cho các lệnh PTZ (thư viện JS vẫn nhận options). */
 interface OnvifPtz {
+  getConfigurationOptions(token: string): Promise<unknown>;
   getStatus(options: object): Promise<unknown>;
   getPresets(options: object): Promise<unknown>;
   continuousMove(options: object): Promise<unknown>;
@@ -37,6 +40,8 @@ interface Session {
   profileToken: string;
   /** Khóa để cấu hình đổi (URL/mật khẩu) thì kết nối lại. */
   fingerprint: string;
+  panTilt: boolean;
+  zoom: boolean;
 }
 
 /** Camera tự dừng nếu không nhận lệnh tiếp (mất mạng, đóng tab). Web gửi lại mỗi 1s khi đang giữ nút. */
@@ -74,6 +79,8 @@ export async function ptzInfo(cameraId: number): Promise<PtzInfo> {
     const moveStatus = asObject(statusObj.moveStatus);
     return {
       supported: true,
+      pan_tilt: s.panTilt,
+      zoom: s.zoom,
       position: status ? { x: num(pos.x), y: num(pos.y), zoom: num(pos.zoom) } : null,
       moving: moveStatus.panTilt === 'MOVING' || moveStatus.zoom === 'MOVING',
       presets: parsePresets(presets, names),
@@ -111,6 +118,8 @@ function parsePresets(raw: unknown, names: Map<string, string>): PtzPreset[] {
 /** Quay/zoom liên tục với vận tốc -1..1. Gửi 0,0,0 tương đương dừng. */
 export async function ptzMove(cameraId: number, velocity: { x: number; y: number; zoom: number }): Promise<void> {
   const session = await getSession(cameraId);
+  if ((velocity.x || velocity.y) && !session.panTilt) throw new PtzError('Camera không cung cấp quay quét liên tục.');
+  if (velocity.zoom && !session.zoom) throw new PtzError('Camera không cung cấp zoom qua ONVIF. Dùng zoom xem trước.');
   await withRetry(cameraId, session, (s) => s.ptz.continuousMove({
     profileToken: s.profileToken,
     x: velocity.x,
@@ -271,7 +280,20 @@ async function connect(target: Target): Promise<Session> {
   const ptzProfile = profiles.map(asObject).find((profile) => profile.PTZConfiguration);
   const token = asObject(ptzProfile?.$).token;
   if (typeof token !== 'string') throw new PtzError('Không có ONVIF profile nào hỗ trợ PTZ');
-  return { ptz: cam as unknown as OnvifPtz, profileToken: token, fingerprint: target.fingerprint };
+  const ptz = cam as unknown as OnvifPtz;
+  const configuration = asObject(ptzProfile?.PTZConfiguration), configurationToken = asObject(configuration.$).token;
+  const options = typeof configurationToken === 'string' ? await ptz.getConfigurationOptions(xml(configurationToken)).catch(() => null) : null;
+  const capabilities = ptzCapabilities(options, configuration);
+  return { ptz, profileToken: token, fingerprint: target.fingerprint, ...capabilities };
+}
+
+export function ptzCapabilities(options: unknown, configuration: Record<string, unknown>): { panTilt: boolean; zoom: boolean } {
+  const continuous = asObject(asObject(asObject(options).spaces).continuous);
+  const hasRange = (value: unknown) => { const v = asObject(value); return typeof v.uri === 'string' && !!v.uri && Number(v.max) > Number(v.min); };
+  return {
+    panTilt: options ? hasRange(continuous.x) || hasRange(continuous.y) : !!configuration.defaultContinuousPanTiltVelocitySpace,
+    zoom: options ? hasRange(continuous.zoom) : !!configuration.defaultContinuousZoomVelocitySpace,
+  };
 }
 
 // ---- Tiện ích ----
