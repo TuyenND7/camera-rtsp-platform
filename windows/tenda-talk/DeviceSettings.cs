@@ -23,6 +23,7 @@ public static partial class TalkAgent
     // Values verified against TDSEE's camera object model and its setting screens.
     // Wi-Fi, account, firmware upgrade, reset and card formatting are never accepted here.
     static readonly SettingRule[] settingRules = {
+        new SettingRule("flash_light", "TurnLight", null, 0, 1),
         new SettingRule("night_vision", "stNightVisionMode", "enFillLightMode", 0, 2, 3),
         new SettingRule("infrared", "DayNightMode", null, 0, 1, 2),
         new SettingRule("image_flip", "ImageFlipState", null, 0, 1),

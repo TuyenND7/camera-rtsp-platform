@@ -31,6 +31,8 @@ NVR sub-stream ──> AI worker (YOLO) ─────> event + snapshot
 
 Web admin dùng giao diện sáng, tiếng Việt, font Be Vietnam Pro được đóng gói cục bộ để không phụ thuộc dịch vụ font bên ngoài.
 Logo và icon ứng dụng được tạo bằng Imagegen, dùng cùng một biểu tượng ở sidebar, trang đăng nhập và favicon. Bản gốc nằm trong `design/camera-logo-master.png`, prompt trong `design/camera-logo-prompt.txt`; các PNG đã thu nhỏ và giữ alpha nằm trong `web/public/brand/`.
+Bộ 40 icon điều khiển dùng atlas Imagegen mới nét regular/medium, giữ màu `currentColor` của giao diện và micro dạng fill. PNG nguyên bản nằm ở `web/public/brand/camera-icons-regular.png`, prompt đầy đủ ở `web/public/brand/camera-icons-regular.prompt.txt`; tọa độ glyph được đo alpha trong `web/src/regularIconAtlas.ts` mà không sửa pixel ảnh gốc.
+
 
 - **Live view:** mặc định chia lưới 2×2; các ô tự co theo kích thước cửa sổ để không phải cuộn trang, giữ nguyên tỷ lệ video. Khoảng cách giữa các ô 4px, khung không có đệm bên trong, lề ngoài gọn để dành diện tích cho camera. Có thể chuyển sang một camera, 3×3 hoặc 4×4; chọn thiết bị và điều khiển PTZ nếu camera hỗ trợ. Link mở riêng một camera vẫn dùng chế độ một ô. Video tự phát, không có thanh pause/tải lại hay dòng chữ trạng thái phát; nút kết nối lại chỉ xuất hiện khi camera offline. Nút phóng to ở thanh trên mở toàn bộ Live view ra toàn màn hình, giữ nguyên bố cục và camera đang xem; biểu tượng đổi thành thu nhỏ để trở lại. Có thể thoát bằng Esc hoặc Back trên app Android. Nếu trình duyệt không hỗ trợ Fullscreen API, vùng xem được mở rộng trong cửa sổ hiện tại.
 - **Âm thanh:** mỗi ô Live có nút loa ở góc dưới bên trái để bật/tắt tiếng riêng, gồm cả chế độ một camera. Mặc định tắt tiếng; camera ngoại tuyến hoặc luồng không có audio sẽ vô hiệu hóa nút. FFmpeg chuyển audio camera (ví dụ G.711) sang AAC cho Live và recording mới; video recording vẫn copy codec gốc. Playback có nút loa riêng. Các bản ghi cũ đã bị loại audio không thể khôi phục tiếng.
@@ -41,6 +43,9 @@ Logo và icon ứng dụng được tạo bằng Imagegen, dùng cùng một bi�
 - **Cài đặt camera theo TDSEE:** trong tab Cài đặt, chọn **Cài đặt camera** để mở nhóm hình ảnh/nhìn đêm, riêng tư, phát hiện/báo động, âm thanh và thẻ nhớ. Các lựa chọn lấy từ camera đã liên kết SDK, chỉ hiện khi thiết bị báo thuộc tính tương ứng. Có bước **Chọn → Áp dụng cài đặt camera**, đọc lại để xác nhận và chống ghi đè cấu hình đã thay đổi ở TDSEE. Thẻ nhớ SD trong camera độc lập với storage trên máy chủ. Thông báo TDSEE là thông báo ứng dụng hãng; không tự bật cảnh báo web mới.
 
 - **Chụp ảnh Live:** chạm ô camera để hiện điều khiển, bấm biểu tượng máy ảnh để xem ảnh PNG của khung hình đang phát, tải ảnh hoặc sao chép nếu trình duyệt hỗ trợ. Giữ nguyên độ phân giải khung hình và không mở lại RTSP; thao tác tải file phụ thuộc khả năng trình duyệt/WebView.
+
+- **Cài đặt ngay trên Live:** chạm ô camera để hiện nút bánh răng, mở cài đặt đúng camera trong hộp thoại trên màn Live, giữ nguyên lưới và các luồng đang xem. Có cả Luồng video và Cài đặt camera; chế độ xem một camera có nút Cài đặt bên cạnh PTZ.
+- **Flash ngay trên Live:** biểu tượng mặt trời cạnh bánh răng bật/tắt đèn trắng riêng cho camera, màu vàng khi camera báo đang bật. Chỉ đọc trạng thái khi hiện điều khiển ô, khóa lúc gửi lệnh; sau thao tác dùng phản hồi thật thay vì tự đổi trạng thái. Nếu đèn bị tự bật bởi chế độ nhìn đêm, chọn Đen trắng trong cài đặt.
 
 - **Điều khiển ô camera:** các nút mặc định ẩn, chạm/nhấn ô để hiện; chạm lại, chạm bên ngoài hoặc chờ 5 giây để ẩn. Các nút cùng kích thước 44×44, icon 20px. Với bàn phím, Tab tới ô rồi nhấn Enter/Space để hiện nút; nút đang được bàn phím chọn không tự ẩn.
 - **Chọn camera vào ô:** chạm ô để hiện **×** ở góc phải, bấm để bỏ camera khỏi ô xem, giữ nguyên vị trí các ô còn lại và không dừng ghi hình. Bấm **+** ở ô trống để mở danh sách tất cả camera; camera đang hiển thị có nhãn **Đang xem**, camera chưa chọn có nút **Chọn** để đưa vào đúng ô vừa bấm. Có tìm kiếm theo tên/IP. Đóng hết camera vẫn giữ các ô trống để chọn lại; khi giảm bố cục, camera ngoài các ô còn hiển thị được bỏ khỏi lựa chọn.
@@ -531,6 +536,7 @@ Tham chiếu [ONVIF Media: Get/SetVideoEncoderConfiguration](https://www.onvif.o
 
 Đã đối chiếu trang Settings của ứng dụng TDSEE đang đăng nhập trên Lenovo, dữ liệu CT3 thực tế và [hướng dẫn chính thức TDSEE](https://ma.tenda.com.cn/UserFiles/file/20241209/20241209175319_0973.pdf). Một số mục phụ thuộc model/firmware; không hiển thị nút giả cho chức năng camera chưa cung cấp.
 
+- Đèn chiếu sáng (flash): bật/tắt đèn trắng; có thể mở cài đặt ngay từ biểu tượng bánh răng trên từng ô Live.
 - Nhìn đêm: đen trắng / có màu / thông minh; hồng ngoại tự động / bật / tắt.
 - Hướng lắp camera, đèn trạng thái và tần số chống nhấp nháy 50/60 Hz.
 - Riêng tư: che hình camera; có thể tắt lại bằng SDK dù RTSP đang mất hình.

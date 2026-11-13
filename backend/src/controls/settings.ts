@@ -1,4 +1,5 @@
 export const settingValues = {
+  flash_light: [0, 1],
   night_vision: [0, 2, 3], infrared: [0, 1, 2], image_flip: [0, 1], indicator: [0, 1], anti_flicker: [50, 60], privacy: [0, 1],
   motion_detection: [0, 1], motion_sensitivity: [1, 2, 3], tdsee_notifications: [0, 1], alarm_sound: [0, 1], alarm_light: [0, 1],
   sd_recording: [0, 1, 2], intercom: [1, 2], microphone_volume: Array.from({ length: 101 }, (_, i) => i), speaker_volume: Array.from({ length: 101 }, (_, i) => i),

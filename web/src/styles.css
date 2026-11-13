@@ -982,3 +982,9 @@ tbody tr:last-child td { border-bottom: 0; }
   .camera-settings-switch button { flex: 1; padding: 10px 7px; font-size: calc(12px * var(--text-scale, 1)); }
   .camera-device-settings .camera-settings-apply { flex-wrap: wrap; }
 }
+
+.live-camera-settings-dialog { width: min(1040px, calc(100vw - 28px)); max-height: 92dvh; }
+.live-camera-settings-dialog[open] { display: flex; flex-direction: column; }
+.live-camera-settings-dialog > .dialog-heading { border-bottom: 1px solid var(--line); }
+.live-camera-settings-dialog h2 { font-weight: 750; }
+.mi-camera-controls .camera-flash-button.active { color: #ffe28b; border-color: #f5c24e; background: #6e4d15e6; }

@@ -161,7 +161,7 @@ export interface CameraVideoProfile {
 }
 export interface CameraVideoSettings { supported: boolean; reason?: string; profiles: CameraVideoProfile[]; confirmed?: boolean }
 export interface CameraVideoChange { profile_token: string; revision: string; width: number; height: number; fps?: number; bitrate?: number }
-export type DeviceSettingKey = 'night_vision' | 'infrared' | 'image_flip' | 'indicator' | 'anti_flicker' | 'privacy' | 'motion_detection' | 'motion_sensitivity' | 'tdsee_notifications' | 'alarm_sound' | 'alarm_light' | 'sd_recording' | 'intercom' | 'microphone_volume' | 'speaker_volume';
+export type DeviceSettingKey = 'flash_light' | 'night_vision' | 'infrared' | 'image_flip' | 'indicator' | 'anti_flicker' | 'privacy' | 'motion_detection' | 'motion_sensitivity' | 'tdsee_notifications' | 'alarm_sound' | 'alarm_light' | 'sd_recording' | 'intercom' | 'microphone_volume' | 'speaker_volume';
 export interface CameraDeviceSettings {
   revision: string; values: Partial<Record<DeviceSettingKey, number>>; options: Partial<Record<DeviceSettingKey, number[]>>; confirmed?: boolean;
   info: { firmware?: string; timezone?: string; StorageStatus?: number; StorageTotalCapacity?: number; StorageRemainCapacity?: number; SignalStrength?: number };

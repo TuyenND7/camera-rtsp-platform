@@ -7,6 +7,7 @@ type Field = { key: DeviceSettingKey; label: string; icon: IconName; description
 const toggle = { 0: 'Tắt', 1: 'Bật' };
 const groups: Array<{ name: string; icon: IconName; fields: Field[] }> = [
   { name: 'Hình ảnh và nhìn đêm', icon: 'moon', fields: [
+    { key: 'flash_light', label: 'Đèn chiếu sáng (flash)', icon: 'sun', description: 'Bật/tắt đèn trắng chiếu sáng. Nếu đèn tự bật theo chế độ nhìn đêm, chọn Đen trắng để tránh tự bật đèn trắng.', labels: toggle },
     { key: 'night_vision', label: 'Chế độ nhìn đêm', icon: 'moon', description: 'Chọn chế độ ban đêm như trong TDSEE.', labels: { 0: 'Đen trắng', 2: 'Có màu', 3: 'Thông minh' } },
     { key: 'infrared', label: 'Hồng ngoại', icon: 'moon', description: 'Tự động chuyển theo ánh sáng hoặc giữ hồng ngoại bật/tắt.', labels: { 0: 'Luôn tắt', 1: 'Luôn bật', 2: 'Tự động' } },
     { key: 'image_flip', label: 'Hướng đặt camera', icon: 'monitor', description: 'Lật hình khi camera được lắp úp trên trần.', labels: { 0: 'Đặt đứng', 1: 'Lắp ngược · lật 180°' } },

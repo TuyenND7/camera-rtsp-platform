@@ -8,6 +8,8 @@ import LiveDevicePicker from '../LiveDevicePicker';
 import TalkPanel from '../TalkPanel';
 import SnapshotDialog, { LiveSnapshot } from '../SnapshotDialog';
 import DeviceControlPanel from '../DeviceControlPanel';
+import CameraSettingsDialog from '../CameraSettingsDialog';
+import CameraFlashButton from '../CameraFlashButton';
 import { PageHeader, statusLabels } from '../ui';
 
 type LayoutSize = 1 | 4 | 9 | 16;
@@ -22,6 +24,7 @@ export default function Grid() {
   const [talkOpen, setTalkOpen] = useState(false);
   const [talkActive, setTalkActive] = useState(false);
   const [deviceControlsOpen, setDeviceControlsOpen] = useState(false);
+  const [settingsCameraId, setSettingsCameraId] = useState<number | null>(null);
   const [pickerSlot, setPickerSlot] = useState<number | null>(null);
   const [err, setErr] = useState('');
   const livePage = useRef<HTMLElement>(null);
@@ -128,33 +131,34 @@ export default function Grid() {
         </div>} />
 
       {err && <div className="notice error">Không tải được camera: {err}</div>}
-      {!err && layout === 1 && visible[0] && <FocusView talkActive={talkActive} camera={visible[0]} cameras={cameras.filter(camera => camera.enabled)} onChoose={id => chooseCamera(id, 0)} onClose={() => closeSlot(0)} />}
+      {!err && layout === 1 && visible[0] && <FocusView talkActive={talkActive} camera={visible[0]} cameras={cameras.filter(camera => camera.enabled)} onChoose={id => chooseCamera(id, 0)} onClose={() => closeSlot(0)} onSettings={() => setSettingsCameraId(visible[0]!.id)} />}
       {!err && (layout !== 1 || !visible[0]) && <>
         <div className={`mi-camera-grid layout-${layout}`}>
           {visible.map((camera, index) => camera
-            ? <CameraTile key={`slot-${index}`} talkActive={talkActive} camera={camera} onClose={() => closeSlot(index)} />
+            ? <CameraTile key={`slot-${index}`} talkActive={talkActive} camera={camera} onClose={() => closeSlot(index)} onSettings={() => setSettingsCameraId(camera.id)} />
             : <button key={`slot-${index}`} type="button" className="empty-camera-tile" onClick={() => openPicker(index)} aria-label={`Chọn camera cho ô ${index + 1}`}><Icon name="plus" size={26} /><span>Chọn camera</span><small>Thêm vào ô {index + 1}</small></button>)}
         </div>
       </>}
       {talkOpen && <TalkPanel cameras={cameras} initial={Array.from(selected)} onClose={() => setTalkOpen(false)} onActive={setTalkActive} />}
       {deviceControlsOpen && <DeviceControlPanel cameras={cameras} onClose={() => setDeviceControlsOpen(false)} />}
+      {settingsCameraId !== null && cameraById.has(settingsCameraId) && <CameraSettingsDialog key={settingsCameraId} camera={cameraById.get(settingsCameraId)!} onClose={() => setSettingsCameraId(null)} />}
       {pickerOpen && <LiveDevicePicker cameras={cameras} selected={selected} slot={pickerSlot} onChoose={id => { if (pickerSlot !== null) chooseCamera(id, pickerSlot); }} onClose={() => setPickerOpen(false)} />}
     </section>
   );
 }
 
-function FocusView({ camera, cameras, onChoose, onClose, talkActive }: { talkActive: boolean; camera: Camera; cameras: Camera[]; onChoose: (id: number) => void; onClose: () => void }) {
+function FocusView({ camera, cameras, onChoose, onClose, talkActive, onSettings }: { talkActive: boolean; camera: Camera; cameras: Camera[]; onChoose: (id: number) => void; onClose: () => void; onSettings: () => void }) {
   return (
     <>
       <section className="mi-live-focus">
         <article className="mi-featured-camera">
-          <LiveVideo talkActive={talkActive} camera={camera} className="mi-featured-video" offlineLabel={statusLabels[camera.status] ?? 'Camera chưa online'} onClose={onClose}>
+          <LiveVideo talkActive={talkActive} camera={camera} className="mi-featured-video" offlineLabel={statusLabels[camera.status] ?? 'Camera chưa online'} onClose={onClose} onSettings={onSettings}>
             <div className="mi-featured-title"><i className={`status-dot ${camera.status}`} /><div><strong title={camera.name}>{camera.name}</strong>{camera.status !== 'online' && <small>{statusLabels[camera.status] ?? camera.status}</small>}</div></div>
           </LiveVideo>
         </article>
         <aside className="mi-device-panel">
           <PtzPanel key={camera.id} cameraId={camera.id} />
-          <div className="mi-device-quick-actions"><Link className="button" to={`/playback/${camera.id}`}><Icon name="clock" size={17} />Xem lại</Link><Link className="button" to="/cameras"><Icon name="settings" size={17} />Cấu hình</Link></div>
+          <div className="mi-device-quick-actions"><Link className="button" to={`/playback/${camera.id}`}><Icon name="clock" size={17} />Xem lại</Link><button type="button" onClick={onSettings}><Icon name="settings" size={17} />Cài đặt</button></div>
           <details className="live-device-details"><summary>Thông tin thiết bị<Icon name="chevronDown" size={14} /></summary><dl><div><dt>Địa chỉ</dt><dd>{cameraHost(camera.rtsp_url)}</dd></div><div><dt>Video</dt><dd>{camera.codec.toUpperCase()}</dd></div><div><dt>Ghi hình</dt><dd>{camera.record ? 'Bật' : 'Tắt'}</dd></div></dl></details>
         </aside>
       </section>
@@ -169,10 +173,10 @@ function cameraHost(url: string): string {
   try { return new URL(url).hostname; } catch { return 'Camera RTSP'; }
 }
 
-function CameraTile({ camera, onClose, talkActive }: { talkActive: boolean; camera: Camera; onClose: () => void }) {
+function CameraTile({ camera, onClose, talkActive, onSettings }: { talkActive: boolean; camera: Camera; onClose: () => void; onSettings: () => void }) {
   return (
     <article className="mi-camera-card">
-      <LiveVideo talkActive={talkActive} camera={camera} className="mi-camera-video" offlineLabel={statusLabels[camera.status] ?? 'Camera chưa online'} onClose={onClose} actions={<><Link className="mi-camera-control" to={`/live?camera=${camera.id}`} title="Chỉ xem camera này" aria-label={`Chỉ xem ${camera.name}`}><Icon name="monitor" size={20} /></Link><Link className="mi-camera-control" to={`/playback/${camera.id}`} title="Xem Playback" aria-label={`Xem lại ${camera.name}`}><Icon name="clock" size={20} /></Link></>}>
+      <LiveVideo talkActive={talkActive} camera={camera} className="mi-camera-video" offlineLabel={statusLabels[camera.status] ?? 'Camera chưa online'} onClose={onClose} onSettings={onSettings} actions={<><Link className="mi-camera-control" to={`/live?camera=${camera.id}`} title="Chỉ xem camera này" aria-label={`Chỉ xem ${camera.name}`}><Icon name="monitor" size={20} /></Link><Link className="mi-camera-control" to={`/playback/${camera.id}`} title="Xem Playback" aria-label={`Xem lại ${camera.name}`}><Icon name="clock" size={20} /></Link></>}>
         <div className="mi-camera-overlay">
           <div><i className={`status-dot ${camera.status}`} /><strong title={camera.name}>{camera.name}</strong>{camera.status !== 'online' && <small>{statusLabels[camera.status] ?? camera.status}</small>}</div>
         </div>
@@ -185,7 +189,7 @@ function CameraTile({ camera, onClose, talkActive }: { talkActive: boolean; came
  * Tự tải lại player khi camera chuyển sang online sau khi mất kết nối.
  * Nút kết nối lại chỉ hiện khi camera offline để tìm lại IP nếu DHCP đã đổi.
  */
-function LiveVideo({ camera, className, offlineLabel, children, actions, onClose, talkActive }: { talkActive: boolean; camera: Camera; className: string; offlineLabel: string; children: React.ReactNode; actions?: React.ReactNode; onClose: () => void }) {
+function LiveVideo({ camera, className, offlineLabel, children, actions, onClose, talkActive, onSettings }: { talkActive: boolean; camera: Camera; className: string; offlineLabel: string; children: React.ReactNode; actions?: React.ReactNode; onClose: () => void; onSettings: () => void }) {
   const container = useRef<HTMLDivElement>(null);
   const controls = useRef<HTMLDivElement>(null);
   const player = useRef<HlsPlayerHandle>(null);
@@ -277,7 +281,7 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
       {notice && !offline && <div className="mi-live-notice" role="status">{notice}</div>}
       {children}
       <button type="button" className={`mi-camera-control mi-camera-audio${!muted ? ' active' : ''}`} disabled={offline || hasAudio === false || talkActive} onClick={() => setMuted(value => !value)} aria-pressed={!muted} aria-label={`${muted ? 'Bật' : 'Tắt'} âm thanh ${camera.name}`} title={offline ? 'Camera chưa trực tuyến' : hasAudio === false ? 'Luồng camera không có âm thanh' : `${muted ? 'Bật' : 'Tắt'} âm thanh`} data-audio-state={muted ? 'muted' : 'audible'}><Icon name={muted ? 'volumeMuted' : 'volume'} size={20} /></button>
-      <div ref={controls} className="mi-camera-controls" hidden={!controlsVisible}>{actions}<button type="button" className="mi-camera-control" disabled={offline} onClick={() => setControlsOpen(true)} aria-label={`Điều khiển còi và đèn ${camera.name}`} title="Còi và đèn camera"><Icon name="bell" size={20} /></button><button type="button" className="mi-camera-control" disabled={offline || capturing} onClick={() => void capture()} aria-label={`Chụp ảnh ${camera.name}`} title="Chụp khung hình đang xem"><Icon name="camera" size={20} /></button><button type="button" className="mi-camera-control mi-camera-close" onClick={onClose} aria-label={`Bỏ ${camera.name} khỏi Live view`} title="Bỏ camera khỏi ô này"><Icon name="close" size={20} /></button></div>
+      <div ref={controls} className="mi-camera-controls" hidden={!controlsVisible}>{actions}<button type="button" className="mi-camera-control" onClick={onSettings} aria-label={`Cài đặt ${camera.name}`} title="Cài đặt camera"><Icon name="settings" size={20} /></button><CameraFlashButton cameraId={camera.id} name={camera.name} online={!offline} visible={controlsVisible} onNotice={setNotice} /><button type="button" className="mi-camera-control" disabled={offline} onClick={() => setControlsOpen(true)} aria-label={`Điều khiển còi và đèn ${camera.name}`} title="Còi và đèn camera"><Icon name="bell" size={20} /></button><button type="button" className="mi-camera-control" disabled={offline || capturing} onClick={() => void capture()} aria-label={`Chụp ảnh ${camera.name}`} title="Chụp khung hình đang xem"><Icon name="camera" size={20} /></button><button type="button" className="mi-camera-control mi-camera-close" onClick={onClose} aria-label={`Bỏ ${camera.name} khỏi Live view`} title="Bỏ camera khỏi ô này"><Icon name="close" size={20} /></button></div>
       {snapshot && <SnapshotDialog snapshot={snapshot} onClose={() => setSnapshot(null)} />}
       {controlsOpen && <DeviceControlPanel cameras={[camera]} onClose={() => setControlsOpen(false)} />}
     </div>
