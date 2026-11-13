@@ -61,6 +61,7 @@ public final class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         serverUrl = getPreferences(MODE_PRIVATE).getString("server_url", DEFAULT_URL);
         createViews();
+        enterImmersiveMode();
         configureWebView();
         if (Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(0, this::navigateBack);
@@ -124,9 +125,9 @@ public final class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 30) {
             getWindow().setDecorFitsSystemWindows(false);
             root.setOnApplyWindowInsetsListener((view, insets) -> {
-                android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                android.graphics.Insets cutout = insets.getInsets(WindowInsets.Type.displayCutout());
                 int keyboard = insets.getInsets(WindowInsets.Type.ime()).bottom;
-                view.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, keyboard));
+                view.setPadding(cutout.left, cutout.top, cutout.right, Math.max(cutout.bottom, keyboard));
                 return insets;
             });
         }
@@ -221,7 +222,7 @@ public final class MainActivity extends Activity {
                 fullscreenCallback = callback;
                 content.setVisibility(View.GONE);
                 root.addView(view, new FrameLayout.LayoutParams(-1, -1));
-                setFullscreen(true);
+                enterImmersiveMode();
             }
 
             @Override
@@ -306,18 +307,16 @@ public final class MainActivity extends Activity {
         errorPanel.setVisibility(View.VISIBLE);
     }
 
-    private void setFullscreen(boolean enabled) {
+    private void enterImmersiveMode() {
         if (Build.VERSION.SDK_INT >= 30) {
             WindowInsetsController controller = getWindow().getInsetsController();
             if (controller == null) return;
-            if (enabled) {
-                controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-                controller.hide(WindowInsets.Type.systemBars());
-            } else controller.show(WindowInsets.Type.systemBars());
+            controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            controller.hide(WindowInsets.Type.systemBars());
         } else {
-            getWindow().getDecorView().setSystemUiVisibility(enabled ? View.SYSTEM_UI_FLAG_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         }
     }
 
@@ -326,7 +325,7 @@ public final class MainActivity extends Activity {
         root.removeView(fullscreenView);
         fullscreenView = null;
         content.setVisibility(View.VISIBLE);
-        setFullscreen(false);
+        enterImmersiveMode();
         WebChromeClient.CustomViewCallback callback = fullscreenCallback;
         fullscreenCallback = null;
         if (callback != null) callback.onCustomViewHidden();
@@ -360,6 +359,13 @@ public final class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         webView.onResume();
+        root.post(this::enterImmersiveMode);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) enterImmersiveMode();
     }
 
     @Override
