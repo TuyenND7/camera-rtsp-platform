@@ -908,3 +908,48 @@ tbody tr:last-child td { border-bottom: 0; }
   .camera-preview-toolbar { gap: 5px; }
   .camera-preview-zoom { flex-basis: 100%; }
 }
+
+/* Camera options use the same touch-friendly selection dialog on every device. */
+.camera-setting-field { min-width: 0; margin-bottom: 20px; }
+.camera-setting-label { display: block; margin-bottom: 9px; font-size: calc(14px * var(--text-scale, 1)); font-weight: 700; }
+.camera-setting-trigger { display: flex; align-items: center; gap: 13px; width: 100%; min-height: 70px; padding: 13px 15px; border-radius: 10px; text-align: left; background: var(--surface); border: 1px solid var(--line); }
+.camera-setting-trigger:hover:not(:disabled) { border-color: var(--blue); background: var(--surface-soft); }
+.camera-setting-trigger-icon { display: grid; flex-shrink: 0; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: var(--surface-soft); color: var(--blue); }
+.camera-setting-trigger-value { flex: 1; min-width: 0; }
+.camera-setting-trigger-value strong { display: block; color: var(--text-body); font-size: calc(15px * var(--text-scale, 1)); font-weight: 750; overflow-wrap: anywhere; }
+.camera-setting-trigger-value small, .camera-setting-help { display: block; margin-top: 4px; color: var(--text-muted); font-size: calc(12px * var(--text-scale, 1)); font-weight: 500; line-height: 1.5; }
+.camera-setting-trigger > .app-icon { color: var(--text-muted); }
+.camera-setting-help { margin-top: 7px; }
+.camera-choice-dialog { width: min(650px, calc(100vw - 28px)); max-height: min(88dvh, 800px); border-radius: 18px; }
+.camera-choice-dialog[open] { display: flex; flex-direction: column; }
+.camera-choice-dialog::backdrop { background: #0713229c; backdrop-filter: blur(5px); }
+.camera-choice-heading { display: flex; flex-shrink: 0; align-items: flex-start; gap: 14px; padding: 24px; border-bottom: 1px solid var(--line); }
+.camera-choice-heading-icon { display: grid; flex-shrink: 0; place-items: center; width: 46px; height: 46px; border-radius: 13px; color: var(--blue); background: var(--selection-bg, var(--surface-soft)); }
+.camera-choice-heading > div { min-width: 0; flex: 1; }
+.camera-choice-heading h2 { margin: 0; font-size: calc(20px * var(--text-scale, 1)); font-weight: 750; color: var(--text-body); line-height: 1.4; }
+.camera-choice-heading p { margin: 6px 0 0; font-size: calc(13px * var(--text-scale, 1)); color: var(--text-muted); line-height: 1.6; }
+.camera-choice-heading .icon-button { width: 44px; min-width: 44px; height: 44px; padding: 0; border-radius: 11px; }
+.camera-choice-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 11px; min-height: 0; padding: 22px 24px; overflow-y: auto; overscroll-behavior: contain; }
+.camera-choice-options.columns-1 { grid-template-columns: minmax(0, 1fr); }
+.camera-choice-option { display: flex; gap: 14px; align-items: center; width: 100%; min-height: 86px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); text-align: left; }
+.camera-choice-option:hover:not(:disabled) { border-color: var(--blue); background: var(--surface-soft); }
+.camera-choice-option.selected { border-color: var(--blue); background: var(--selection-bg, var(--surface-soft)); box-shadow: inset 0 0 0 1px var(--blue); }
+.camera-choice-option-content { flex: 1; min-width: 0; }
+.camera-choice-option-title { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 10px; }
+.camera-choice-option-title strong { color: var(--text-body); font-size: calc(15px * var(--text-scale, 1)); font-weight: 750; overflow-wrap: anywhere; }
+.camera-choice-current { display: inline-block; padding: 3px 7px; border-radius: 5px; color: var(--blue); background: var(--surface-soft); font-size: calc(10px * var(--text-scale, 1)); font-weight: 700; white-space: nowrap; }
+.camera-choice-option-content > small { display: block; margin-top: 6px; color: var(--text-muted); font-size: calc(12px * var(--text-scale, 1)); font-weight: 500; line-height: 1.5; }
+.camera-choice-radio { display: grid; flex: 0 0 22px; place-items: center; width: 22px; height: 22px; border: 1.5px solid var(--line); border-radius: 50%; color: #fff; }
+.camera-choice-option.selected .camera-choice-radio { border-color: var(--blue); background: var(--blue); }
+.camera-choice-footer { display: flex; flex-shrink: 0; justify-content: flex-end; gap: 10px; padding: 17px 24px; border-top: 1px solid var(--line); background: var(--surface); }
+.camera-choice-footer button { min-width: 100px; min-height: 44px; }
+@media (max-width: 480px) {
+  .camera-choice-dialog { border-radius: 15px; }
+  .camera-choice-heading { gap: 10px; padding: 18px; }
+  .camera-choice-heading-icon { width: 38px; height: 38px; border-radius: 10px; }
+  .camera-choice-heading h2 { font-size: calc(18px * var(--text-scale, 1)); }
+  .camera-choice-options { grid-template-columns: minmax(0, 1fr); padding: 18px; gap: 9px; }
+  .camera-choice-option { min-height: 78px; padding: 14px; }
+  .camera-choice-footer { padding: 15px 18px; }
+  .camera-choice-footer button { flex: 1; }
+}

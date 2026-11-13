@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, Camera, CameraVideoProfile, CameraVideoSettings as VideoSettings } from './api';
 import Icon from './Icon';
+import CameraSettingSelect, { SettingOption } from './CameraSettingSelect';
 
 type Values = { resolution: string; fps: string; bitrate: string };
 const values = (p: CameraVideoProfile): Values => ({ resolution: `${p.width}x${p.height}`, fps: p.fps?.toString() ?? '', bitrate: p.bitrate?.toString() ?? '' });
@@ -44,12 +45,15 @@ export default function CameraVideoSettings({ camera, onBusy }: { camera: Camera
     {error && <p className="notice error" role="alert">{error}</p>}
     {!loading && settings && !settings.supported && <p className="notice">{settings.reason || 'Camera chưa cung cấp cài đặt video qua ONVIF.'}</p>}
     {!loading && profile && <form onSubmit={apply}>
-      <label>Luồng video<select value={token} disabled={saving} onChange={event => { const selected = settings?.profiles.find(p => p.token === event.target.value); if (selected) { setToken(selected.token); setForm(values(selected)); setError(''); setNotice(''); } }}>{settings?.profiles.map((p, index) => <option key={p.token} value={p.token}>Luồng {index + 1} · {p.name} · {p.width}×{p.height}</option>)}</select></label>
+      <CameraSettingSelect label="Luồng video" value={token} disabled={saving} icon="video" columns={1} description="Chọn luồng để xem và điều chỉnh thông số video." options={settings?.profiles.map((p, index) => ({ value: p.token, label: /^PROFILE[_ -]?\d+$/i.test(p.name) ? `Luồng ${index + 1}` : p.name, description: `${p.width}×${p.height} · ${p.codec === 'H264' ? 'H.264' : p.codec}${p.fps ? ` · ${p.fps} FPS` : ''}` })) ?? []} onChange={next => { const selected = settings?.profiles.find(p => p.token === next); if (selected) { setToken(selected.token); setForm(values(selected)); setError(''); setNotice(''); } }} />
       <div className="camera-video-current"><span>Codec <strong>{profile.codec}</strong></span><span>Độ phân giải <strong>{profile.width}×{profile.height}</strong></span><span>FPS <strong>{profile.fps ?? '—'}</strong></span><span>Bitrate <strong>{profile.bitrate !== null ? `${profile.bitrate} kbps` : '—'}</strong></span></div>
       {!profile.editable && <p className="notice">Luồng này chỉ đọc được thông tin. Camera chưa cung cấp lựa chọn chỉnh sửa tương thích.</p>}
       <fieldset disabled={saving || !profile.editable}>
-        <label>Độ phân giải<select value={form.resolution} onChange={event => setForm({ ...form, resolution: event.target.value })}>{!profile.resolutions.some(r => `${r.width}x${r.height}` === form.resolution) && <option value={form.resolution}>{profile.width}×{profile.height} · hiện tại</option>}{profile.resolutions.map(r => <option key={`${r.width}x${r.height}`} value={`${r.width}x${r.height}`}>{r.width}×{r.height}{r.height === 1080 ? ' · Full HD' : r.height === 720 ? ' · HD' : ''}</option>)}</select></label>
-        <div className="form-grid"><label>Tốc độ khung hình<select value={form.fps} disabled={!profile.fps_range} onChange={event => setForm({ ...form, fps: event.target.value })} aria-label="Chọn tốc độ khung hình">{profile.fps === null && <option value="" disabled>Chọn tốc độ khung hình</option>}{choices([1, 2, 5, 10, 12, 15, 20, 24, 25, 30, 50, 60], profile.fps_range, profile.fps).map(value => <option key={value} value={value}>{value} FPS{value === profile.fps ? ' · hiện tại' : ''}</option>)}</select><small>{profile.fps_range ? 'FPS cao giúp hình chuyển động mượt hơn.' : 'Thiết bị không cung cấp lựa chọn FPS'}</small></label><label>Chất lượng luồng (bitrate)<select value={form.bitrate} disabled={!profile.bitrate_range} onChange={event => setForm({ ...form, bitrate: event.target.value })} aria-label="Chọn bitrate video">{profile.bitrate === null && <option value="" disabled>Chọn bitrate</option>}{choices([32, 64, 128, 256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096, 6144, 8192, 12288, 16384, 24576, 32768, 49152, 65536], profile.bitrate_range, profile.bitrate).map(value => <option key={value} value={value}>{value.toLocaleString('vi-VN')} kbps{value === profile.bitrate ? ' · hiện tại' : ''}</option>)}</select><small>{profile.bitrate_range ? 'Bitrate cao cho ảnh rõ hơn, dùng thêm mạng và bộ nhớ.' : 'Thiết bị không cung cấp lựa chọn bitrate'}</small></label></div>
+        <CameraSettingSelect label="Độ phân giải" value={form.resolution} icon="monitor" disabled={saving || !profile.editable} description="Chọn kích thước hình ảnh được camera hỗ trợ." options={resolutionChoices(profile)} onChange={next => setForm({ ...form, resolution: next })} />
+        <div className="form-grid">
+          <CameraSettingSelect label="Tốc độ khung hình" value={form.fps} icon="play" disabled={saving || !profile.editable || !profile.fps_range} description="FPS cao giúp các chuyển động trong hình mượt hơn." help={profile.fps_range ? 'FPS cao giúp hình chuyển động mượt hơn.' : 'Thiết bị không cung cấp lựa chọn FPS'} options={choices([1, 2, 5, 10, 12, 15, 20, 24, 25, 30, 50, 60], profile.fps_range, profile.fps).map(value => ({ value: String(value), label: `${value} FPS`, description: `${value} khung hình mỗi giây`, current: value === profile.fps }))} onChange={next => setForm({ ...form, fps: next })} />
+          <CameraSettingSelect label="Chất lượng luồng" value={form.bitrate} icon="settings" disabled={saving || !profile.editable || !profile.bitrate_range} description="Bitrate cao cho ảnh rõ hơn, dùng thêm mạng và bộ nhớ." help={profile.bitrate_range ? 'Bitrate cao cho ảnh rõ hơn, dùng thêm mạng và bộ nhớ.' : 'Thiết bị không cung cấp lựa chọn bitrate'} options={choices([32, 64, 128, 256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096, 6144, 8192, 12288, 16384, 24576, 32768, 49152, 65536], profile.bitrate_range, profile.bitrate).map(value => ({ value: String(value), label: `${value.toLocaleString('vi-VN')} kbps`, description: `${(value / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} Mbps`, current: value === profile.bitrate }))} onChange={next => setForm({ ...form, bitrate: next })} />
+        </div>
       </fieldset>
       <p className="camera-settings-note">Áp dụng trực tiếp vào camera, ảnh hưởng luồng live và các bản ghi mới sử dụng luồng này.</p>
       {notice && <p className="notice" role="status">{notice}</p>}
@@ -57,4 +61,10 @@ export default function CameraVideoSettings({ camera, onBusy }: { camera: Camera
     </form>}
     <div className="camera-settings-tip"><Icon name="monitor" size={22} /><p>Quay quét, preset và zoom nằm trong tab <strong>Xem trước</strong>.</p></div>
   </section>;
+}
+
+function resolutionChoices(profile: CameraVideoProfile): SettingOption[] {
+  const list = [...profile.resolutions];
+  if (profile.width && profile.height && !list.some(r => r.width === profile.width && r.height === profile.height)) list.unshift({ width: profile.width, height: profile.height });
+  return list.map(r => ({ value: `${r.width}x${r.height}`, label: r.width === 1920 && r.height === 1080 ? 'Full HD · 1080p' : r.width === 1280 && r.height === 720 ? 'HD · 720p' : `${r.width}×${r.height}`, description: `${r.width}×${r.height} điểm ảnh`, current: r.width === profile.width && r.height === profile.height }));
 }
