@@ -97,7 +97,6 @@ export default function Settings() {
             {textSize === option.value && <Icon name="check" size={18} />}
           </button>)}
         </div>
-        <p className="text-size-preview" aria-live="polite">Phòng khách · Sân trước — chữ rõ hơn, dễ đọc hơn.</p>
       </div>
     </section>
 
