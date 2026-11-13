@@ -5,7 +5,6 @@ import HlsPlayer, { HlsPlayerHandle } from '../HlsPlayer';
 import Icon from '../Icon';
 import PtzPanel from '../PtzPanel';
 import LiveDevicePicker from '../LiveDevicePicker';
-import TalkPanel from '../TalkPanel';
 import SnapshotDialog, { LiveSnapshot } from '../SnapshotDialog';
 import DeviceControlPanel from '../DeviceControlPanel';
 import CameraSettingsDialog from '../CameraSettingsDialog';
@@ -24,9 +23,6 @@ export default function Grid() {
   const [slots, setSlots] = useState<Array<number | null>>([]);
   const [layout, setLayout] = useState<LayoutSize>(focusedCameraId > 0 ? 1 : 4);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [talkOpen, setTalkOpen] = useState(false);
-  const [groupTalkActive, setGroupTalkActive] = useState(false);
-  const [deviceControlsOpen, setDeviceControlsOpen] = useState(false);
   const [settingsCameraId, setSettingsCameraId] = useState<number | null>(null);
   const [pickerSlot, setPickerSlot] = useState<number | null>(null);
   const [err, setErr] = useState('');
@@ -94,8 +90,8 @@ export default function Grid() {
     [cameraById, layout, slots]
   );
   const selected = useMemo(() => new Set(visible.flatMap(camera => camera ? [camera.id] : [])), [visible]);
-  const cameraTalk = useCameraTalk(cameras, selected, talkOpen || groupTalkActive);
-  const talkActive = groupTalkActive || cameraTalk.phase !== 'idle';
+  const cameraTalk = useCameraTalk(cameras, selected, false);
+  const talkActive = cameraTalk.phase !== 'idle';
 
   function changeLayout(size: LayoutSize) {
     setLayout(size);
@@ -130,9 +126,7 @@ export default function Grid() {
             {([1, 4, 9, 16] as LayoutSize[]).map((size) => <button key={size} className={layout === size ? 'active' : ''} type="button" onClick={() => changeLayout(size)} title={`Bố cục ${size} camera`}>{size === 1 ? '1' : size === 4 ? '2×2' : size === 9 ? '3×3' : '4×4'}</button>)}
           </div>
           <div className="mi-live-utility-actions">
-            <button type="button" className="mi-live-alarm-button" onClick={() => setDeviceControlsOpen(true)} aria-label="Điều khiển còi và đèn camera" title="Còi và đèn"><Icon name="bell" size={20} /></button>
             <button type="button" className="mi-live-fullscreen-button" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen} aria-label={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'} title={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'}><Icon name={fullscreen ? 'minimize' : 'maximize'} size={20} /></button>
-            <button type="button" className="mi-live-talk-button" onClick={() => { cameraTalk.stop(); setTalkOpen(true); }} aria-label="Đàm thoại với camera" title="Đàm thoại nhiều camera"><Icon name="microphone" size={21} /></button>
           </div>
         </div>} />
 
@@ -145,8 +139,6 @@ export default function Grid() {
             : <button key={`slot-${index}`} type="button" className="empty-camera-tile" onClick={() => openPicker(index)} aria-label={`Chọn camera cho ô ${index + 1}`}><Icon name="plus" size={26} /><span>Chọn camera</span><small>Thêm vào ô {index + 1}</small></button>)}
         </div>
       </>}
-      {talkOpen && <TalkPanel cameras={cameras} initial={Array.from(selected)} onClose={() => setTalkOpen(false)} onActive={setGroupTalkActive} />}
-      {deviceControlsOpen && <DeviceControlPanel cameras={cameras} onClose={() => setDeviceControlsOpen(false)} />}
       {settingsCameraId !== null && cameraById.has(settingsCameraId) && <CameraSettingsDialog key={settingsCameraId} camera={cameraById.get(settingsCameraId)!} onClose={() => setSettingsCameraId(null)} />}
       {pickerOpen && <LiveDevicePicker cameras={cameras} selected={selected} slot={pickerSlot} onChoose={id => { if (pickerSlot !== null) chooseCamera(id, pickerSlot); }} onClose={() => setPickerOpen(false)} />}
     </section>
@@ -210,7 +202,7 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
   const [capturing, setCapturing] = useState(false);
   const [controlsOpen, setControlsOpen] = useState(false);
   const ownTalk = cameraTalk.cameraIds.includes(camera.id) && cameraTalk.phase !== 'idle';
-  const micLabel = ownTalk ? `${cameraTalk.phase === 'preparing' ? 'Hủy kết nối mic' : 'Kết thúc đàm thoại'}${cameraTalk.broadcast ? ' tất cả ·' : ''} ${camera.name}` : `Nói với ${camera.name}`;
+  const micLabel = ownTalk ? `${cameraTalk.phase === 'preparing' ? 'Hủy kết nối mic' : 'Kết thúc đàm thoại'}${cameraTalk.broadcast ? ' nhóm ·' : ''} ${camera.name}` : `Nói với ${camera.name}`;
 
   useEffect(() => { if (cameraTalk.cameraId === camera.id && cameraTalk.message) setNotice(cameraTalk.message); }, [cameraTalk.cameraId, cameraTalk.message, camera.id]);
 

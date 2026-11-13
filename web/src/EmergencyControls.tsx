@@ -3,6 +3,7 @@ import { api, Camera, DeviceControls, TalkCapability } from './api';
 import Icon from './Icon';
 import type useCameraTalk from './useCameraTalk';
 import { SessionContext } from './ui';
+import EmergencyCameraPicker from './EmergencyCameraPicker';
 
 type Talk = ReturnType<typeof useCameraTalk>;
 type Mode = 'idle' | 'starting' | 'stopping';
@@ -19,7 +20,15 @@ async function commands<T>(ids: number[], command: (id: number) => Promise<T>) {
 }
 
 export default function EmergencyControls({ cameras, talk, compact = false }: { cameras: Camera[]; talk: Talk; compact?: boolean }) {
-  const admin = useContext(SessionContext)?.role === 'admin';
+  const user = useContext(SessionContext), admin = user?.role === 'admin';
+  const storageKey = `camera-station.emergency-cameras.${user?.id ?? 'anonymous'}`;
+  const [selection, setSelection] = useState<number[] | null>(() => {
+    try {
+      const value: unknown = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
+      return Array.isArray(value) && value.every(id => Number.isSafeInteger(id) && id > 0) ? [...new Set<number>(value)] : null;
+    } catch { return null; }
+  });
+  const [pickerOpen, setPickerOpen] = useState(false), [statusDismissed, setStatusDismissed] = useState(false);
   const [states, setStates] = useState<Record<number, DeviceControls>>({});
   const [capabilities, setCapabilities] = useState<Record<number, TalkCapability>>({});
   const [loading, setLoading] = useState(true), [mode, setMode] = useState<Mode>('idle');
@@ -28,15 +37,27 @@ export default function EmergencyControls({ cameras, talk, compact = false }: { 
   const mounted = useRef(true), starting = useRef<{ cancelled: boolean; attempted: number[] } | null>(null);
   const stopping = useRef<Promise<void> | null>(null), reading = useRef(false);
   const revision = useRef(0);
-  const current = useRef({ states, uncertain, cameras }); current.current = { states, uncertain, cameras };
+  const selectedIds = cameras.filter(camera => selection === null || selection.includes(camera.id)).map(camera => camera.id);
+  const current = useRef({ states, uncertain, cameras, selectedIds }); current.current = { states, uncertain, cameras, selectedIds };
   const cameraKey = cameras.map(camera => `${camera.id}:${camera.enabled}:${camera.status === 'online'}:${camera.rtsp_url}`).join('|');
-  const enabled = cameras.filter(camera => camera.enabled), online = enabled.filter(camera => camera.status === 'online');
+  const enabled = cameras.filter(camera => selectedIds.includes(camera.id) && camera.enabled), online = enabled.filter(camera => camera.status === 'online');
   const alarmTargets = online.filter(camera => states[camera.id]?.alarm_supported);
   const micTargets = online.filter(camera => capabilities[camera.id]?.supported);
-  const activeIds = () => [...new Set([...Object.values(current.current.states).filter(state => state.ends_at || state.alarm_active === true).map(state => state.camera_id), ...current.current.uncertain])];
+  const activeIds = () => [...new Set([...Object.values(current.current.states).filter(state => current.current.selectedIds.includes(state.camera_id) && (state.ends_at || state.alarm_active === true)).map(state => state.camera_id), ...current.current.uncertain])];
   const alarmIds = activeIds(), alarmOn = alarmIds.length > 0;
   const broadcast = talk.broadcast && talk.phase !== 'idle';
   const secure = window.isSecureContext;
+  const locked = mode !== 'idle' || alarmOn || talk.phase !== 'idle';
+  const scopeLabel = selection === null ? 'tất cả camera' : `${selectedIds.length} camera đã chọn`;
+
+  useEffect(() => { try { localStorage.setItem(storageKey, JSON.stringify(selection)); } catch {} }, [storageKey, selection]);
+  useEffect(() => {
+    setStatusDismissed(false);
+    if (!broadcast && !failed && (message || talk.message)) {
+      const timer = window.setTimeout(() => setStatusDismissed(true), 6000);
+      return () => window.clearTimeout(timer);
+    }
+  }, [message, talk.message, broadcast, failed]);
 
   async function readAlarms() {
     if (reading.current || starting.current || stopping.current) return;
@@ -117,7 +138,7 @@ export default function EmergencyControls({ cameras, talk, compact = false }: { 
     if (alarmOn) { await stopAlarms().catch(() => undefined); return; }
     const ids = alarmTargets.map(camera => camera.id); if (!ids.length || !secure) return;
     const request = { cancelled: false, attempted: [] as number[] }; starting.current = request;
-    revision.current++; setMode('starting'); setFailed(false); setMessage('Đang gửi báo động tới tất cả camera sẵn sàng…');
+    revision.current++; setMode('starting'); setFailed(false); setMessage('Đang gửi báo động tới các camera đã chọn và sẵn sàng…');
     await talk.stop();
     const failures: number[] = [], sent: number[] = [];
     for (let offset = 0; offset < ids.length && !request.cancelled; offset += 2) {
@@ -136,27 +157,30 @@ export default function EmergencyControls({ cameras, talk, compact = false }: { 
     starting.current = null;
     if (request.cancelled) { if (mounted.current) setMode('idle'); await stopAlarms(request.attempted).catch(() => undefined); return; }
     if (mounted.current) {
-      setMode('idle'); setFailed(!!failures.length);
-      setMessage(`Đã gửi báo động ${sent.length}/${ids.length} camera · tự dừng sau ${duration} giây.${failures.length ? ` Chưa gửi được: ${names(failures)}.` : ''}`);
+      const skipped = selectedIds.filter(id => !ids.includes(id));
+      setMode('idle'); setFailed(!!failures.length || !!skipped.length);
+      setMessage(`Đã gửi báo động ${sent.length}/${selectedIds.length} camera đã chọn · tự dừng sau ${duration} giây.${skipped.length ? ` Chưa sẵn sàng: ${names(skipped)}.` : ''}${failures.length ? ` Chưa gửi được: ${names(failures)}.` : ''}`);
     }
   }
 
   if (!admin) return null;
-  const deadlines = Object.values(states).flatMap(state => state.ends_at ? [state.ends_at] : []);
+  const deadlines = Object.values(states).flatMap(state => alarmIds.includes(state.camera_id) && state.ends_at ? [state.ends_at] : []);
   const remaining = deadlines.length ? Math.max(0, Math.ceil((Math.max(...deadlines) - now) / 1000)) : null;
   return <section className={`emergency-controls${compact ? ' compact' : ''}`} aria-labelledby="emergency-title">
-    <div className="emergency-description"><h2 id="emergency-title"><Icon name="shield" size={20} />Khẩn cấp</h2><span>{loading ? 'Đang kiểm tra camera…' : `Còi: ${alarmTargets.length}/${enabled.length} · Mic: ${micTargets.length}/${enabled.length}${compact ? '' : ' camera'}`}</span></div>
+    <div className="emergency-description"><h2 id="emergency-title"><button type="button" className="emergency-selector" onClick={() => setPickerOpen(true)} aria-label={`Chọn camera khẩn cấp, hiện chọn ${scopeLabel}`} aria-haspopup="dialog" aria-expanded={pickerOpen} title={`Chọn camera · Còi: ${alarmTargets.length}/${selectedIds.length} · Mic: ${micTargets.length}/${selectedIds.length}`}><Icon name="shield" size={20} /><span className="emergency-selector-label">Khẩn cấp</span><span className="emergency-scope-count">{selection === null ? 'Tất cả' : selectedIds.length}</span><Icon name="chevronDown" size={13} /></button></h2><span>{loading ? 'Đang kiểm tra camera…' : `Còi: ${alarmTargets.length}/${selectedIds.length} · Mic: ${micTargets.length}/${selectedIds.length} camera`}</span></div>
     <div className="emergency-actions">
-      <button type="button" className={`emergency-alarm${alarmOn || mode !== 'idle' ? ' active' : ''}`} disabled={!secure || mode === 'stopping' || (!alarmOn && mode === 'idle' && (loading || !alarmTargets.length)) || talk.blocked} onClick={() => void alarm()} aria-pressed={alarmOn || mode !== 'idle'}>
-        <Icon name="bell" size={21} />{mode === 'stopping' ? 'Đang dừng báo động…' : mode === 'starting' ? 'Hủy / dừng báo động' : alarmOn ? `Dừng báo động${remaining !== null && remaining > 0 ? ` · ${remaining}s` : ''}` : 'Báo động tất cả'}
+      <button type="button" className={`emergency-alarm${alarmOn || mode !== 'idle' ? ' active' : ''}`} disabled={!secure || mode === 'stopping' || (!alarmOn && mode === 'idle' && (loading || !alarmTargets.length)) || talk.blocked} onClick={() => void alarm()} aria-pressed={alarmOn || mode !== 'idle'} aria-label={`${alarmOn ? 'Dừng' : 'Bật'} báo động ${scopeLabel}`}>
+        <Icon name="bell" size={21} />{compact ? mode === 'stopping' ? 'Đang dừng…' : mode === 'starting' ? 'Hủy còi' : alarmOn ? `Dừng còi${remaining !== null && remaining > 0 ? ` · ${remaining}s` : ''}` : 'Báo động' : mode === 'stopping' ? 'Đang dừng báo động…' : mode === 'starting' ? 'Hủy / dừng báo động' : alarmOn ? `Dừng báo động${remaining !== null && remaining > 0 ? ` · ${remaining}s` : ''}` : 'Báo động'}
       </button>
-      <button type="button" className={`emergency-mic${broadcast ? ' active' : ''}`} disabled={talk.blocked || (!broadcast && (!secure || loading || !micTargets.length || micTargets.length > 16 || mode !== 'idle'))} onClick={() => talk.toggleAll(micTargets.map(camera => camera.id), () => stopAlarms())} aria-pressed={broadcast} aria-label={broadcast ? talk.phase === 'preparing' ? 'Hủy kết nối mic' : 'Kết thúc nói tất cả camera' : 'Nói tất cả camera'}>
-        <Icon name="microphone" size={21} />{broadcast ? talk.phase === 'preparing' ? 'Hủy kết nối mic' : 'Kết thúc nói tất cả' : compact ? 'Nói tất cả' : 'Nói tất cả camera'}
+      <button type="button" className={`emergency-mic${broadcast ? ' active' : ''}`} disabled={talk.blocked || (!broadcast && (!secure || loading || !micTargets.length || micTargets.length > 16 || mode !== 'idle'))} onClick={() => talk.toggleAll(micTargets.map(camera => camera.id), () => stopAlarms())} aria-pressed={broadcast} aria-label={broadcast ? talk.phase === 'preparing' ? 'Hủy kết nối mic' : 'Kết thúc đàm thoại khẩn cấp' : `Nói tới ${scopeLabel}`}>
+        <Icon name="microphone" size={21} />{compact ? broadcast ? talk.phase === 'preparing' ? 'Hủy mic' : 'Dừng nói' : 'Nói' : broadcast ? talk.phase === 'preparing' ? 'Hủy kết nối mic' : 'Kết thúc đàm thoại' : `Nói tới ${scopeLabel}`}
       </button>
     </div>
-    {(message || broadcast || (!broadcast && talk.broadcast && talk.message) || !secure || micTargets.length > 16) && <div className={`emergency-status${failed ? ' error' : ''}`} role="status">
-      {!secure ? 'Mở web bằng HTTPS để dùng báo động và mic.' : broadcast ? talk.phase === 'preparing' ? 'Đang mở mic và kết nối các camera…' : `Đang gửi giọng nói tới ${talk.cameraIds.length} camera · nhấn lại để kết thúc · im lặng 5 giây sẽ tự dừng.` : talk.broadcast && talk.message ? talk.message : micTargets.length > 16 ? 'Đàm thoại hỗ trợ tối đa 16 camera cùng lúc.' : message}
+    {!statusDismissed && (message || broadcast || (!broadcast && talk.broadcast && talk.message) || !secure || micTargets.length > 16) && <div className={`emergency-status${failed ? ' error' : ''}`} role="status">
+      <span>{!secure ? 'Mở web bằng HTTPS để dùng báo động và mic.' : broadcast ? talk.phase === 'preparing' ? 'Đang mở mic và kết nối các camera…' : `Đang gửi giọng nói tới ${talk.cameraIds.length} camera · nhấn lại để kết thúc · im lặng 5 giây sẽ tự dừng.` : talk.broadcast && talk.message ? talk.message : micTargets.length > 16 ? 'Đàm thoại hỗ trợ tối đa 16 camera cùng lúc.' : message}</span>
+      <button type="button" className="emergency-status-close" onClick={() => setStatusDismissed(true)} aria-label="Ẩn thông báo khẩn cấp"><Icon name="close" size={18} /></button>
       {broadcast && <span className="emergency-level" aria-label="Mức âm thanh mic" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(talk.level * 100)}><span style={{ width: `${talk.level * 100}%` }} /></span>}
     </div>}
+    {pickerOpen && <EmergencyCameraPicker cameras={cameras} selection={selection} states={states} capabilities={capabilities} locked={locked} onApply={ids => { setSelection(ids); setPickerOpen(false); setMessage(''); setFailed(false); setStatusDismissed(true); }} onClose={() => setPickerOpen(false)} />}
   </section>;
 }
