@@ -124,6 +124,7 @@ export default function Grid() {
   return (
     <section className={`mi-live-page${fullscreen ? ' is-fullscreen' : ''}`} ref={livePage}>
       <PageHeader title="Live view" actions={<div className="mi-live-actions">
+          <EmergencyControls cameras={cameras} talk={cameraTalk} compact />
           <button type="button" className="mi-camera-picker-button" onClick={() => openPicker()} aria-label="Chọn camera Live view"><Icon name="video" size={18} />{selected.size} camera <Icon name="chevronDown" size={15} /></button>
           <div className="mi-layout-picker" role="group" aria-label="Bố cục camera">
             {([1, 4, 9, 16] as LayoutSize[]).map((size) => <button key={size} className={layout === size ? 'active' : ''} type="button" onClick={() => changeLayout(size)} title={`Bố cục ${size} camera`}>{size === 1 ? '1' : size === 4 ? '2×2' : size === 9 ? '3×3' : '4×4'}</button>)}
@@ -136,7 +137,6 @@ export default function Grid() {
         </div>} />
 
       {err && <div className="notice error">Không tải được camera: {err}</div>}
-      <EmergencyControls cameras={cameras} talk={cameraTalk} />
       {!err && layout === 1 && visible[0] && <FocusView cameraTalk={cameraTalk} talkActive={talkActive} camera={visible[0]} cameras={cameras.filter(camera => camera.enabled)} onChoose={id => chooseCamera(id, 0)} onClose={() => closeSlot(0)} onSettings={() => { cameraTalk.stop(); setSettingsCameraId(visible[0]!.id); }} />}
       {!err && (layout !== 1 || !visible[0]) && <>
         <div className={`mi-camera-grid layout-${layout}`}>

@@ -18,7 +18,7 @@ async function commands<T>(ids: number[], command: (id: number) => Promise<T>) {
   return results;
 }
 
-export default function EmergencyControls({ cameras, talk }: { cameras: Camera[]; talk: Talk }) {
+export default function EmergencyControls({ cameras, talk, compact = false }: { cameras: Camera[]; talk: Talk; compact?: boolean }) {
   const admin = useContext(SessionContext)?.role === 'admin';
   const [states, setStates] = useState<Record<number, DeviceControls>>({});
   const [capabilities, setCapabilities] = useState<Record<number, TalkCapability>>({});
@@ -144,14 +144,14 @@ export default function EmergencyControls({ cameras, talk }: { cameras: Camera[]
   if (!admin) return null;
   const deadlines = Object.values(states).flatMap(state => state.ends_at ? [state.ends_at] : []);
   const remaining = deadlines.length ? Math.max(0, Math.ceil((Math.max(...deadlines) - now) / 1000)) : null;
-  return <section className="emergency-controls" aria-labelledby="emergency-title">
-    <div className="emergency-description"><h2 id="emergency-title"><Icon name="shield" size={20} />Khẩn cấp</h2><span>{loading ? 'Đang kiểm tra camera…' : `Còi: ${alarmTargets.length}/${enabled.length} · Mic: ${micTargets.length}/${enabled.length} camera`}</span></div>
+  return <section className={`emergency-controls${compact ? ' compact' : ''}`} aria-labelledby="emergency-title">
+    <div className="emergency-description"><h2 id="emergency-title"><Icon name="shield" size={20} />Khẩn cấp</h2><span>{loading ? 'Đang kiểm tra camera…' : `Còi: ${alarmTargets.length}/${enabled.length} · Mic: ${micTargets.length}/${enabled.length}${compact ? '' : ' camera'}`}</span></div>
     <div className="emergency-actions">
       <button type="button" className={`emergency-alarm${alarmOn || mode !== 'idle' ? ' active' : ''}`} disabled={!secure || mode === 'stopping' || (!alarmOn && mode === 'idle' && (loading || !alarmTargets.length)) || talk.blocked} onClick={() => void alarm()} aria-pressed={alarmOn || mode !== 'idle'}>
         <Icon name="bell" size={21} />{mode === 'stopping' ? 'Đang dừng báo động…' : mode === 'starting' ? 'Hủy / dừng báo động' : alarmOn ? `Dừng báo động${remaining !== null && remaining > 0 ? ` · ${remaining}s` : ''}` : 'Báo động tất cả'}
       </button>
-      <button type="button" className={`emergency-mic${broadcast ? ' active' : ''}`} disabled={talk.blocked || (!broadcast && (!secure || loading || !micTargets.length || micTargets.length > 16 || mode !== 'idle'))} onClick={() => talk.toggleAll(micTargets.map(camera => camera.id), () => stopAlarms())} aria-pressed={broadcast}>
-        <Icon name="microphone" size={21} />{broadcast ? talk.phase === 'preparing' ? 'Hủy kết nối mic' : 'Kết thúc nói tất cả' : 'Nói tất cả camera'}
+      <button type="button" className={`emergency-mic${broadcast ? ' active' : ''}`} disabled={talk.blocked || (!broadcast && (!secure || loading || !micTargets.length || micTargets.length > 16 || mode !== 'idle'))} onClick={() => talk.toggleAll(micTargets.map(camera => camera.id), () => stopAlarms())} aria-pressed={broadcast} aria-label={broadcast ? talk.phase === 'preparing' ? 'Hủy kết nối mic' : 'Kết thúc nói tất cả camera' : 'Nói tất cả camera'}>
+        <Icon name="microphone" size={21} />{broadcast ? talk.phase === 'preparing' ? 'Hủy kết nối mic' : 'Kết thúc nói tất cả' : compact ? 'Nói tất cả' : 'Nói tất cả camera'}
       </button>
     </div>
     {(message || broadcast || (!broadcast && talk.broadcast && talk.message) || !secure || micTargets.length > 16) && <div className={`emergency-status${failed ? ' error' : ''}`} role="status">

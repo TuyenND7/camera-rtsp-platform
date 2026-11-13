@@ -1010,10 +1010,15 @@ tbody tr:last-child td { border-bottom: 0; }
 .emergency-level > span { display: block; height: 100%; background: #d83b52; transition: width .1s; }
 :root[data-theme=dark] .emergency-controls { color: #ffd2da; border-color: #e15b70; background: #2b1822; }
 :root[data-theme=dark] .emergency-actions > button { border-color: #e15b70; }
+.mi-live-actions > .emergency-controls.compact { width: calc(400px * var(--text-scale, 1)); max-width: 100%; grid-template-columns: minmax(108px, 1fr) minmax(0, 2fr); gap: 5px 8px; padding: 6px 8px; }
+.emergency-controls.compact .emergency-description h2 { font-size: calc(12px * var(--text-scale, 1)); }
+.emergency-controls.compact .emergency-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.emergency-controls.compact .emergency-actions > button { min-width: 0; padding: 6px; font-size: calc(11px * var(--text-scale, 1)); line-height: 1.3; }
 @media (max-width: 760px) {
   .emergency-controls { grid-template-columns: minmax(0, 1fr); gap: 7px; padding: 8px; }
   .emergency-description { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; }
   .emergency-description h2 { margin: 0; }
   .emergency-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
   .emergency-actions > button { padding: 8px 6px; line-height: 1.35; }
+  .mi-live-actions > .emergency-controls.compact { flex-basis: 100%; width: 100%; grid-template-columns: minmax(0, 1fr); }
 }
