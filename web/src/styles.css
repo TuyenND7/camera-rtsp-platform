@@ -212,8 +212,8 @@ tbody tr:last-child td { border-bottom: 0; }
 .live-toolbar h2 { font-size: calc(13px * var(--text-scale, 1)); }
 .live-indicator { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; font-size: calc(8px * var(--text-scale, 1)); font-weight: 600; letter-spacing: 1px; color: var(--positive-text, #36a390); }
 .mi-live-actions { display: flex; align-items: center; gap: 13px; }
-.mi-layout-picker { display: flex; align-items: stretch; gap: 3px; min-height: 44px; height: auto; padding: 3px; border: 1px solid var(--line, #e4ecf7); border-radius: 7px; background: var(--surface, #f7f9fd); }
-.mi-layout-picker button { min-width: 38px; min-height: 30px; padding: 5px 9px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text-muted, #8a9db7); font-size: calc(10px * var(--text-scale, 1)); }
+.mi-layout-picker { display: flex; align-items: stretch; gap: 2px; min-height: 36px; height: auto; padding: 2px; border: 1px solid var(--line, #e4ecf7); border-radius: 6px; background: var(--surface, #f7f9fd); }
+.mi-layout-picker button { position: relative; min-width: 28px; min-height: 28px; padding: 3px 4px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text-muted, #8a9db7); font-size: calc(10px * var(--text-scale, 1)); }
 .mi-layout-picker button.active { color: var(--blue); border-color: var(--line, #dce7f7); background: var(--surface, #fff); box-shadow: 0 2px 4px #243c5805; }
 .mi-camera-picker-button { min-height: 44px; padding: 5px 11px; color: var(--text-muted, #728aa8); font-size: calc(11px * var(--text-scale, 1)); }
 .mi-camera-controls { position: absolute; top: 8px; right: 8px; z-index: 3; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 16px); }
@@ -1034,6 +1034,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .emergency-selection-note { margin: 0; padding: 10px 22px; color: var(--danger-text); font-weight: 650; }
 .emergency-camera-dialog .emergency-apply { color: #fff; border-color: #bd213b; background: #bd213b; }
 @media (pointer: coarse) {
+  .mi-layout-picker button::after { position: absolute; top: -7px; right: 0; bottom: -7px; left: 0; content: ''; }
   .emergency-controls.compact .emergency-selector::after, .emergency-controls.compact .emergency-actions > button::after { position: absolute; top: -4px; right: 0; bottom: -4px; left: 0; content: ''; }
   .emergency-controls.compact .emergency-actions > button::after { top: -6px; bottom: -6px; }
 }
