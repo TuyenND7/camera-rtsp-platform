@@ -177,7 +177,7 @@ export default function EmergencyControls({ cameras, talk, compact = false }: { 
       </button>
     </div>
     {!statusDismissed && (message || broadcast || (!broadcast && talk.broadcast && talk.message) || !secure || micTargets.length > 16) && <div className={`emergency-status${failed ? ' error' : ''}`} role="status">
-      <span>{!secure ? 'Mở web bằng HTTPS để dùng báo động và mic.' : broadcast ? talk.phase === 'preparing' ? 'Đang mở mic và kết nối các camera…' : `Đang gửi giọng nói tới ${talk.cameraIds.length} camera · nhấn lại để kết thúc · im lặng 5 giây sẽ tự dừng.` : talk.broadcast && talk.message ? talk.message : micTargets.length > 16 ? 'Đàm thoại hỗ trợ tối đa 16 camera cùng lúc.' : message}</span>
+      <span>{!secure ? 'Mở web bằng HTTPS để dùng báo động và mic.' : broadcast ? talk.phase === 'preparing' ? 'Đang mở mic và kết nối các camera…' : `Đang gửi giọng nói tới ${talk.cameraIds.length} camera · nhấn lại để kết thúc · im lặng 5 giây sẽ tự dừng.${selectedIds.some(id => !talk.cameraIds.includes(id)) ? ` Bỏ qua camera chưa sẵn sàng: ${names(selectedIds.filter(id => !talk.cameraIds.includes(id)))}.` : ''}` : talk.broadcast && talk.message ? talk.message : micTargets.length > 16 ? 'Đàm thoại hỗ trợ tối đa 16 camera cùng lúc.' : message}</span>
       <button type="button" className="emergency-status-close" onClick={() => setStatusDismissed(true)} aria-label="Ẩn thông báo khẩn cấp"><Icon name="close" size={18} /></button>
       {broadcast && <span className="emergency-level" aria-label="Mức âm thanh mic" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(talk.level * 100)}><span style={{ width: `${talk.level * 100}%` }} /></span>}
     </div>}

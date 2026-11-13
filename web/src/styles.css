@@ -1029,7 +1029,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .emergency-camera-dialog .dialog-heading, .emergency-camera-dialog .dialog-footer { flex-shrink: 0; }
 .emergency-camera-all, .emergency-camera-row { display: flex; align-items: center; gap: 12px; min-height: 64px; margin: 0; padding: 12px 22px; cursor: pointer; }
 .emergency-camera-all { flex-shrink: 0; border-block: 1px solid var(--line); background: var(--surface-soft); }
-.emergency-camera-all > span { margin-left: auto; }
+.emergency-camera-all > strong { flex: 1; }
 .emergency-camera-dialog input[type=checkbox] { flex: 0 0 20px; width: 20px; height: 20px; min-height: 20px; margin: 0; accent-color: #bd213b; }
 .emergency-camera-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .emergency-camera-row { border-bottom: 1px solid var(--line); }

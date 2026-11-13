@@ -20,18 +20,18 @@ export default function EmergencyCameraPicker({ cameras, selection, states, capa
   return <dialog ref={dialog} className="device-dialog emergency-camera-dialog" aria-labelledby="emergency-camera-title" onCancel={event => { event.preventDefault(); event.stopPropagation(); onClose(); }}
     onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); } }} onKeyUp={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(); } }}>
     <header className="dialog-heading"><div><h2 id="emergency-camera-title">Chọn camera khẩn cấp</h2><p>Chọn nơi nhận báo động và giọng nói của bạn</p></div><button type="button" className="icon-button" onClick={onClose} aria-label="Đóng chọn camera khẩn cấp"><Icon name="close" /></button></header>
-    <label className="emergency-camera-all"><input ref={all} type="checkbox" checked={allSelected} onChange={event => setDraft(event.target.checked ? null : [])} /><strong>Tất cả camera</strong><span>{cameras.length}</span></label>
+    <label className="emergency-camera-all"><strong>Tất cả camera</strong><input ref={all} type="checkbox" checked={allSelected} onChange={event => setDraft(event.target.checked ? null : [])} /></label>
     <div className="emergency-camera-list">{cameras.map(camera => {
       const online = camera.enabled && camera.status === 'online';
       const ready = [states[camera.id]?.alarm_supported ? 'Còi' : '', capabilities[camera.id]?.supported ? 'Mic' : ''].filter(Boolean).join(' · ');
-      return <label key={camera.id} className="emergency-camera-row" data-camera-id={camera.id}><input type="checkbox" checked={ids.includes(camera.id)} onChange={event => {
+      return <label key={camera.id} className="emergency-camera-row" data-camera-id={camera.id}><Icon name="camera" size={22} /><span><strong>{camera.name}</strong><small>{!camera.enabled ? 'Thiết bị đã tắt' : !online ? `${statusLabels[camera.status] ?? 'Chưa trực tuyến'} · vẫn chọn được, sẽ bỏ qua khi gửi` : ready ? `${ready} sẵn sàng` : 'Chưa có chức năng khẩn cấp sẵn sàng'}</small></span><i className={`status-dot ${camera.status}`} /><input type="checkbox" checked={ids.includes(camera.id)} onChange={event => {
         const checked = event.target.checked;
         setDraft(current => {
           const before = cameras.filter(item => current === null || current.includes(item.id)).map(item => item.id);
           const next = checked ? [...before, camera.id] : before.filter(id => id !== camera.id);
           return next.length === cameras.length ? null : next;
         });
-      }} /><Icon name="camera" size={22} /><span><strong>{camera.name}</strong><small>{!camera.enabled ? 'Thiết bị đã tắt' : !online ? statusLabels[camera.status] ?? 'Chưa trực tuyến' : ready ? `${ready} sẵn sàng` : 'Chưa có chức năng khẩn cấp sẵn sàng'}</small></span><i className={`status-dot ${camera.status}`} /></label>;
+      }} /></label>;
     })}{!cameras.length && <p className="muted">Chưa có camera để chọn.</p>}</div>
     {locked && <p className="emergency-selection-note" role="status">Dừng báo động hoặc đàm thoại để đổi camera.</p>}
     <footer className="dialog-footer"><span>{ids.length} camera đã chọn</span><button type="button" onClick={onClose}>Hủy</button><button type="button" className="emergency-apply" disabled={!ids.length || locked} onClick={() => onApply(draft === null ? null : ids)}>Áp dụng</button></footer>
