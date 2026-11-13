@@ -1,0 +1,12 @@
+Use case: style-transfer.
+Asset type: replacement transparent UI icon sprite atlas for Camera Station.
+Input image: edit target and exact glyph/order reference, the current 40-icon atlas. Its strokes are slightly too heavy in the actual UI.
+Primary request: redraw the SAME 40 icons with outlines approximately 20–25 percent lighter than the reference. Target a restrained regular weight of about 1.8–2.0 px at a 24 px icon size. The goal is halfway between hairline-thin and the current heavy rounded strokes. Change stroke thickness only, retaining recognizable shapes, rounded caps/joins, optical size and generous interior gaps. Keep the microphone capsule FILLED as before, while its stand and off slash have the new lighter regular weight.
+Composition: exactly 8 columns × 5 rows, one centered icon per equal cell; landscape 1600×1000 preferred. Generous transparent separation and margins. Exact order left to right:
+Row 1: CCTV bullet camera; chevron down; clock; folder; four-square grid; sidebar layout; desktop monitor; pause.
+Row 2: play; refresh; rewind; search; settings gear; skip backward; skip forward; user.
+Row 3: video camera; magnifier plus; magnifier minus; server rack; shield with lock; plus; close X; logout.
+Row 4: chevron right; database; notification bell; check; edit pencil; trash; hamburger menu; network nodes.
+Row 5: maximize corners; minimize corners; sun/flash; crescent moon; speaker with waves; muted speaker slash; FILLED microphone on stand; FILLED microphone on stand with slash.
+Rendering: clean flat 2D pure-white glyphs with uniform solid opacity on real transparent background. No raised edges, no bevel, no glow, no gray outline, no shadow. Transparent background and transparent interior holes. The alpha channel is used directly as a CSS color mask in both dark/light themes. Do not reproduce the reference preview's noise or haze.
+Constraints: preserve every symbol identity and row/column ordering. Keep rounded geometric style; do not make strokes hairline, bold or bulky. Exactly 40 separate icons, no added icons, no labels, text, grid lines, watermark, texture or decorative background.

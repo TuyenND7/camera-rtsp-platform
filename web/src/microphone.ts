@@ -1,4 +1,4 @@
-/** Captures only while the user holds Talk (or explicitly tests the mic).
+/** Captures only during an explicitly started call or microphone test.
  * Audio remains in memory; stopping during an unresolved permission prompt
  * also stops any stream returned by the browser afterwards. */
 export class Microphone {

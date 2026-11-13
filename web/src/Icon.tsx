@@ -19,7 +19,7 @@ export default function Icon({ name, size = 20, className }: { name: IconName; s
   const scale = size * 0.88 / Math.max(width, height);
   const position = `${size / 2 - (x + width / 2) * scale}px ${size / 2 - (y + height / 2) * scale}px`;
   const maskSize = `${atlasWidth * scale}px ${atlasHeight * scale}px`;
-  const maskImage = 'url(/brand/camera-icons-regular.png)';
+  const maskImage = 'url(/brand/camera-icons-balanced.png)';
   return <span aria-hidden="true" className={`app-icon${className ? ` ${className}` : ''}`} style={{
     width: size, height: size, minWidth: size, maxWidth: size, minHeight: size, maxHeight: size, flex: '0 0 auto',
     display: 'inline-block', padding: 0, border: 0, borderRadius: 0, backgroundColor: 'currentColor',

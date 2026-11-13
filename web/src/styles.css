@@ -988,3 +988,9 @@ tbody tr:last-child td { border-bottom: 0; }
 .live-camera-settings-dialog > .dialog-heading { border-bottom: 1px solid var(--line); }
 .live-camera-settings-dialog h2 { font-weight: 750; }
 .mi-camera-controls .camera-flash-button.active { color: #ffe28b; border-color: #f5c24e; background: #6e4d15e6; }
+.mi-camera-controls { right: 60px; max-width: calc(100% - 68px); }
+.mi-camera-talk { position: absolute; z-index: 4; top: 8px; right: 8px; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 7px; border: 1px solid #ef6b8066; color: #ff9aa8; background: #10243ee6; }
+.mi-camera-talk:hover:not(:disabled) { color: #fff; background: #b92d46; border-color: #ff9aa8; }
+.mi-camera-talk.active { color: #fff; background: #c72c43; border-color: #ff9aa8; box-shadow: 0 0 0 2px #ee61752e; }
+.mi-camera-talk-level { position: absolute; left: 5px; right: 5px; bottom: 3px; height: 3px; border-radius: 2px; overflow: hidden; background: #ffffff40; }
+.mi-camera-talk-level > span { display: block; height: 100%; background: #fff; transition: width .1s; }
