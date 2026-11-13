@@ -5,6 +5,7 @@ import { formatBytes, PageHeader, SessionContext } from '../ui';
 import { TEXT_SIZES, useTheme } from '../theme';
 import CameraSettingSelect from '../CameraSettingSelect';
 import { alarmDurations, alarmDurationLabel } from '../alarm';
+import ViewingDeviceSettings from '../ViewingDeviceSettings';
 
 export default function Settings() {
   const user = useContext(SessionContext);
@@ -98,6 +99,7 @@ export default function Settings() {
       </div>
     </section>
 
+    <ViewingDeviceSettings />
     <form onSubmit={save} className="settings-form">
       <section className="panel settings-section">
         <header className="settings-heading"><Icon name="server" size={22} /><div><h2>Máy chủ</h2><p>Cấu hình web camera dùng trên máy tính, tablet và điện thoại.</p></div><span className={`status-badge ${connection === true ? 'online' : connection === false ? 'error' : 'connecting'}`}><i className={`status-dot ${connection === true ? 'online' : connection === false ? 'error' : 'connecting'}`} />{connection === null ? 'Đang kiểm tra' : connection ? 'Trực tuyến' : 'Mất kết nối'}</span></header>

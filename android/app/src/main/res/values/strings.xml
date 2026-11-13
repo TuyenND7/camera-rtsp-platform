@@ -14,4 +14,6 @@
     <string name="invalid_url">Nhập địa chỉ HTTP hoặc HTTPS hợp lệ, không kèm tài khoản hay mật khẩu.</string>
     <string name="server_hint">http://camera.local:8081</string>
     <string name="tls_error">Chứng chỉ HTTPS chưa hợp lệ hoặc chưa được thiết bị tin cậy.</string>
+    <string name="screen_sleep_hint">Chạm đúp để mở màn hình</string>
+    <string name="screen_sleep_description">Màn hình tối. Chạm đúp hoặc nhấn Back để mở.</string>
 </resources>

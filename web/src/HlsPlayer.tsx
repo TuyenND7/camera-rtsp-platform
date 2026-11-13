@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { isUiPreview } from './preview';
+import { useDevice } from './device';
 
 interface Props {
   src: string; // .m3u8 url
@@ -35,6 +36,8 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
   ref
 ) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const { playbackVolume } = useDevice();
+  useEffect(() => { if (videoRef.current) videoRef.current.volume = playbackVolume; }, [playbackVolume]);
   const callbacks = useRef({ onTime, onPlayingChange, onWaitingChange, onPlaybackError, onAudioAvailable });
   callbacks.current = { onTime, onPlayingChange, onWaitingChange, onPlaybackError, onAudioAvailable };
   const playRequested = useRef(true);

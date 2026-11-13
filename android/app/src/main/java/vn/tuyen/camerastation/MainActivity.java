@@ -54,6 +54,7 @@ public final class MainActivity extends Activity {
     private WebChromeClient.CustomViewCallback fullscreenCallback;
     private static final int MIC_PERMISSION = 41;
     private PermissionRequest microphoneRequest;
+    private DeviceControls deviceControls;
 
     @Override
     public void onCreate(Bundle state) {
@@ -63,6 +64,8 @@ public final class MainActivity extends Activity {
         createViews();
         enterImmersiveMode();
         configureWebView();
+        deviceControls = new DeviceControls(this, webView, root);
+        deviceControls.configure(serverUrl);
         if (Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(0, this::navigateBack);
         }
@@ -160,6 +163,7 @@ public final class MainActivity extends Activity {
 
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                if (deviceControls != null) deviceControls.pageStarted();
                 cancelMicrophoneRequest();
                 pageFailed = false;
                 errorPanel.setVisibility(View.GONE);
@@ -222,6 +226,7 @@ public final class MainActivity extends Activity {
                 fullscreenCallback = callback;
                 content.setVisibility(View.GONE);
                 root.addView(view, new FrameLayout.LayoutParams(-1, -1));
+                if (deviceControls != null) deviceControls.bringToFront();
                 enterImmersiveMode();
             }
 
@@ -267,6 +272,7 @@ public final class MainActivity extends Activity {
             if (url == null) { input.setError(getString(R.string.invalid_url)); return; }
             serverUrl = url;
             getPreferences(MODE_PRIVATE).edit().putString("server_url", url).apply();
+            deviceControls.configure(serverUrl);
             webView.stopLoading();
             webView.clearHistory();
             webView.loadUrl(url);
@@ -332,7 +338,8 @@ public final class MainActivity extends Activity {
     }
 
     private void navigateBack() {
-        if (fullscreenView != null) exitFullscreen();
+        if (deviceControls.sleeping()) deviceControls.wake();
+        else if (fullscreenView != null) exitFullscreen();
         else if (webView.canGoBack()) webView.goBack();
         else moveTaskToBack(true);
     }
@@ -349,6 +356,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
+        if (deviceControls != null) deviceControls.wake();
         webView.evaluateJavascript("window.dispatchEvent(new Event('camera-station:stop-talk'));", null);
         webView.onPause();
         CookieManager.getInstance().flush();
@@ -372,6 +380,7 @@ public final class MainActivity extends Activity {
     protected void onDestroy() {
         cancelMicrophoneRequest();
         exitFullscreen();
+        if (deviceControls != null) deviceControls.dispose();
         webView.stopLoading();
         ((FrameLayout) webView.getParent()).removeView(webView);
         webView.destroy();

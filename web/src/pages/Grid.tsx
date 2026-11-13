@@ -13,11 +13,13 @@ import useCameraTalk from '../useCameraTalk';
 import EmergencyControls from '../EmergencyControls';
 import LiveLayoutPicker, { LayoutSize } from '../LiveLayoutPicker';
 import LiveClock from '../LiveClock';
+import { useDevice } from '../device';
 import { PageHeader, statusLabels } from '../ui';
 
 type LiveTalk = ReturnType<typeof useCameraTalk>;
 
 export default function Grid() {
+  const device = useDevice();
   const [searchParams] = useSearchParams();
   const focusedCameraId = Number(searchParams.get('camera'));
   const [cameras, setCameras] = useState<Camera[]>([]);
@@ -119,6 +121,7 @@ export default function Grid() {
           <button type="button" className="mi-camera-picker-button" onClick={() => openPicker()} aria-label={`Chọn camera Live view, đang chọn ${selected.size} camera`}><Icon name="video" size={18} />{selected.size}<Icon name="chevronDown" size={15} /></button>
           <LiveLayoutPicker value={layout} onChange={changeLayout} />
           <button type="button" className="mi-live-fullscreen-button" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen} aria-label={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'} title={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'}><Icon name={fullscreen ? 'minimize' : 'maximize'} size={20} /></button>
+          <button type="button" className="mi-live-screen-button" onClick={() => void device.sleep().catch(() => undefined)} aria-label="Tắt hiển thị, chạm đúp để mở" title="Tắt hiển thị, chạm đúp để mở"><Icon name="moon" size={19} /></button>
         </div>} center={<LiveClock />} actions={<div className="mi-live-actions">
           <EmergencyControls cameras={cameras} talk={cameraTalk} compact />
         </div>} />
