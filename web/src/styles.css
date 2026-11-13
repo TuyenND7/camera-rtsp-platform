@@ -215,9 +215,9 @@ tbody tr:last-child td { border-bottom: 0; }
 .mi-camera-picker-button, .mi-layout-picker, .mi-live-fullscreen-button { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 8px; border-radius: 6px; color: var(--text-muted, #728aa8); font-size: calc(11px * var(--text-scale, 1)); line-height: 1.4; white-space: nowrap; }
 .mi-live-fullscreen-button { flex: 0 0 auto; width: 36px; padding: 0; }
 .mi-layout-control { position: relative; display: flex; flex: 0 0 auto; align-items: center; }
-.live-layout-menu { position: absolute; z-index: 20; top: calc(100% + 6px); right: 0; width: 160px; max-width: calc(100vw - 24px); max-height: min(320px, calc(100dvh - 100px)); padding: 4px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: 0 8px 24px #0003; }
+.live-layout-menu { position: absolute; z-index: 20; top: calc(100% + 6px); right: 0; width: 160px; max-width: calc(100vw - 24px); max-height: min(320px, calc(100dvh - 100px)); padding: 4px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 8px; background: var(--surface, #fff); box-shadow: 0 8px 24px #0003; }
 .live-layout-menu button { display: grid; grid-template-columns: 26px minmax(0, 1fr) 16px; align-items: center; gap: 9px; width: 100%; min-height: 44px; padding: 6px 8px; border-color: transparent; border-radius: 5px; color: var(--text-body); background: transparent; font-size: calc(12px * var(--text-scale, 1)); text-align: left; }
-.live-layout-menu button[aria-checked=true], .live-layout-menu button:hover { color: var(--blue); background: var(--selection-bg); }
+.live-layout-menu button[aria-checked=true], .live-layout-menu button:hover { color: var(--blue); background: var(--selection-bg, #eaf3ff); }
 .live-layout-preview { display: grid; grid-template-columns: repeat(var(--layout-columns), minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 2px; width: 26px; height: 20px; }
 .live-layout-preview i { border: 1px solid currentColor; border-radius: 1px; opacity: .8; }
 .mi-camera-controls { position: absolute; top: 8px; right: 8px; z-index: 3; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 16px); }
@@ -1076,7 +1076,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .mi-live-clock { grid-area: clock; justify-self: center; display: flex; flex-direction: column; align-items: center; gap: 1px; color: var(--text-muted); font-variant-numeric: tabular-nums; line-height: 1.25; white-space: nowrap; }
 .mi-live-clock strong { color: var(--text-body); font-size: calc(20px * var(--text-scale, 1)); font-weight: 800; }
 .mi-live-clock > span { font-size: calc(10px * var(--text-scale, 1)); }
-.mi-live-page:fullscreen, .live-shell .mi-live-page.is-fullscreen { position: fixed; inset: 0; z-index: 60; flex: none; width: 100%; height: 100dvh; max-width: none; padding: 6px; overflow: hidden; background: var(--app-bg); }
+.mi-live-page:fullscreen, .live-shell .mi-live-page.is-fullscreen { position: fixed; inset: 0; z-index: 60; flex: none; width: 100%; height: 100dvh; max-width: none; padding: 6px; overflow: hidden; background: var(--app-bg, #f5f8fc); }
 .mi-live-page.is-fullscreen .sidebar-visibility-toggle { display: none; }
 @container live-wall (max-width: 900px) {
   .simple-shell.live-shell .mi-live-page > .mi-live-heading { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'leading emergency' 'clock clock'; }
