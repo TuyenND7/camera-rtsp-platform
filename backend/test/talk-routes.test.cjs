@@ -47,3 +47,14 @@ test('gain headers are parsed and invalid or unrelated camera gains are rejected
  assert.equal((await send('{"1":2}')).status,204);assert.deepEqual(lastGains,{'1':2});
  for(const value of ['broken','null','[]','{"2":2}','{"1":-1}','{"1":5}','{"1":"2"}',' '.repeat(1025)])assert.equal((await send(value)).status,400);
 });
+test('duplex listen requires HTTPS/current admin/ownership; duplicate streams rejected, cancel and revocation close the call',async()=>{
+ const old=talkManager.readAudio;let reads=0,valid=true;talkManager.readAudio=(id,owner,cameraId)=>{if(owner!==tokenHash(admin)||id!=='fixture-call'||!valid)throw new (require('../dist/talk/rtsp').TalkError)(404,'ended');assert.equal(cameraId,1);reads++;return Buffer.alloc(320)};
+ const url=origin+'/api/talk/sessions/fixture-call/listen/1',headers={Authorization:'Bearer '+admin,'X-Forwarded-Proto':'https'};
+ try{
+  assert.equal((await fetch(url)).status,401);assert.equal((await fetch(url,{headers:{...headers,Authorization:'Bearer '+viewer}})).status,403);assert.equal((await fetch(url,{headers:{...headers,'X-Forwarded-Proto':'http'}})).status,426);
+  const controller=new AbortController(),response=await fetch(url,{headers,signal:controller.signal});assert.equal(response.status,200);assert.equal(response.headers.get('x-audio-format'),'pcm_s16le');assert.equal(response.headers.get('cache-control'),'private, no-store');assert.equal((await response.body.getReader().read()).value.length,320);
+  assert.equal((await fetch(url,{headers})).status,409);const prior=calls;controller.abort();await new Promise(r=>setTimeout(r,80));assert(calls>prior);
+  const second=await fetch(url,{headers}),reader=second.body.getReader();await reader.read();valid=false;while(!(await reader.read()).done){}assert(reads>=3);
+ }finally{talkManager.readAudio=old}
+});
+test('invalid duplex option is rejected before opening a camera',async()=>{assert.equal((await request('/sessions',{camera_ids:[1],duplex:'yes'})).status,400)});

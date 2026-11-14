@@ -7,13 +7,18 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 function pcm(amplitude = 0, count = 1600) { return Int16Array.from({ length: count }, (_, i) => Math.sin(i * .4) * 32767 * amplitude).buffer; }
 function fixture(options = {}) {
   let now = 0, id = 0, capture;
-  const timers = new Map(), events = { starts: [], stops: [], audio: [], states: [], micStops: 0 };
+  const timers = new Map(), events = { starts: [], stops: [], audio: [], states: [], micStops: 0, playback: [], gains: [] };
   class Microphone {
     async start(callback) { capture = callback; if (options.permission) await options.permission; }
     stop() { events.micStops++; }
+    async startPlayback(onError) { events.playbackStarted = true; if(options.playback) await options.playback(onError); }
+    playAudio(id,pcm) { events.playback.push({id,pcm}); }
+    listenGain(id,gain) { events.gains.push({id,gain}); }
+    listenVolume(gain) { events.master = gain; }
   }
   const api = {
     async startTalk(ids) { events.starts.push(ids); return options.start ? options.start() : { id: 'session-1', max_seconds: 60 }; },
+    async listenTalk(id,cameraId,signal) { return options.listen(id,cameraId,signal); },
     async stopTalk(id) { events.stops.push(id); },
     async talkAudio(id, seq, audio, signal) { events.audio.push({ id, seq, bytes: audio.byteLength, signal }); if (options.audio) await options.audio(); },
   };
@@ -122,3 +127,11 @@ test('switching from a single camera to broadcast waits for its cancelled channe
   assert.equal(f.events.stops[0], 'old-single'); assert.equal(JSON.stringify(f.events.starts), '[[2],[2,3]]');
   await f.talk.stop(); assert.equal(f.events.stops[1], 'new-broadcast');
 });
+
+test('duplex receives camera PCM while mic upload continues; stop aborts both directions',async()=>{
+ let pending;const f=fixture({start:()=>({id:'duplex',max_seconds:60,listen_camera_ids:[2]}),listen:async(id,cameraId,signal)=>({body:{getReader:()=>({read:()=>new Promise(resolve=>{pending=resolve;signal.addEventListener('abort',()=>resolve({done:true}),{once:true})})})}})});
+ await f.talk.start(2);await flush();assert.equal(f.events.playbackStarted,true);assert.equal(JSON.stringify(f.talk.state.duplexCameraIds),'[2]');
+ pending({done:false,value:new Uint8Array(pcm(.1))});await flush();f.capture(pcm(.1));await flush();assert.equal(f.events.playback.length,1);assert.equal(f.events.audio.length,1);assert.equal(f.talk.state.phase,'talking');
+ f.talk.setListenGain(2,.4);assert.equal(f.events.gains.at(-1).gain,.4);await f.talk.stop();await flush();assert.equal(f.events.audio[0].signal.aborted,true);assert.equal(f.events.micStops,1);assert.equal(JSON.stringify(f.talk.state.duplexCameraIds),'[]');assert.equal(f.timers.size,0);
+});
+test('duplex playback failure closes camera session and microphone',async()=>{const f=fixture({start:()=>({id:'duplex',max_seconds:60,listen_camera_ids:[2]}),playback:()=>{throw Error('Playback denied')}});await f.talk.start(2);assert.equal(f.talk.state.phase,'idle');assert.equal(f.talk.state.message,'Playback denied');assert.equal(f.events.stops[0],'duplex');assert.equal(f.timers.size,0)});

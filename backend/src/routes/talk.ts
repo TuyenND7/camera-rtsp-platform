@@ -35,6 +35,7 @@ router.post('/capabilities', async (req, res) => {
 router.post('/sessions', async (req: AuthedRequest, res) => {
   try {
     if (!req.secure) throw new TalkError(426, 'Mở web bằng HTTPS để sử dụng mic.');
+    if (req.body?.duplex !== undefined && typeof req.body.duplex !== 'boolean') throw new TalkError(400, 'Chế độ đàm thoại không hợp lệ.');
     const rows = await cameras(ids(req.body?.camera_ids));
     if (rows.some(c => !c.enabled || c.status !== 'online')) throw new TalkError(409, 'Một camera đã chọn chưa trực tuyến.');
     if (rows.some(c => deviceControls.alarmActive(c))) throw new TalkError(409, 'Camera đang phát còi cảnh báo. Dừng còi trước khi dùng mic.');
@@ -44,10 +45,34 @@ router.post('/sessions', async (req: AuthedRequest, res) => {
       if (user?.role !== 'admin') return false;
       const current = await cameras(rows.map(c => c.id));
       return current.every(c => c.enabled && c.status === 'online' && rows.some(original => original.id === c.id && original.rtsp_url === c.rtsp_url));
-    });
+    }, req.body?.duplex === true);
     if (res.destroyed) { talkManager.end(result.id, tokenHash(token)); return; }
     res.status(201).json(result);
   } catch (error) { const e = errorResponse(error); if (!res.destroyed) res.status(e.status).json({ error: e.message }); }
+});
+
+const listeners = new Set<string>();
+router.get('/sessions/:id/listen/:cameraId', (req: AuthedRequest, res) => {
+  const owner = tokenHash(req.sessionToken!), id = req.params.id, cameraId = Number(req.params.cameraId), key = `${id}:${cameraId}`;
+  try {
+    if (!req.secure) throw new TalkError(426, 'Mở web bằng HTTPS để nghe đàm thoại.');
+    if (!Number.isSafeInteger(cameraId) || cameraId < 1) throw new TalkError(400, 'Camera không hợp lệ.');
+    const first = talkManager.readAudio(id, owner, cameraId);
+    if (listeners.has(key)) throw new TalkError(409, 'Kênh nghe đã được mở.');
+    listeners.add(key);
+    res.set({ 'Content-Type': 'application/octet-stream', 'X-Audio-Format': 'pcm_s16le', 'X-Audio-Sample-Rate': '8000', 'X-Accel-Buffering': 'no', 'Cache-Control': 'private, no-store' });
+    res.flushHeaders();
+    let closed = false;
+    const cleanup = () => { if (closed) return; closed = true; clearInterval(timer); listeners.delete(key); try { talkManager.end(id, owner); } catch {} };
+    const write = (pcm: Buffer) => {
+      if (pcm.length && !res.write(pcm) && res.writableLength > 6400) { cleanup(); res.end(); }
+    };
+    const timer = setInterval(() => {
+      try { write(talkManager.readAudio(id, owner, cameraId)); }
+      catch { cleanup(); res.end(); }
+    }, 20); timer.unref();
+    res.on('close', cleanup); res.on('error', cleanup); write(first);
+  } catch (error) { const e = errorResponse(error); if (!res.headersSent) res.status(e.status).json({ error: e.message }); }
 });
 
 router.post('/sessions/:id/audio', raw({ type: 'application/octet-stream', limit: '6400b' }), (req: AuthedRequest, res) => {

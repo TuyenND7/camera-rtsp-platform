@@ -15,6 +15,7 @@ public sealed class TalkJob
     public long Created, Consumed, Reported;
     public string LastState = "connecting";
     public volatile bool TalkReady, RecorderReady, Failed;
+    public bool Duplex;
     public volatile int PcmCallbacks, ErrorCode;
 }
 
@@ -47,7 +48,7 @@ public static partial class TalkAgent
     }
     static void Publish(bool authenticated)
     {
-        try { Write(Path.Combine(root, "status.json"), new { version = 1, control_version = 1, settings_version = 1, instance = instance, updated_at = Now, authenticated = authenticated, bindings = bindings }); } catch (IOException) {}
+        try { Write(Path.Combine(root, "status.json"), new { version = 1, control_version = 1, settings_version = 1, duplex_version = 1, instance = instance, updated_at = Now, authenticated = authenticated, bindings = bindings }); } catch (IOException) {}
     }
     static string Authorize(Dictionary<string, object> config)
     {
@@ -82,6 +83,7 @@ public static partial class TalkAgent
     }
     static bool Command(string directory, Dictionary<string, object> command)
     {
+        if (command.ContainsKey("duplex") && !(command["duplex"] is bool)) return false;
         int id = Convert.ToInt32(command["camera_id"]); var binding = Binding(id);
         return Convert.ToInt32(command["version"]) == 1 && (string)command["agent_instance"] == instance &&
             Math.Abs(Now - Convert.ToInt64(command["created_at"])) < 10000 && binding != null && (string)command["url_hash"] == (string)binding["url_hash"] &&
@@ -93,13 +95,14 @@ public static partial class TalkAgent
         {
             var command = Read(Path.Combine(directory, "start.json"));
             if (!Command(directory, command)) { State(directory, "error", 0, 403); return; }
+            bool duplex = command.ContainsKey("duplex") && (bool)command["duplex"];
             int id = Convert.ToInt32(command["camera_id"]); TendaNative.Client client;
             if (!clients.TryGetValue(id, out client))
             {
                 client = new TendaNative.Client(deviceIds[id]); clients[id] = client;
             }
             if (client.Job != null || client.AvailableAfter > Now) { State(directory, "error", 0, 409); return; }
-            var job = new TalkJob { Directory = directory, Created = Now, Audio = new FileStream(Path.Combine(directory, "audio.pcm"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete) };
+            var job = new TalkJob { Directory = directory, Duplex = duplex, Created = Now, Audio = new FileStream(Path.Combine(directory, "audio.pcm"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete) };
             State(directory, "connecting", 0, 0); client.Open(job);
         }
         catch { State(directory, "error", 0, 502); }

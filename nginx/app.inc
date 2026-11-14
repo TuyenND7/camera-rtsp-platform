@@ -19,6 +19,7 @@ location / {
 
 # Backend API
 location /api/ {
+    proxy_buffering off;
     proxy_pass http://backend:4000/api/;
     proxy_set_header Host $http_host;
     proxy_set_header X-Real-IP $remote_addr;

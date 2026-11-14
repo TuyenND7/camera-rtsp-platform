@@ -59,6 +59,15 @@ try {
     $binding.Add('id',2); $binding.Add('model','CT3V1.0'); $binding.Add('url_hash',('a' * 64)); $bindings.Add($binding)
     $requestDirectory = Join-Path $temporary ('controls\' + [guid]::NewGuid().ToString('D'))
     New-Item -ItemType Directory -Path $requestDirectory -Force | Out-Null
+    New-Item -ItemType File -Path (Join-Path $requestDirectory 'audio.pcm') | Out-Null
+    New-Item -ItemType File -Path (Join-Path $requestDirectory 'heartbeat') | Out-Null
+    $talkCommand = $serializer.DeserializeObject(('{"version":1,"camera_id":2,"url_hash":"' + ('a' * 64) + '","agent_instance":"' + $generation + '","created_at":' + (Now) + '}'))
+    if (-not $agent.GetMethod('Command',$flags).Invoke($null,[object[]]@($requestDirectory,$talkCommand))) { throw 'Legacy talk command rejected' }
+    foreach ($mode in @($true,$false,'true',1,$null)) {
+        $talkCommand['duplex']=$mode
+        $accepted=$agent.GetMethod('Command',$flags).Invoke($null,[object[]]@($requestDirectory,$talkCommand))
+        if ($accepted -ne ($mode -is [bool])) { throw 'Duplex mode validation failed' }
+    }
     $command = @{version=1;camera_id=2;url_hash=('a' * 64);agent_instance=$generation;created_at=(Now);action='light';enabled=$true}
     function Assert-Command([bool]$valid) {
         $command | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $requestDirectory 'request.json') -Encoding UTF8

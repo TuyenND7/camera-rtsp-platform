@@ -5,7 +5,7 @@ import { config } from '../config';
 import { TalkError, TalkTrack } from './rtsp';
 
 type Camera = { id: number; rtsp_url: string };
-type Gateway = { version: number; instance: string; updated_at: number; authenticated: boolean; bindings: { id: number; url_hash: string; model: string }[] };
+type Gateway = { version: number; duplex_version?: number; instance: string; updated_at: number; authenticated: boolean; bindings: { id: number; url_hash: string; model: string }[] };
 const root = () => path.join(config.storageRoot, '.tenda-talk');
 const hash = (camera: Camera) => createHash('sha256').update(camera.rtsp_url).digest('hex');
 const track: TalkTrack = { control: 'tenda-sdk', codec: 'PCMA', payload: 8 };
@@ -51,6 +51,7 @@ export class TendaTalk {
   private closed = false;
   private ready = false;
   private instance = '';
+  private duplex = false;
   onClose?: () => void;
 
   constructor(private camera: Camera, private base = root()) {}
@@ -64,6 +65,7 @@ export class TendaTalk {
   }
 
   async describe(): Promise<TalkTrack> { this.gateway(); return track; }
+  enableDuplex() { this.duplex = this.gateway().duplex_version === 1; return this.duplex; }
 
   async open(): Promise<TalkTrack> {
     if (this.closed || this.directory) throw new TalkError(409, 'Kênh SDK đã đóng hoặc đang mở.');
@@ -83,7 +85,7 @@ export class TendaTalk {
       };
       heartbeat();
       if (this.closed) throw new TalkError(503, 'Kênh SDK Tenda vừa ngắt kết nối.');
-      fs.writeFileSync(path.join(directory, 'start.tmp'), JSON.stringify({ version: 1, camera_id: this.camera.id, url_hash: hash(this.camera), agent_instance: gateway.instance, created_at: Date.now() }), { mode: 0o600 });
+      fs.writeFileSync(path.join(directory, 'start.tmp'), JSON.stringify({ version: 1, camera_id: this.camera.id, url_hash: hash(this.camera), agent_instance: gateway.instance, created_at: Date.now(), duplex: this.duplex }), { mode: 0o600 });
       fs.renameSync(path.join(directory, 'start.tmp'), path.join(directory, 'start.json'));
       this.timer = setInterval(heartbeat, 250); this.timer.unref();
       const deadline = Date.now() + 9000;

@@ -161,7 +161,7 @@ public static partial class TendaNative
             handle = Function<Create>(media, "createLVLiveIntercom")(header);
             if (handle == IntPtr.Zero) throw new Exception("sdk_intercom_create_failed");
             Method<SetCallback>(handle, 7)(handle, Callbacks(8, OnEvent, true), IntPtr.Zero);
-            Method<SetInt>(handle, 8)(handle, 0); Method<SetInt>(handle, 9)(handle, -1);
+            Method<SetInt>(handle, 9)(handle, -1);
             Pcm callback = OnPcm; Destructor destroy = delegate(IntPtr self, uint flags) { return self; };
             keep.Add(callback); keep.Add(destroy);
             IntPtr vt = Zero(16); Marshal.WriteIntPtr(vt, Marshal.GetFunctionPointerForDelegate(destroy)); Marshal.WriteIntPtr(vt, 8, Marshal.GetFunctionPointerForDelegate(callback));
@@ -209,6 +209,8 @@ public static partial class TendaNative
         public void Open(TalkJob job)
         {
             lock (sync) { if (Job != null) throw new Exception("sdk_camera_busy"); Job = job; }
+            // Select the mode for every call: idle clients are reused.
+            Method<SetInt>(handle, 8)(handle, job.Duplex ? 1 : 0);
             if (Method<Start>(handle, 1)(handle, Str(iotId)) != 0) job.Failed = true;
         }
         public void Close()

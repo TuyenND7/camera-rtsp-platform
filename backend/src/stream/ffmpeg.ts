@@ -1,6 +1,7 @@
 import { spawn, ChildProcess, execFile } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { Readable } from 'stream';
 import { config } from '../config';
 
 export type CodecMode = 'auto' | 'h264' | 'h265';
@@ -37,51 +38,38 @@ export function resolvePaths(cameraId: number): FfmpegPaths {
 }
 
 /**
- * Dùng ffprobe phát hiện codec video của luồng RTSP.
- * Trả về 'h264' | 'h265' | null (không xác định được).
+ * Dùng ffprobe phát hiện codec video và kênh audio của luồng RTSP.
  */
-export function probeCodec(rtspUrl: string): Promise<'h264' | 'h265' | null> {
+export function probeMedia(rtspUrl: string): Promise<{ video: 'h264' | 'h265' | null; audio: boolean }> {
   return new Promise((resolve) => {
     const args = [
       '-v', 'error',
       '-rtsp_transport', 'tcp',
-      '-select_streams', 'v:0',
-      '-show_entries', 'stream=codec_name',
-      '-of', 'default=nokey=1:noprint_wrappers=1',
+      '-show_entries', 'stream=codec_type,codec_name',
+      '-of', 'json',
       rtspUrl,
     ];
     execFile('ffprobe', args, { timeout: 15000 }, (err, stdout) => {
       if (err) {
-        resolve(null);
+        resolve({ video: null, audio: false });
         return;
       }
-      const name = stdout.trim().toLowerCase();
-      if (name.includes('hevc') || name.includes('h265')) resolve('h265');
-      else if (name.includes('h264') || name.includes('avc')) resolve('h264');
-      else resolve(null);
+      try {
+        const streams = JSON.parse(stdout).streams as Array<{ codec_type: string; codec_name: string }>;
+        const name = streams.find(stream => stream.codec_type === 'video')?.codec_name?.toLowerCase() ?? '';
+        resolve({ video: /hevc|h265/.test(name) ? 'h265' : /h264|avc/.test(name) ? 'h264' : null, audio: streams.some(stream => stream.codec_type === 'audio') });
+      } catch { resolve({ video: null, audio: false }); }
     });
   });
 }
+export async function probeCodec(rtspUrl: string) { return (await probeMedia(rtspUrl)).video; }
 
-/**
- * Quyết định codec hiệu dụng cho live:
- * - codec='auto' -> probe (nếu probe fail thì mặc định coi là h264/copy).
- * - codec='h264'|'h265' -> dùng luôn, không probe.
- */
-async function resolveLiveCodec(
-  rtspUrl: string,
-  codec: CodecMode
-): Promise<'h264' | 'h265'> {
-  if (codec === 'h264' || codec === 'h265') return codec;
-  const probed = await probeCodec(rtspUrl);
-  return probed ?? 'h264';
-}
-
-function buildArgs(
+export function buildArgs(
   rtspUrl: string,
   record: boolean,
   paths: FfmpegPaths,
-  liveCodec: 'h264' | 'h265'
+  liveCodec: 'h264' | 'h265',
+  audio = false
 ): string[] {
   const args: string[] = [
     '-hide_banner',
@@ -178,6 +166,7 @@ function buildArgs(
     }
   }
 
+  if (audio) args.push('-map', '0:a:0', '-vn', '-ac', '1', '-ar', '8000', '-c:a', 'pcm_s16le', '-flush_packets', '1', '-f', 's16le', 'pipe:3');
   return args;
 }
 
@@ -190,6 +179,7 @@ export interface FfmpegHandle {
   proc: ChildProcess;
   paths: FfmpegPaths;
   liveCodec: 'h264' | 'h265';
+  hasAudio: boolean;
 }
 
 /**
@@ -201,25 +191,28 @@ export async function startFfmpeg(
   record: boolean,
   codec: CodecMode,
   onLog: (line: string) => void,
-  onExit: (code: number | null) => void
+  onExit: (code: number | null) => void,
+  onAudio?: (pcm: Buffer) => void
 ): Promise<FfmpegHandle> {
   const paths = resolvePaths(cameraId);
   fs.mkdirSync(paths.liveDir, { recursive: true });
   fs.mkdirSync(paths.recDir, { recursive: true });
   fs.mkdirSync(paths.playbackDir, { recursive: true });
 
-  const liveCodec = await resolveLiveCodec(rtspUrl, codec);
-  const args = buildArgs(rtspUrl, record, paths, liveCodec);
+  const media = await probeMedia(rtspUrl);
+  const liveCodec = codec === 'auto' ? media.video ?? 'h264' : codec;
+  const args = buildArgs(rtspUrl, record, paths, liveCodec, media.audio && !!onAudio);
   // Tên file recording (-strftime) luôn theo UTC để API đổi ra giờ chính xác;
   // thư mục ngày vẫn theo RECORD_TIMEZONE (tính ở buildArgs).
   const proc = spawn('ffmpeg', args, {
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
     env: { ...process.env, TZ: 'UTC' },
   });
 
   proc.stderr?.on('data', (d: Buffer) => onLog(d.toString().trim()));
   proc.stdout?.on('data', (d: Buffer) => onLog(d.toString().trim()));
+  (proc.stdio[3] as Readable).on('data', (d: Buffer) => onAudio?.(d));
   proc.on('exit', (code) => onExit(code));
 
-  return { proc, paths, liveCodec };
+  return { proc, paths, liveCodec, hasAudio: media.audio };
 }

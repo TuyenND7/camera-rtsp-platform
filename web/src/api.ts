@@ -19,7 +19,7 @@ export interface DeviceControls {
   confirmed?: boolean;
 }
 export interface TalkCapability { camera_id: number; supported: boolean; reason: string; codec?: string }
-export interface TalkSession { id: string; camera_ids: number[]; sample_rate: number; max_seconds: number }
+export interface TalkSession { id: string; camera_ids: number[]; listen_camera_ids?: number[]; sample_rate: number; max_seconds: number }
 export interface ServerSettings {
   public_base_url: string;
   storage_label: string;
@@ -242,9 +242,15 @@ export const api = {
     return handle<TalkCapability[]>(await fetch(`${API_BASE}/talk/capabilities`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ camera_ids: cameraIds }) }));
   },
   async startTalk(cameraIds: number[]) {
-    const result = await handle<TalkSession>(await fetch(`${API_BASE}/talk/sessions`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ camera_ids: cameraIds }) }));
+    const result = await handle<TalkSession>(await fetch(`${API_BASE}/talk/sessions`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ camera_ids: cameraIds, duplex: true }) }));
     talkTargets.set(result.id, [...cameraIds]);
     return result;
+  },
+  async listenTalk(id: string, cameraId: number, signal: AbortSignal) {
+    const response = await fetch(`${API_BASE}/talk/sessions/${encodeURIComponent(id)}/listen/${cameraId}`, { headers: authHeaders(), cache: 'no-store', signal });
+    if (!response.ok) await handle<never>(response);
+    if (response.headers.get('X-Audio-Format') !== 'pcm_s16le' || response.headers.get('X-Audio-Sample-Rate') !== '8000') throw new Error('Định dạng tiếng nghe chưa được hỗ trợ.');
+    return response;
   },
   async talkAudio(id: string, sequence: number, pcm: ArrayBuffer, signal: AbortSignal) {
     const targets = talkTargets.get(id);

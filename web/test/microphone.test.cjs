@@ -4,7 +4,7 @@ function fixture({resume=()=>Promise.resolve(),media}={}){
  const state={closed:0,stopped:0,requests:0,nodes:[]},stream={getTracks:()=>[{stop:()=>state.stopped++}]};
  class Context{constructor(){this.state='running';this.audioWorklet={addModule:async()=>{}};this.destination={}}resume(){return resume()}createMediaStreamSource(){return{connect:()=>{},disconnect:()=>{}}}close(){state.closed++;this.state='closed';return Promise.resolve()}}
  class Worklet{constructor(){this.port={onmessage:null,close:()=>{}};state.nodes.push(this)}connect(){}disconnect(){}}
- const exports={},context={exports,AudioContext:Context,AudioWorkletNode:Worklet,ArrayBuffer,DOMException,window:{isSecureContext:true},navigator:{mediaDevices:{getUserMedia:()=>{state.requests++;return media?media(stream):Promise.resolve(stream)}}}};
+ const exports={},context={exports,require:()=>({DuplexPlayback:class{async start(){}stop(){state.playbackStopped=true}}}),AudioContext:Context,AudioWorkletNode:Worklet,ArrayBuffer,DOMException,window:{isSecureContext:true},navigator:{mediaDevices:{getUserMedia:()=>{state.requests++;return media?media(stream):Promise.resolve(stream)}}}};
  vm.runInNewContext(script,context);return{state,stream,mic:new exports.Microphone()};
 }
 test('releasing before resume prevents a microphone permission request',async()=>{

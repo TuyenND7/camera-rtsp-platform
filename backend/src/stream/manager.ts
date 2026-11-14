@@ -2,6 +2,7 @@ import { pool } from '../db';
 import { startFfmpeg, FfmpegHandle, CodecMode } from './ffmpeg';
 import { config } from '../config';
 import { rediscoverCamera, rememberSerial } from '../discovery';
+import { liveAudio } from './audio';
 
 export interface CameraRow {
   id: number;
@@ -14,6 +15,7 @@ export interface CameraRow {
 }
 
 interface Worker {
+  audioGeneration: string;
   handle?: FfmpegHandle; // undefined trong lúc đang probe/spawn
   restartTimer?: NodeJS.Timeout;
   stopping: boolean;
@@ -89,7 +91,7 @@ class StreamManager {
     void this.setStatus(cam.id, 'connecting');
 
     // Đăng ký worker placeholder ngay để stop() có thể hủy trong lúc probe
-    const worker: Worker = { stopping: false, backoffMs, online: false };
+    const worker: Worker = { audioGeneration: liveAudio.begin(cam.id), stopping: false, backoffMs, online: false };
     this.workers.set(cam.id, worker);
 
     startFfmpeg(
@@ -100,7 +102,7 @@ class StreamManager {
       (line) => {
         // -progress ghi "frame=N" ra stdout khi FFmpeg đã nhận frame thật.
         // Chỉ UPDATE DB một lần mỗi lần spawn thay vì mỗi báo cáo tiến trình.
-        if (!worker.online && /(^|\n)frame=\d+/.test(line)) {
+        if (!worker.stopping && this.workers.get(cam.id) === worker && !worker.online && /(^|\n)frame=\d+/.test(line)) {
           worker.online = true;
           this.failures.delete(cam.id);
           void this.setStatus(cam.id, 'online', null);
@@ -110,7 +112,8 @@ class StreamManager {
           console.warn(`[cam ${cam.id}] ${line}`);
         }
       },
-      (code) => this.onExit(cam, code)
+      (code) => this.onExit(cam, code, worker),
+      pcm => liveAudio.push(cam.id, worker.audioGeneration, pcm)
     )
       .then((handle) => {
         // Nếu đã bị stop trong lúc probe => kill ngay
@@ -131,12 +134,14 @@ class StreamManager {
       })
       .catch((err) => {
         console.error(`[cam ${cam.id}] failed to start ffmpeg:`, err);
-        this.onExit(cam, -1);
+        this.onExit(cam, -1, worker);
       });
   }
 
-  private onExit(cam: CameraRow, code: number | null): void {
+  private onExit(cam: CameraRow, code: number | null, expected: Worker): void {
     const worker = this.workers.get(cam.id);
+    if (worker !== expected) return;
+    if (worker) liveAudio.end(cam.id, worker.audioGeneration);
     if (!worker || worker.stopping) {
       this.workers.delete(cam.id);
       return;
@@ -170,6 +175,7 @@ class StreamManager {
   stop(id: number): void {
     const worker = this.workers.get(id);
     if (!worker) return;
+    liveAudio.end(id, worker.audioGeneration);
     worker.stopping = true;
     if (worker.restartTimer) clearTimeout(worker.restartTimer);
     if (worker.handle) {

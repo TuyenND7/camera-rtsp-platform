@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Camera } from './api';
 import { CameraTalk, idleCameraTalk } from './cameraTalk';
+import { getCameraAudio } from './cameraAudio';
+import { useDevice } from './device';
 
 export default function useCameraTalk(cameras: Camera[], visible: Set<number>, blocked: boolean) {
   const session = useRef<CameraTalk | null>(null), targets = useRef<Camera[]>([]);
+  const { playbackVolume } = useDevice();
   const [state, setState] = useState(idleCameraTalk);
   const stop = useCallback(() => session.current?.stop(), []);
   useEffect(() => {
-    const current = new CameraTalk(setState); session.current = current;
+    const current = new CameraTalk(setState, id => getCameraAudio(id).listen / 100); session.current = current;
     const leave = () => current.stop();
     const visibility = () => { if (document.hidden) leave(); };
     window.addEventListener('blur', leave); window.addEventListener('pagehide', leave);
@@ -20,6 +23,7 @@ export default function useCameraTalk(cameras: Camera[], visible: Set<number>, b
       document.removeEventListener('visibilitychange', visibility);
     };
   }, []);
+  useEffect(() => { session.current?.setListenVolume(playbackVolume); }, [playbackVolume]);
   useEffect(() => {
     const current = session.current;
     if (!current || current.state.phase === 'idle') return;
@@ -45,5 +49,6 @@ export default function useCameraTalk(cameras: Camera[], visible: Set<number>, b
     if (current.state.phase !== 'idle') void current.stop();
     targets.current = chosen; void current.start(ids, prepare);
   }
-  return { ...state, blocked, toggle, toggleAll, stop };
+  const setListenGain = useCallback((id: number, gain: number) => session.current?.setListenGain(id, gain), []);
+  return { ...state, blocked, toggle, toggleAll, stop, setListenGain };
 }

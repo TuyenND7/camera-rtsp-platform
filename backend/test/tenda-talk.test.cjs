@@ -41,3 +41,4 @@ test('installing or restarting the SDK invalidates an old negative capability ca
  const base=path.join(storage,'.tenda-talk');let probes=0;const manager=new TalkManager(()=>({describe:async()=>{probes++;return null},open:async()=>{},close:()=>{},send:()=>{}}));
  try{await manager.probe(camera);await manager.probe(camera);assert.equal(probes,1);const g=gateway(base);assert.ok(tendaCacheKey(camera,base));await manager.probe(camera);assert.equal(probes,2);g.state.instance=randomUUID();g.publish();await manager.probe(camera);assert.equal(probes,3)}finally{manager.close()}
 });
+test('duplex mode is gated by native capability and defaults to one-way for old adapters',()=>{const base=directory(),g=gateway(base),old=new TendaTalk(camera,base);try{assert.equal(old.enableDuplex(),false);g.state.duplex_version=1;g.publish();assert.equal(new TendaTalk(camera,base).enableDuplex(),true)}finally{old.close()}});
