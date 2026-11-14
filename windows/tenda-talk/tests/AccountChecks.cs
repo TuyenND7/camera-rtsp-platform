@@ -21,6 +21,8 @@ public static class AccountChecks
         public int Codes;
         public int Checks, Logins;
         public bool RejectCheck;
+        public int CheckFailure = 100421;
+        public string FoundPhone;
         public string Mode = "ENCRYPT_PHONE", SeMode = "", Phone = "84987654321", Email = "canonical@example.com";
         public Dictionary<string, object> CheckBody;
         public Dictionary<string, object> Body;
@@ -30,7 +32,7 @@ public static class AccountChecks
             if (path == TendaAccountCloud.CheckPath)
             {
                 Checks++; CheckBody = body;
-                if (RejectCheck) return new Dictionary<string, object> { { "code", 100421 } };
+                if (RejectCheck || (FoundPhone != null && TendaAccountCloud.Text(body, "phone") != FoundPhone)) return new Dictionary<string, object> { { "code", CheckFailure } };
                 return new Dictionary<string, object> { { "code", 0 }, { "data", new Dictionary<string, object> { { "encrypt_mode", Mode }, { "se_encrypt_mode", SeMode }, { "phone", Phone }, { "email", Email }, { "country_code", "VN" }, { "phone_code", "+84" } } } };
             }
             if (path == TendaAccountCloud.CodePath) { Codes++; return new Dictionary<string, object> { { "code", 0 }, { "data", new Dictionary<string, object> { { "auth_code", "fixture-authorization-code" } } } }; }
@@ -53,6 +55,24 @@ public static class AccountChecks
         Check(TendaAccountCloud.Text(transport.CheckBody, "phone") == "0123456789" && !transport.CheckBody.ContainsKey("password"), "account preflight protocol");
         Check(TendaAccountCloud.Text(transport.Body, "password") == "6fb5684ba05970be4c5ac3ce4d17946c" && TendaAccountCloud.Text(transport.Body, "se_password") == "6fb5684ba05970be4c5ac3ce4d17946c" && transport.Codes == 1, "canonical phone password digest");
         Check(!TendaAccountCloud.Serializer().Serialize(transport.Body).Contains("fixture-password"), "plaintext password reached login endpoint");
+        transport.FoundPhone = "987654321";
+        foreach (string input in new string[] { "0987654321", "84987654321", "+84987654321", "+84 (0)98 765-4321" })
+        {
+            cloud.Login(original, input, "fixture-password", "fixture-server-terminal");
+            Check(TendaAccountCloud.Text(transport.Body, "phone") == "987654321", "Vietnam phone form did not reach canonical login");
+        }
+        int attempts = transport.Checks, existingLogins = transport.Logins;
+        transport.CheckFailure = 100422;
+        try { cloud.Login(original, "0987654321", "fixture-password", "fixture-server-terminal"); throw new Exception("provider error ignored"); }
+        catch (TendaAccountException error) { Check(error.ProviderCode == 100422, "provider failure changed"); }
+        Check(transport.Checks == attempts + 1 && transport.Logins == existingLogins, "identifier retried after a non-not-found failure");
+        transport.CheckFailure = 100421; transport.FoundPhone = "0987654321"; attempts = transport.Checks;
+        cloud.Login(original, "0987654321", "fixture-password", "fixture-server-terminal");
+        Check(transport.Checks == attempts + 1 && TendaAccountCloud.Text(transport.Body, "phone") == "0987654321", "legacy exact phone identifier was changed");
+        attempts = transport.Checks;
+        Rejected(delegate { cloud.Login(original, "+86987654321", "fixture-password", "fixture-server-terminal"); }, "account_phone_country");
+        Check(transport.Checks == attempts, "different country was looked up using the wrong country context");
+        transport.FoundPhone = null;
         transport.Mode = "ENCRYPT_EMAIL";
         cloud.Login(original, "0123456789", "fixture-password", "fixture-server-terminal");
         Check(TendaAccountCloud.Text(transport.Body, "password") == "1aa03f3b7f1ddacb234204361e9c7d10", "linked email password digest");
@@ -110,6 +130,6 @@ public static class AccountChecks
         bool rejected = false;
         try { type.GetMethod("AccountSave", flags).Invoke(null, new object[] { configPath, original, hash }); } catch { rejected = true; }
         Check(rejected, "stale config overwritten");
-        return "PASS: account preflight, canonical phone/email/legacy digests, UTF8 padding, rejected/unknown-mode stop, safe diagnostics, ownership, refresh, OAEP-SHA256 and DPAPI persistence";
+        return "PASS: phone 0/84/+84 formatting, exact legacy identifiers, bounded not-found fallback, account preflight and digests, UTF8, safe diagnostics, ownership, refresh, OAEP-SHA256 and DPAPI";
     }
 }

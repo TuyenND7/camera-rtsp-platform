@@ -152,6 +152,47 @@ public sealed class TendaAccountCloud
         if (value.Length == 0 || value.Length > 254) throw new TendaAccountException("account_response_invalid");
         return value;
     }
+    public static string NormalizeIdentifier(string account)
+    {
+        if (account == null || account.Length > 254) throw new TendaAccountException("account_request_invalid");
+        account = account.Trim();
+        if (account.Contains("@"))
+        {
+            if (!Regex.IsMatch(account, "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) throw new TendaAccountException("account_request_invalid");
+            return account;
+        }
+        account = Regex.Replace(account, "[\\s().-]", "");
+        if (!Regex.IsMatch(account, "^\\+?[0-9]{6,20}$")) throw new TendaAccountException("account_request_invalid");
+        return account;
+    }
+    public static List<string> IdentifierCandidates(string account, string phoneCode)
+    {
+        account = NormalizeIdentifier(account);
+        if (account.Contains("@")) return new List<string> { account };
+        string code = phoneCode.TrimStart('+');
+        var values = new List<string>();
+        if (account.StartsWith("+"))
+        {
+            if (code.Length == 0 || !account.StartsWith("+" + code)) throw new TendaAccountException("account_phone_country");
+            account = account.Substring(code.Length + 1);
+            if (code == "84" && account.Length == 10 && account.StartsWith("0")) account = account.Substring(1);
+            if (!Regex.IsMatch(account, "^[0-9]{6,15}$")) throw new TendaAccountException("account_request_invalid");
+            values.Add(account);
+            if (code == "84" && account.Length == 9) values.Add("0" + account);
+        }
+        else
+        {
+            // Keep an existing exact identifier working. Try the Vietnamese
+            // national form only after Tenda says the original does not exist.
+            values.Add(account);
+            if (code == "84")
+            {
+                if (account.Length == 10 && account.StartsWith("0")) values.Add(account.Substring(1));
+                else if (account.Length == 11 && account.StartsWith("84")) values.Add(account.Substring(2));
+            }
+        }
+        return values;
+    }
     Dictionary<string, object> Apply(Dictionary<string, object> original, Dictionary<string, object> candidate, Dictionary<string, object> data)
     {
         string token = Text(data, "access_token"); var previous = Claims(Text(original, "accessToken")); var claims = Claims(token);
@@ -168,14 +209,22 @@ public sealed class TendaAccountCloud
         var candidate = Serializer().Deserialize<Dictionary<string, object>>(Serializer().Serialize(original));
         var headers = (Dictionary<string, object>)candidate["cloudHeaders"]; headers["Terminal"] = terminal;
         var claims = Claims(Text(original, "accessToken")); string country = Text(claims, "country_code"), phoneCode = Text(claims, "phone_code");
-        var identifier = new Dictionary<string, object>(); identifier[account.Contains("@") ? "email" : "phone"] = account;
-        var checkedAccount = Request(candidate, "POST", CheckPath, identifier, "check");
+        if (country.Length == 0) country = "VN"; if (phoneCode.Length == 0) phoneCode = "+84";
+        var candidates = IdentifierCandidates(account, phoneCode);
+        Dictionary<string, object> checkedAccount = null; string loginAccount = candidates[0];
+        for (int n = 0; n < candidates.Count; n++)
+        {
+            loginAccount = candidates[n];
+            var identifier = new Dictionary<string, object>(); identifier[loginAccount.Contains("@") ? "email" : "phone"] = loginAccount;
+            try { checkedAccount = Request(candidate, "POST", CheckPath, identifier, "check"); break; }
+            catch (TendaAccountException error) { if (error.ProviderCode != 100421 || n + 1 == candidates.Count) throw; }
+        }
         string encodedPassword = PasswordDigest(PasswordAccount(checkedAccount), password);
         if (Text(checkedAccount, "country_code").Length > 0) country = Text(checkedAccount, "country_code");
         if (Text(checkedAccount, "phone_code").Length > 0) phoneCode = Text(checkedAccount, "phone_code");
         if (country.Length == 0) country = "VN"; if (phoneCode.Length == 0) phoneCode = "84"; if (!phoneCode.StartsWith("+")) phoneCode = "+" + phoneCode;
         var body = new Dictionary<string, object> { { "password", encodedPassword }, { "se_password", encodedPassword }, { "terminal", terminal }, { "push_token", "" }, { "language", "vi" }, { "timezone", "GMT+07:00" }, { "push_OS", "ali" }, { "terminal_os", "Android" }, { "source", Text(headers, "AppSource") }, { "country_code", country }, { "phone_code", phoneCode }, { "app_version", Text(headers, "AppVersion") }, { "phone_model", "Camera Station Windows" } };
-        body[account.Contains("@") ? "email" : "phone"] = account;
+        body[loginAccount.Contains("@") ? "email" : "phone"] = loginAccount;
         var data = Request(candidate, "POST", LoginPath, body, "login");
         var result = Apply(original, candidate, data); result["accountLabel"] = Mask(account); result["accountLoginAt"] = TalkAgent.Now;
         return result;

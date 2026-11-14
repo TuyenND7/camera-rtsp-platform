@@ -93,8 +93,7 @@ public static partial class TalkAgent
             {
                 var command = AccountRead(Path.Combine(directory, "command.json"));
                 if (Convert.ToInt32(command["version"]) != 1 || (string)command["instance"] != instance || (string)command["kind"] != "login" || Math.Abs(Now - Convert.ToInt64(command["created_at"])) > 30000 || !AccountAlive(directory)) throw new TendaAccountException("account_cancelled");
-                string account = TendaAccountCloud.Text(command, "account");
-                if (account.Length > 254 || !Regex.IsMatch(account, "^(?:[^\\s@]+@[^\\s@]+\\.[^\\s@]+|[0-9]{6,20})$")) throw new TendaAccountException("account_request_invalid");
+                string account = TendaAccountCloud.NormalizeIdentifier(TendaAccountCloud.Text(command, "account"));
                 string password = accountCrypto.Decrypt(TendaAccountCloud.Text(command, "kid"), TendaAccountCloud.Text(command, "password_ciphertext"));
                 File.Delete(Path.Combine(directory, "command.json"));
                 try { updated = cloud.Login(original, account, password, "2" + ((string)accountCrypto.PublicKey["kid"]).Substring(0, 32)); }

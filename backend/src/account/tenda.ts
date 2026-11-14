@@ -24,6 +24,7 @@ const messages: Record<string, string> = {
   account_network: 'Chưa kết nối được Tenda. Kiểm tra Internet của máy chủ.',
   account_configuration_changed: 'Cấu hình máy chủ vừa thay đổi. Hãy thử lại.',
   account_password_mode: 'Tài khoản dùng cách xác thực Tenda chưa được hỗ trợ.',
+  account_phone_country: 'Mã quốc gia của số điện thoại không khớp tài khoản camera đã liên kết trên máy chủ.',
 };
 const providerMessages: Record<number, string> = {
   100421: 'Tenda không tìm thấy tài khoản. Kiểm tra email hoặc số điện thoại đã đăng ký TDSEE.',
@@ -57,8 +58,9 @@ function directory(file: string) {
 }
 export function validateAccountInput(body: any): { account: string; password: string } {
   if (!body || typeof body.account !== 'string' || typeof body.password !== 'string') throw new AccountError(400, 'Nhập tài khoản và mật khẩu TDSEE.');
-  const account = body.account.trim(), password = body.password;
-  if (account.length > 254 || !/^(?:[^\s@]+@[^\s@]+\.[^\s@]+|[0-9]{6,20})$/.test(account)) throw new AccountError(400, 'Dùng email hoặc số điện thoại đã đăng ký TDSEE.');
+  const trimmed = body.account.trim(), password = body.password;
+  const account = trimmed.includes('@') ? trimmed : trimmed.replace(/[\s().-]/g, '');
+  if (trimmed.length > 254 || !/^(?:[^\s@]+@[^\s@]+\.[^\s@]+|\+?[0-9]{6,20})$/.test(account)) throw new AccountError(400, 'Dùng email hoặc số điện thoại đã đăng ký TDSEE.');
   if (Buffer.byteLength(password) < 1 || Buffer.byteLength(password) > 128 || password.includes('\0')) throw new AccountError(400, 'Mật khẩu cần từ 1 đến 128 byte.');
   return { account, password };
 }
@@ -122,7 +124,7 @@ export class TendaAccount {
       fs.writeFileSync(path.join(job, 'command.tmp'), JSON.stringify({ version: 1, kind: 'login', instance: gateway.instance, created_at: Date.now(), account: input.account, kid: jwk.kid, password_ciphertext: ciphertext }), { mode: 0o600, flag: 'wx' });
       fs.renameSync(path.join(job, 'command.tmp'), path.join(job, 'command.json'));
       let checkedAt = 0;
-      const deadline = Date.now() + 35000;
+      const deadline = Date.now() + 45000;
       while (Date.now() < deadline) {
         if (signal.aborted || !pulseValid) throw new AccountError(409, messages.account_cancelled);
         if (Date.now() - checkedAt >= 1000) {

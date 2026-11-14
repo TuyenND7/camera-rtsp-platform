@@ -18,7 +18,9 @@ function fixture() {
 async function job(f) { for (let n = 0; n < 100; n++) { const names = fs.readdirSync(path.join(f.base, 'account')); if (names.length) return path.join(f.base, 'account', names[0]); await delay(20); } throw Error('no command'); }
 test('validates TDSEE account and UTF-8 password limits', () => {
   assert.deepEqual(validateAccountInput({ account: ' 0123456789 ', password: 'a ' }), { account: '0123456789', password: 'a ' });
+  for(const [input,normalized] of [['+84 (0)98 765-4321','+840987654321'],['09 8765 4321','0987654321'],['84987654321','84987654321'],[' owner@example.com ','owner@example.com']]) assert.equal(validateAccountInput({account:input,password:'fixture'}).account,normalized);
   for (const body of [{}, { account: 'abc', password: 'x' }, { account: 'a@b.com', password: '' }, { account: 'a@b.com', password: 'ứ'.repeat(43) }, { account: 'a@b.com', password: '\0' }]) assert.throws(() => validateAccountInput(body));
+  for(const account of ['++84987654321','+84abc987654321','owner @example.com','9'.repeat(255)]) assert.throws(()=>validateAccountInput({account,password:'fixture'}));
 });
 test('vendor codes produce actionable messages without echoing raw provider text or credentials', () => {
   assert.match(accountFailureMessage({error:'account_rejected',provider_code:100422,msg:'fixture-secret'}), /mật khẩu.*Tenda 100422/);

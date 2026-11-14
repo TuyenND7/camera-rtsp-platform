@@ -26,7 +26,7 @@ function LoginDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     <form onSubmit={event => void submit(event)}>
       <header className="dialog-heading"><div><h2 id={id}>Đăng nhập Tenda</h2><p>Tài khoản TDSEE đang sở hữu camera</p></div><button type="button" className="icon-button" onClick={close} aria-label="Đóng đăng nhập Tenda"><Icon name="close" /></button></header>
       <div className="dialog-body">
-        <label>Email hoặc số điện thoại<input autoFocus autoComplete="username" name="tenda-account" value={account} onChange={event => setAccount(event.target.value)} maxLength={254} disabled={busy} required /></label>
+        <label>Email hoặc số điện thoại<input autoFocus autoComplete="username" name="tenda-account" value={account} onChange={event => setAccount(event.target.value)} placeholder="Email, 09… hoặc +84…" maxLength={254} disabled={busy} required /></label>
         <label>Mật khẩu<div className="tenda-password"><input type={show ? 'text' : 'password'} autoComplete="current-password" name="tenda-password" value={password} onChange={event => setPassword(event.target.value)} maxLength={128} disabled={busy} required /><button type="button" onClick={() => setShow(value => !value)} aria-pressed={show}>{show ? 'Ẩn' : 'Hiện'}</button></div></label>
         <p className="muted">Lưu phiên mã hóa trên máy chủ. Không lưu mật khẩu.</p>
         {error && <div className="notice error" role="alert">{error}</div>}
