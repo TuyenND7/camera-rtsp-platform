@@ -7,17 +7,32 @@ export function talkGains(value: unknown, cameraIds: number[]): Record<number, n
   return Object.fromEntries(entries);
 }
 
-/** Boost quiet speech, keep raw VAD upstream, and limit peaks without Int16 wrap. */
-export function amplifyPcm(frame: Buffer, gain: number): Buffer {
-  if (!Number.isFinite(gain) || gain < 0 || gain > 4) throw new TalkError(400, 'Mức giọng nói không hợp lệ.');
-  if (gain === 1) return frame;
-  const result = Buffer.alloc(frame.length);
-  if (gain === 0) return result;
-  for (let i = 0; i < frame.length; i += 2) {
-    const sample = frame.readInt16LE(i), scale = sample < 0 ? 32768 : 32767;
-    const boosted = sample / scale * gain, peak = Math.abs(boosted);
-    const limited = gain <= 1 || peak <= 0.8 ? boosted : Math.sign(boosted) * (0.8 + 0.2 * Math.tanh((peak - 0.8) / 0.2));
-    result.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(limited * scale))), i);
+/** One limiter per camera/call. A 5 ms lookahead reduces gain ahead of peaks,
+ * rather than bending individual samples and adding audible harmonics. Quiet
+ * speech retains the requested boost; gain recovers smoothly over about 80 ms.
+ * VAD still receives the original microphone PCM in the browser. */
+export class PcmAmplifier {
+  private delay = new Float64Array(40);
+  private cursor = 0;
+  private envelope = 1;
+  private readonly release = 1 - Math.exp(-1 / (8000 * 0.08));
+
+  process(frame: Buffer, gain: number): Buffer {
+    if (!Number.isFinite(gain) || gain < 0 || gain > 4 || frame.length % 2) throw new TalkError(400, 'Mức giọng nói hoặc PCM không hợp lệ.');
+    const result = Buffer.alloc(frame.length);
+    if (gain === 0) { this.delay.fill(0); this.cursor = 0; this.envelope = 1; return result; }
+    for (let i = 0; i < frame.length; i += 2) {
+      const sample = this.delay[this.cursor];
+      this.delay[this.cursor] = frame.readInt16LE(i) / 32768 * gain;
+      this.cursor = (this.cursor + 1) % this.delay.length;
+      let peak = Math.abs(sample);
+      for (const upcoming of this.delay) peak = Math.max(peak, Math.abs(upcoming));
+      const target = peak > 0.82 ? 0.82 / peak : 1;
+      this.envelope += (target - this.envelope) * (target < this.envelope ? 0.25 : this.release);
+      // Reserve extra headroom for isolated transients and the camera's encoder.
+      const output = Math.max(-0.9, Math.min(0.9, sample * this.envelope));
+      result.writeInt16LE(Math.round(output * 32768), i);
+    }
+    return result;
   }
-  return result;
 }

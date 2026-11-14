@@ -84,7 +84,7 @@ test('jittered server ticks keep up with a real-time microphone without growing 
  }finally{manager.close()}
 });
 test('a burst after network jitter retains recent speech within the buffer limit and keeps the call usable',async()=>{
- let time=0;const received=[],manager=new TalkManager(()=>({open:async()=>({codec:'PCMA'}),describe:async()=>null,send:pcm=>received.push(pcm.readInt16LE(0)),close:()=>{}}),()=>time);
+ let time=0;const received=[],manager=new TalkManager(()=>({open:async()=>({codec:'PCMA'}),describe:async()=>null,send:pcm=>received.push(pcm.readInt16LE(318)),close:()=>{}}),()=>time);
  try{const call=await manager.start('owner',[{id:1,rtsp_url:'rtsp://fixture'}],async()=>true);clearInterval(manager.timer);
  const block=value=>{const b=Buffer.alloc(6400);for(let i=0;i<b.length;i+=2)b.writeInt16LE(value,i);return b};manager.push(call.id,'owner',0,block(100));manager.push(call.id,'owner',1,block(200));
  for(let tick=0;tick<25;tick++){time+=20;manager.tick()}assert.deepEqual(received,[...Array(5).fill(100),...Array(20).fill(200)]);

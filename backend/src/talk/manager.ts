@@ -1,7 +1,7 @@
 import { randomUUID, createHash } from 'crypto';
 import { RtspTalk, TalkError } from './rtsp';
 import { TendaTalk, tendaGateway, tendaCacheKey } from './tenda';
-import { amplifyPcm, talkGains } from './volume';
+import { PcmAmplifier, talkGains } from './volume';
 
 export type TalkCamera = { id: number; rtsp_url: string };
 export type TalkCapability = { camera_id: number; supported: boolean; reason: string; codec?: string };
@@ -9,7 +9,7 @@ type Transport = Pick<RtspTalk, 'open' | 'describe' | 'send' | 'close' | 'onClos
 type Call = {
   id: string; owner: string; cameras: TalkCamera[]; clients: Transport[]; queue: Buffer[];
   created: number; lastAudio: number; lastValidation: number; sequence: number; ready: boolean; checking: boolean;
-  nextAudio: number; gains: number[];
+  nextAudio: number; gains: number[]; amplifiers: PcmAmplifier[];
   validate: () => Promise<boolean>;
 };
 
@@ -55,7 +55,7 @@ export class TalkManager {
     if (cameras.some(c => this.locks.has(c.id))) throw new TalkError(409, 'Một camera đang được sử dụng trong cuộc đàm thoại khác.');
     if (!cameras.length || cameras.length > 16 || new Set(cameras.map(c => c.id)).size !== cameras.length) throw new TalkError(400, 'Chọn từ 1 đến 16 camera khác nhau.');
     const id = randomUUID(), time = this.now();
-    const call: Call = { id, owner, cameras, clients: [], queue: [], gains: cameras.map(() => 1), created: time, lastAudio: time, lastValidation: time, nextAudio: time + 20, sequence: -1, ready: false, checking: false, validate };
+    const call: Call = { id, owner, cameras, clients: [], queue: [], gains: cameras.map(() => 1), amplifiers: cameras.map(() => new PcmAmplifier()), created: time, lastAudio: time, lastValidation: time, nextAudio: time + 20, sequence: -1, ready: false, checking: false, validate };
     this.calls.set(id, call); cameras.forEach(c => this.locks.set(c.id, id));
     try {
       // Assign every client before opening, so partial failures can close all sockets.
@@ -108,11 +108,10 @@ export class TalkManager {
       // when shared-storage IO delays a tick, without stretching every packet.
       try {
         for (let sent = 0; sent < 5 && time >= call.nextAudio; sent++, call.nextAudio += 20) {
-          const frame = call.queue.shift() ?? this.silence, adjusted = new Map<number, Buffer>();
+          const frame = call.queue.shift() ?? this.silence;
           call.clients.forEach((client, index) => {
             const gain = call.gains[index];
-            if (!adjusted.has(gain)) adjusted.set(gain, amplifyPcm(frame, gain));
-            client.send(adjusted.get(gain)!);
+            client.send(call.amplifiers[index].process(frame, gain));
           });
         }
       }
