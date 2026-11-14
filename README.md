@@ -175,13 +175,23 @@ Nginx tự đánh dấu đúng HTTPS cho backend trên upstream loopback; cookie
 
 ### Tương thích đàm thoại và giới hạn hiện tại
 
-- Backend xác thực RTSP với tài khoản camera, kiểm tra SDP có audio **recvonly** rõ ràng dành cho loa, rồi mở SETUP/PLAY qua TCP và gửi RTP G.711. Luồng audio đầu vào thông thường không được coi là kênh loa. Không gửi URL/mật khẩu camera trong API đàm thoại.
+- Backend xác thực RTSP với tài khoản camera và gửi `Require: www.onvif.org/ver20/backchannel`. Theo ONVIF Streaming 5.3.2, hướng SDP tính từ phía client: audio **sendonly** là đường client gửi tới camera, **recvonly** là đường camera gửi về client. Chỉ chọn backchannel được khai báo rõ, rồi mở SETUP/PLAY qua TCP và gửi RTP G.711. Không suy đoán track micro thông thường thành đường loa và không gửi URL/mật khẩu camera trong API đàm thoại.
 - Chọn tối đa 16 camera; một camera chỉ nhận một cuộc đàm thoại cùng lúc. Âm thanh được phát theo frame 20 ms; hàng đợi giới hạn 500 ms; khi gói bị dồn do mạng chập chờn, bỏ frame cũ để ưu tiên giọng nói hiện tại, không đưa mic vào kho recording; recording vẫn giữ audio do camera gửi về. Adapter Windows dùng gói PCM tạm trong thư mục IPC riêng và tự xóa sau cuộc gọi. Khi nhả nút, rời trang, ẩn app, mất mạng, thay cấu hình, đăng xuất hoặc hết 60 giây, phiên và hàng đợi bị đóng. Nếu trình duyệt mất kết nối đột ngột, máy chủ tự đóng khi không có audio trong 1,5 giây.
 - Các endpoint mic yêu cầu phiên admin và CSRF như phần cấu hình. Máy chủ xác minh lại quyền/cấu hình camera trong cuộc gọi. Live tạm tắt tiếng các ô trong lúc gửi giọng nói để hạn chế vọng, rồi khôi phục lựa chọn nghe trước đó.
-- **Tenda CT3V1.0/RH7V2.0 có adapter SDK riêng trên Windows:** xem [cài đặt và vận hành SDK Tenda](windows/tenda-talk/README.md). Các firmware đang dùng không cung cấp RTSP backchannel hoạt động; adapter dùng thư viện LinkVisual của TDSEE và tài khoản chủ thiết bị. Ngày 13/11/2026 đã phát âm thử qua SDK tới CT3 ngoài sân và người dùng xác nhận nghe tiếng bíp. Chỉ bật adapter cho camera đã liên kết đúng ID và cấu hình; ONVIF có audio output không tự được coi là hỗ trợ đàm thoại.
+- **Tenda CT3V1.0/RH7V2.0 có adapter SDK riêng trên Windows:** xem [cài đặt và vận hành SDK Tenda](windows/tenda-talk/README.md). Với các firmware hiện tại, những lượt thử ONVIF/RTSP local chưa phát được tiếng tại loa; kết quả và giới hạn được ghi trong [báo cáo kiểm tra ONVIF](docs/onvif-talk-checks.md). Đường đang dùng vẫn là thư viện LinkVisual của TDSEE và tài khoản chủ thiết bị. Ngày 13/11/2026 đã phát âm thử qua SDK tới CT3 ngoài sân và người dùng xác nhận nghe tiếng bíp. Chỉ bật adapter cho camera đã liên kết đúng ID và cấu hình; ONVIF có audio output không tự được coi là hỗ trợ đàm thoại.
 - Bản Windows đã triển khai ngày 13/11/2026: mic thật trên Lenovo qua HTTPS/Tailscale truyền tới hai CT3 đồng thời trong hai phiên liên tiếp hơn 20 giây, nhả tay đóng kênh; gọi riêng cũng đã kiểm tra. RH7 hiện đang tắt nên chưa kiểm tra lại trong lần này. Xem kết quả và giới hạn xác nhận loa trong README của adapter.
 - Trong popup mic, từng camera đang truyền hiển thị **Đang gửi tiếng** kèm **chưa xác nhận loa đã phát**; chỉ gắn trạng thái gửi cho đúng các camera trong phiên đang hoạt động. Muốn xác nhận âm thanh thực tế cần nghe tại camera hoặc có phản hồi từ thiết bị.
 - Luồng G.711/RTSP, IPC SDK, broadcast, ngắt mic và giới hạn quyền có kiểm thử riêng. Kiểm thử giao thức không thay thế việc nghe thử tại loa thật; sự kiện SDK sẵn sàng cũng không phải xác nhận âm thanh đã phát ra ngoài.
+
+Kiểm tra ONVIF/RTSP riêng, không dùng SDK và không phát tiếng, từ PowerShell ở thư mục project trên Windows:
+
+```powershell
+Get-Content -Raw .\backend\scripts\probe-onvif-talk.cjs | docker compose exec -T backend node -
+# Chỉ kiểm tra camera ID 2:
+Get-Content -Raw .\backend\scripts\probe-onvif-talk.cjs | docker compose exec -T backend node - 2
+```
+
+Script chỉ đọc cấu hình và DESCRIBE, không tạo/sửa profile, không mở kênh loa hoặc gọi SDK. Báo cáo JSON loại bỏ URL, mật khẩu, serial và phản hồi SOAP/SDP thô. Chạy local từ thư mục `backend` bằng `node scripts/probe-onvif-talk.cjs` sau khi build và cấu hình DB phù hợp.
 
 Build và chạy kiểm thử backend từ thư mục project:
 

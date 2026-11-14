@@ -9,15 +9,16 @@ export class TalkError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
-/** Only explicit camera receive tracks are safe to use as a loudspeaker.
- * A normal microphone track with no direction attribute is NOT a backchannel. */
+/** ONVIF Streaming 5.3.2 defines SDP direction from the client's perspective:
+ * sendonly is client -> camera; recvonly is the camera microphone -> client.
+ * A track without an explicit direction is not a confirmed backchannel. */
 export function talkTrack(sdp: string): TalkTrack | null {
   const parts = sdp.split(/(?:^|\r?\n)m=/);
   const sessionDirection = parts[0].match(/(?:^|\n)a=(recvonly|sendonly|sendrecv|inactive)\s*(?:\r?\n|$)/)?.[1];
   for (const part of parts.slice(1)) {
     if (!part.startsWith('audio ')) continue;
     const direction = part.match(/(?:^|\n)a=(recvonly|sendonly|sendrecv|inactive)\s*(?:\r?\n|$)/)?.[1] ?? sessionDirection;
-    if (direction !== 'recvonly') continue;
+    if (direction !== 'sendonly') continue;
     const control = part.match(/(?:^|\n)a=control:([^\r\n]+)/)?.[1]?.trim();
     if (!control || control === '*') continue;
     const payloads = part.split(/\r?\n/)[0].trim().split(/\s+/).slice(3);
@@ -143,6 +144,7 @@ export class RtspTalk {
       this.challenge = reply.headers['www-authenticate']; this.nonceCount = 0;
       return this.request(method, uri, extra, false);
     }
+    if (reply.code === 551) throw new TalkError(422, 'Camera không hỗ trợ kênh nhận giọng nói ONVIF/RTSP (RTSP 551).');
     if (reply.code !== 200) throw new TalkError(reply.code === 401 ? 422 : 502, reply.code === 401 ? 'Tài khoản camera không được phép đàm thoại.' : 'Camera từ chối mở kênh đàm thoại.');
     return reply;
   }
