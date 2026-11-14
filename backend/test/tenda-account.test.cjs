@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const { generateKeyPairSync, createHash, privateDecrypt, constants, randomUUID } = require('node:crypto');
-const { TendaAccount, validateAccountInput } = require('../dist/account/tenda');
+const { TendaAccount, validateAccountInput, accountFailureMessage } = require('../dist/account/tenda');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 function fixture() {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'camera-account-'));
@@ -19,6 +19,12 @@ async function job(f) { for (let n = 0; n < 100; n++) { const names = fs.readdir
 test('validates TDSEE account and UTF-8 password limits', () => {
   assert.deepEqual(validateAccountInput({ account: ' 0123456789 ', password: 'a ' }), { account: '0123456789', password: 'a ' });
   for (const body of [{}, { account: 'abc', password: 'x' }, { account: 'a@b.com', password: '' }, { account: 'a@b.com', password: 'ứ'.repeat(43) }, { account: 'a@b.com', password: '\0' }]) assert.throws(() => validateAccountInput(body));
+});
+test('vendor codes produce actionable messages without echoing raw provider text or credentials', () => {
+  assert.match(accountFailureMessage({error:'account_rejected',provider_code:100422,msg:'fixture-secret'}), /mật khẩu.*Tenda 100422/);
+  assert.match(accountFailureMessage({error:'account_rejected',provider_code:100421}), /không tìm thấy tài khoản/);
+  assert.match(accountFailureMessage({error:'account_rejected',provider_code:100464}), /xác minh thiết bị/);
+  for(const code of ['100422', '<script>', null, 1e15]) assert(!accountFailureMessage({error:'__proto__',provider_code:code,msg:'fixture-secret'}).includes('fixture-secret'));
 });
 test('status is a strict whitelist; expired or mismatched generations fail closed', () => {
   const f = fixture(); try {
@@ -62,7 +68,7 @@ test('cancelled requests stop IPC; provider credential rejection is 422, never w
     let directory = await job(f); controller.abort(); await assert.rejects(pending); assert(fs.existsSync(path.join(directory, 'stop')));
     fs.rmSync(directory, { recursive: true });
     pending = f.adapter.login({ account: 'a@example.com', password: 'secret' }, new AbortController().signal, async () => true);
-    directory = await job(f); fs.writeFileSync(path.join(directory, 'result.json'), JSON.stringify({ ok: false, error: 'account_rejected', raw: 'secret' }));
-    await assert.rejects(pending, error => error.status === 422 && !error.message.includes('secret'));
+    directory = await job(f); fs.writeFileSync(path.join(directory, 'result.json'), JSON.stringify({ ok: false, error: 'account_rejected', provider_code:100422, raw: 'secret' }));
+    await assert.rejects(pending, error => error.status === 422 && error.message.includes('Tenda 100422') && !error.message.includes('secret'));
   } finally { f.close(); }
 });

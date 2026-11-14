@@ -11,6 +11,7 @@ public sealed class TendaAccountException : Exception
 {
     public readonly string Code;
     public readonly int ProviderCode;
+    public string Stage;
     public TendaAccountException(string code, int providerCode = 0) : base(code) { Code = code; ProviderCode = providerCode; }
 }
 
@@ -21,11 +22,21 @@ public interface ITendaAccountTransport
 
 public sealed class TendaAccountHttp : ITendaAccountTransport
 {
+    static Dictionary<string, object> ReadResponse(HttpWebResponse response)
+    {
+        using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8))
+        {
+            var buffer = new char[65537]; int size = 0, count;
+            while (size < buffer.Length && (count = reader.Read(buffer, size, buffer.Length - size)) > 0) size += count;
+            if (size >= buffer.Length) throw new TendaAccountException("account_response_invalid");
+            return TendaAccountCloud.Serializer().Deserialize<Dictionary<string, object>>(new string(buffer, 0, size));
+        }
+    }
     public Dictionary<string, object> Send(Dictionary<string, object> config, string method, string path, Dictionary<string, object> body)
     {
         string region = TendaAccountCloud.Text(config, "region");
         if (!new List<string> { "sa", "cn", "eu", "us" }.Contains(region)) throw new TendaAccountException("account_configuration");
-        if (path != TendaAccountCloud.LoginPath && path != TendaAccountCloud.RefreshPath && path != TendaAccountCloud.CodePath) throw new TendaAccountException("account_configuration");
+        if (path != TendaAccountCloud.CheckPath && path != TendaAccountCloud.LoginPath && path != TendaAccountCloud.RefreshPath && path != TendaAccountCloud.CodePath) throw new TendaAccountException("account_configuration");
         var headers = config["cloudHeaders"] as Dictionary<string, object>;
         if (headers == null) throw new TendaAccountException("account_configuration");
         var request = (HttpWebRequest)WebRequest.Create("https://" + region + "-cloud.tenda.com.cn" + path);
@@ -36,7 +47,9 @@ public sealed class TendaAccountHttp : ITendaAccountTransport
         string stamp = (TalkAgent.Now / 1000 - 10).ToString(); request.Headers["Timestamp"] = stamp;
         using (var md5 = MD5.Create()) request.Headers["Sig"] = BitConverter.ToString(md5.ComputeHash(Encoding.UTF8.GetBytes(TendaAccountCloud.Text(headers, "Terminal") + stamp + TendaAccountCloud.Text(config, "cloudSignatureSalt")))).Replace("-", "").ToLowerInvariant();
         string token = TendaAccountCloud.Text(config, "accessToken");
-        if (!string.IsNullOrEmpty(token)) request.Headers["Authorization"] = "Bearer " + token;
+        // A fresh sign-in must not carry the previous (possibly expired) session
+        // or a token bound to another terminal. Auth-code and refresh need it.
+        if ((path == TendaAccountCloud.CodePath || path == TendaAccountCloud.RefreshPath) && !string.IsNullOrEmpty(token)) request.Headers["Authorization"] = "Bearer " + token;
         try
         {
             if (body != null)
@@ -46,22 +59,18 @@ public sealed class TendaAccountHttp : ITendaAccountTransport
                 finally { Array.Clear(bytes, 0, bytes.Length); }
             }
             using (var response = (HttpWebResponse)request.GetResponse())
-            using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8))
-            {
-                var buffer = new char[65537]; int size = 0, count;
-                while (size < buffer.Length && (count = reader.Read(buffer, size, buffer.Length - size)) > 0) size += count;
-                if (size >= buffer.Length) throw new TendaAccountException("account_response_invalid");
-                return TendaAccountCloud.Serializer().Deserialize<Dictionary<string, object>>(new string(buffer, 0, size));
-            }
+                return ReadResponse(response);
         }
         catch (WebException error)
         {
             var response = error.Response as HttpWebResponse;
             if (response != null)
             {
-                int code = (int)response.StatusCode; response.Dispose();
-                if (code == 401 || code == 403) throw new TendaAccountException("account_rejected");
+                int code = (int)response.StatusCode, provider = 0;
+                try { var data = ReadResponse(response); if (data != null && data.ContainsKey("code")) provider = Convert.ToInt32(data["code"]); } catch {} finally { response.Dispose(); }
                 if (code == 429) throw new TendaAccountException("account_rate_limited");
+                if (code >= 400 && code < 500 && provider > 0) throw new TendaAccountException("account_rejected", provider);
+                if (code == 401 || code == 403) throw new TendaAccountException("account_rejected");
             }
             throw new TendaAccountException("account_network");
         }
@@ -70,6 +79,7 @@ public sealed class TendaAccountHttp : ITendaAccountTransport
 
 public sealed class TendaAccountCloud
 {
+    public const string CheckPath = "/td/td-user-api/internal/index/login/check/v2";
     public const string LoginPath = "/td/td-user-api/internal/login/password/v2";
     public const string RefreshPath = "/td/td-user-api/internal/index/refresh/v2";
     public const string CodePath = "/td/td-user-api/internal/user/get/authCode/v1";
@@ -101,12 +111,46 @@ public sealed class TendaAccountCloud
         object data; if (!response.TryGetValue("data", out data) || !(data is Dictionary<string, object>)) throw new TendaAccountException("account_response_invalid");
         return (Dictionary<string, object>)data;
     }
+    Dictionary<string, object> Request(Dictionary<string, object> config, string method, string path, Dictionary<string, object> body, string stage)
+    {
+        try { return Data(transport.Send(config, method, path, body)); }
+        catch (TendaAccountException error) { error.Stage = stage; throw; }
+    }
     public string AuthorizationCode(Dictionary<string, object> config)
     {
-        var data = Data(transport.Send(config, "GET", CodePath, null)); string code = Text(data, "auth_code");
+        var data = Request(config, "GET", CodePath, null, "authorization"); string code = Text(data, "auth_code");
         if (code.Length == 0 && data.ContainsKey("security_user")) code = Text(data["security_user"] as Dictionary<string, object>, "auth_code");
         if (code.Length == 0 || code.Length > 4096) throw new TendaAccountException("account_response_invalid");
         return code;
+    }
+    // TDSEE Utils.encryptAccountPassword: zero-pad UTF-8 password to a multiple
+    // of four, append SHA1(canonical account), then MD5 the bytes five times.
+    // The canonical account comes from login/check; it can differ from the
+    // identifier typed by a user who linked both a phone and an email.
+    public static string PasswordDigest(string account, string password)
+    {
+        byte[] secret = Encoding.UTF8.GetBytes(password), salt = null, digest = null;
+        try
+        {
+            using (var sha = SHA1.Create()) salt = sha.ComputeHash(Encoding.UTF8.GetBytes(account));
+            int length = (secret.Length + 3) / 4 * 4;
+            digest = new byte[length + salt.Length]; Array.Copy(secret, digest, secret.Length); Array.Copy(salt, 0, digest, length, salt.Length);
+            using (var md5 = MD5.Create())
+            {
+                for (int n = 0; n < 5; n++) { byte[] previous = digest; digest = md5.ComputeHash(previous); Array.Clear(previous, 0, previous.Length); }
+            }
+            return BitConverter.ToString(digest).Replace("-", "").ToLowerInvariant();
+        }
+        finally { Array.Clear(secret, 0, secret.Length); if (salt != null) Array.Clear(salt, 0, salt.Length); if (digest != null) Array.Clear(digest, 0, digest.Length); }
+    }
+    static string PasswordAccount(Dictionary<string, object> data)
+    {
+        string mode = Text(data, "encrypt_mode"); if (mode.Length == 0) mode = Text(data, "se_encrypt_mode");
+        if (mode.Length > 0 && mode != "ENCRYPT_PHONE" && mode != "ENCRYPT_EMAIL") throw new TendaAccountException("account_password_mode");
+        string value = mode == "ENCRYPT_EMAIL" ? Text(data, "email") : Text(data, "phone");
+        if (mode.Length == 0 && value.Length == 0) value = Text(data, "email");
+        if (value.Length == 0 || value.Length > 254) throw new TendaAccountException("account_response_invalid");
+        return value;
     }
     Dictionary<string, object> Apply(Dictionary<string, object> original, Dictionary<string, object> candidate, Dictionary<string, object> data)
     {
@@ -124,10 +168,15 @@ public sealed class TendaAccountCloud
         var candidate = Serializer().Deserialize<Dictionary<string, object>>(Serializer().Serialize(original));
         var headers = (Dictionary<string, object>)candidate["cloudHeaders"]; headers["Terminal"] = terminal;
         var claims = Claims(Text(original, "accessToken")); string country = Text(claims, "country_code"), phoneCode = Text(claims, "phone_code");
+        var identifier = new Dictionary<string, object>(); identifier[account.Contains("@") ? "email" : "phone"] = account;
+        var checkedAccount = Request(candidate, "POST", CheckPath, identifier, "check");
+        string encodedPassword = PasswordDigest(PasswordAccount(checkedAccount), password);
+        if (Text(checkedAccount, "country_code").Length > 0) country = Text(checkedAccount, "country_code");
+        if (Text(checkedAccount, "phone_code").Length > 0) phoneCode = Text(checkedAccount, "phone_code");
         if (country.Length == 0) country = "VN"; if (phoneCode.Length == 0) phoneCode = "84"; if (!phoneCode.StartsWith("+")) phoneCode = "+" + phoneCode;
-        var body = new Dictionary<string, object> { { "password", password }, { "se_password", password }, { "terminal", terminal }, { "push_token", "" }, { "language", "vi" }, { "timezone", "GMT+07:00" }, { "push_OS", "ali" }, { "terminal_os", "Android" }, { "source", Text(headers, "AppSource") }, { "country_code", country }, { "phone_code", phoneCode }, { "app_version", Text(headers, "AppVersion") }, { "phone_model", "Camera Station Windows" } };
+        var body = new Dictionary<string, object> { { "password", encodedPassword }, { "se_password", encodedPassword }, { "terminal", terminal }, { "push_token", "" }, { "language", "vi" }, { "timezone", "GMT+07:00" }, { "push_OS", "ali" }, { "terminal_os", "Android" }, { "source", Text(headers, "AppSource") }, { "country_code", country }, { "phone_code", phoneCode }, { "app_version", Text(headers, "AppVersion") }, { "phone_model", "Camera Station Windows" } };
         body[account.Contains("@") ? "email" : "phone"] = account;
-        var data = Data(transport.Send(candidate, "POST", LoginPath, body));
+        var data = Request(candidate, "POST", LoginPath, body, "login");
         var result = Apply(original, candidate, data); result["accountLabel"] = Mask(account); result["accountLoginAt"] = TalkAgent.Now;
         return result;
     }
@@ -136,7 +185,7 @@ public sealed class TendaAccountCloud
         var candidate = Serializer().Deserialize<Dictionary<string, object>>(Serializer().Serialize(original));
         var headers = (Dictionary<string, object>)original["cloudHeaders"];
         var body = new Dictionary<string, object> { { "access_token", Text(original, "accessToken") }, { "terminal", Text(headers, "Terminal") } };
-        return Apply(original, candidate, Data(transport.Send(candidate, "POST", RefreshPath, body)));
+        return Apply(original, candidate, Request(candidate, "POST", RefreshPath, body, "refresh"));
     }
     public static string Mask(string account)
     {

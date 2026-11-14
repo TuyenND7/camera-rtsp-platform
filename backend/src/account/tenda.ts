@@ -23,7 +23,26 @@ const messages: Record<string, string> = {
   account_rate_limited: 'Đã thử quá nhanh. Chờ một phút rồi thử lại.',
   account_network: 'Chưa kết nối được Tenda. Kiểm tra Internet của máy chủ.',
   account_configuration_changed: 'Cấu hình máy chủ vừa thay đổi. Hãy thử lại.',
+  account_password_mode: 'Tài khoản dùng cách xác thực Tenda chưa được hỗ trợ.',
 };
+const providerMessages: Record<number, string> = {
+  100421: 'Tenda không tìm thấy tài khoản. Kiểm tra email hoặc số điện thoại đã đăng ký TDSEE.',
+  100422: 'Tenda báo mật khẩu chưa đúng. Dùng mật khẩu đăng nhập TDSEE.',
+  100464: 'Tenda yêu cầu xác minh thiết bị đăng nhập mới.',
+  100449: 'Tenda yêu cầu xác nhận vùng đăng ký của tài khoản.',
+  105009: 'Vùng đăng ký tài khoản Tenda không khớp.',
+  100453: 'Tài khoản Tenda chưa có vùng đăng ký hợp lệ.',
+  105010: 'Thông tin ứng dụng Tenda trên máy chủ không khớp tài khoản.',
+  100012: 'Tenda từ chối thông tin xác thực ứng dụng trên máy chủ.',
+  100410: 'Phiên Tenda đã hết hạn. Hãy đăng nhập lại.',
+};
+export function accountFailureMessage(value: any): string {
+  const code = value?.provider_code;
+  const valid = Number.isSafeInteger(code) && code >= 100000 && code <= 999999;
+  const error = typeof value?.error === 'string' && Object.prototype.hasOwnProperty.call(messages, value.error) ? messages[value.error] : '';
+  const message = valid && providerMessages[code] || error || 'Chưa đăng nhập được Tenda. Hãy thử lại sau.';
+  return valid ? `${message} (Tenda ${code})` : message;
+}
 const guid = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/;
 const states = new Set(['unavailable', 'login_required', 'connected', 'signing_in', 'refreshing', 'retrying']);
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -68,7 +87,7 @@ export class TendaAccount {
       const value = this.snapshot();
       // Only masked labels are accepted. Never forward arbitrary native fields.
       const label = typeof value.account_label === 'string' && value.account_label.length <= 254 && value.account_label.includes('***') ? value.account_label : '';
-      return { available: value.state !== 'unavailable', state: value.state, account_label: label, expires_at: Number.isSafeInteger(value.expires_at) && value.expires_at > 0 ? value.expires_at : null, auto_refresh: value.auto_refresh === true, sdk_ready: value.sdk_ready === true, ...(messages[value.error] ? { error: messages[value.error] } : {}) };
+      return { available: value.state !== 'unavailable', state: value.state, account_label: label, expires_at: Number.isSafeInteger(value.expires_at) && value.expires_at > 0 ? value.expires_at : null, auto_refresh: value.auto_refresh === true, sdk_ready: value.sdk_ready === true, ...(value.error ? { error: accountFailureMessage(value) } : {}) };
     } catch { return { available: false, state: 'unavailable', account_label: '', expires_at: null, auto_refresh: false, sdk_ready: false }; }
   }
   async login(input: { account: string; password: string }, signal: AbortSignal, authorized: () => Promise<boolean>): Promise<void> {
@@ -115,7 +134,7 @@ export class TendaAccount {
         let result;
         try { result = read(path.join(job, 'result.json')); } catch {}
         if (result) {
-          if (result.ok !== true) throw new AccountError(result.error === 'account_busy' ? 409 : result.error === 'account_rate_limited' ? 429 : result.error === 'account_network' ? 503 : 422, messages[result.error] ?? 'Chưa đăng nhập được Tenda. Hãy thử lại sau.');
+          if (result.ok !== true) throw new AccountError(result.error === 'account_busy' ? 409 : result.error === 'account_rate_limited' ? 429 : result.error === 'account_network' ? 503 : 422, accountFailureMessage(result));
           return;
         }
         await delay(80);

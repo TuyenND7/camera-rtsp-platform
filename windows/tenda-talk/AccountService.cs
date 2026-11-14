@@ -14,6 +14,8 @@ public static partial class TalkAgent
     static Thread accountThread;
     static volatile bool accountChanged, accountManual;
     static string accountError = "", accountState = "unavailable";
+    static int accountProviderCode;
+    static string accountStage = "";
     static long accountRetryAt, accountPublished, accountLastLogin;
     static int accountFailures;
     static bool accountNeedsLogin;
@@ -101,7 +103,7 @@ public static partial class TalkAgent
             if (directory != null && !AccountAlive(directory)) throw new TendaAccountException("account_cancelled");
             if (File.Exists(Path.Combine(Path.GetDirectoryName(configuration), "stop-agent"))) throw new TendaAccountException("account_cancelled");
             AccountSave(configuration, updated, originalHash);
-            lock (accountLock) { accountConfig = updated; accountState = "connected"; accountError = ""; accountFailures = 0; accountNeedsLogin = false; accountRetryAt = 0; accountChanged = true; }
+            lock (accountLock) { accountConfig = updated; accountState = "connected"; accountError = ""; accountProviderCode = 0; accountStage = ""; accountFailures = 0; accountNeedsLogin = false; accountRetryAt = 0; accountChanged = true; }
             if (directory != null) AccountWrite(Path.Combine(directory, "result.json"), new { ok = true });
         }
         catch (Exception error)
@@ -110,6 +112,7 @@ public static partial class TalkAgent
             lock (accountLock)
             {
                 accountError = code;
+                accountProviderCode = typed == null ? 0 : typed.ProviderCode; accountStage = typed == null ? "" : typed.Stage ?? "";
                 if (directory == null)
                 {
                     accountNeedsLogin = code == "account_rejected" || code == "account_owner_mismatch" || code == "account_token_invalid";
@@ -117,7 +120,7 @@ public static partial class TalkAgent
                 }
                 accountState = accountNeedsLogin || !AccountAutomatic(accountConfig) ? "login_required" : "retrying";
             }
-            if (directory != null) try { AccountWrite(Path.Combine(directory, "result.json"), new { ok = false, error = code }); } catch {}
+            if (directory != null) try { AccountWrite(Path.Combine(directory, "result.json"), new { ok = false, error = code, provider_code = accountProviderCode, stage = accountStage }); } catch {}
         }
         finally { accountManual = false; }
     }
@@ -160,7 +163,7 @@ public static partial class TalkAgent
                 lock (accountLock)
                 {
                     long expires = 0; try { expires = TendaAccountCloud.Expires(TendaAccountCloud.Text(accountConfig, "accessToken")); } catch {}
-                    AccountWrite(Path.Combine(root, "account-status.json"), new { version = 1, instance = instance, updated_at = Now, state = accountState, account_label = TendaAccountCloud.Text(accountConfig, "accountLabel"), expires_at = expires, auto_refresh = accountConfig != null && AccountAutomatic(accountConfig), sdk_ready = sdkReady, error = accountError, public_key = accountCrypto == null ? null : accountCrypto.PublicKey });
+                    AccountWrite(Path.Combine(root, "account-status.json"), new { version = 1, instance = instance, updated_at = Now, state = accountState, account_label = TendaAccountCloud.Text(accountConfig, "accountLabel"), expires_at = expires, auto_refresh = accountConfig != null && AccountAutomatic(accountConfig), sdk_ready = sdkReady, error = accountError, provider_code = accountProviderCode, stage = accountStage, public_key = accountCrypto == null ? null : accountCrypto.PublicKey });
                 }
             }
             catch (IOException) {} catch (UnauthorizedAccessException) {}

@@ -19,11 +19,22 @@ public static class AccountChecks
         public long Expiry = TalkAgent.Now + 3600000;
         public bool Reject;
         public int Codes;
+        public int Checks, Logins;
+        public bool RejectCheck;
+        public string Mode = "ENCRYPT_PHONE", SeMode = "", Phone = "84987654321", Email = "canonical@example.com";
+        public Dictionary<string, object> CheckBody;
         public Dictionary<string, object> Body;
         public Dictionary<string, object> Send(Dictionary<string, object> config, string method, string path, Dictionary<string, object> body)
         {
             if (Reject) return new Dictionary<string, object> { { "code", 100413 } };
+            if (path == TendaAccountCloud.CheckPath)
+            {
+                Checks++; CheckBody = body;
+                if (RejectCheck) return new Dictionary<string, object> { { "code", 100421 } };
+                return new Dictionary<string, object> { { "code", 0 }, { "data", new Dictionary<string, object> { { "encrypt_mode", Mode }, { "se_encrypt_mode", SeMode }, { "phone", Phone }, { "email", Email }, { "country_code", "VN" }, { "phone_code", "+84" } } } };
+            }
             if (path == TendaAccountCloud.CodePath) { Codes++; return new Dictionary<string, object> { { "code", 0 }, { "data", new Dictionary<string, object> { { "auth_code", "fixture-authorization-code" } } } }; }
+            if (path == TendaAccountCloud.LoginPath) { Check(Checks > Logins, "login omitted account preflight"); Logins++; }
             Body = body;
             return new Dictionary<string, object> { { "code", 0 }, { "data", new Dictionary<string, object> { { "access_token", Token(Uid, Expiry) } } } };
         }
@@ -39,7 +50,30 @@ public static class AccountChecks
         var transport = new Transport(); var cloud = new TendaAccountCloud(transport);
         var updated = cloud.Login(original, "0123456789", "fixture-password", "fixture-server-terminal");
         Check(TendaAccountCloud.Text(transport.Body, "phone") == "0123456789" && TendaAccountCloud.Text(transport.Body, "phone_code") == "+84", "phone protocol");
-        Check(TendaAccountCloud.Text(transport.Body, "se_password") == "fixture-password" && transport.Codes == 1, "provider authorization verification");
+        Check(TendaAccountCloud.Text(transport.CheckBody, "phone") == "0123456789" && !transport.CheckBody.ContainsKey("password"), "account preflight protocol");
+        Check(TendaAccountCloud.Text(transport.Body, "password") == "6fb5684ba05970be4c5ac3ce4d17946c" && TendaAccountCloud.Text(transport.Body, "se_password") == "6fb5684ba05970be4c5ac3ce4d17946c" && transport.Codes == 1, "canonical phone password digest");
+        Check(!TendaAccountCloud.Serializer().Serialize(transport.Body).Contains("fixture-password"), "plaintext password reached login endpoint");
+        transport.Mode = "ENCRYPT_EMAIL";
+        cloud.Login(original, "0123456789", "fixture-password", "fixture-server-terminal");
+        Check(TendaAccountCloud.Text(transport.Body, "password") == "1aa03f3b7f1ddacb234204361e9c7d10", "linked email password digest");
+        transport.Mode = ""; transport.SeMode = "ENCRYPT_EMAIL";
+        cloud.Login(original, "0123456789", "fixture-password", "fixture-server-terminal");
+        Check(TendaAccountCloud.Text(transport.Body, "password") == "1aa03f3b7f1ddacb234204361e9c7d10", "security email password digest");
+        transport.SeMode = "";
+        cloud.Login(original, "a@example.com", "fixture-password", "fixture-server-terminal");
+        Check(TendaAccountCloud.Text(transport.Body, "password") == "6fb5684ba05970be4c5ac3ce4d17946c", "legacy canonical phone fallback");
+        transport.Phone = "";
+        cloud.Login(original, "a@example.com", "fixture-password", "fixture-server-terminal");
+        Check(TendaAccountCloud.Text(transport.Body, "password") == "1aa03f3b7f1ddacb234204361e9c7d10", "legacy canonical email fallback");
+        Check(TendaAccountCloud.PasswordDigest("a@example.com", "ab c") == "d1a2cda9b70304aadebeffe3ed88a2a0", "aligned password digest");
+        Check(TendaAccountCloud.PasswordDigest("ng\u01b0\u1eddi@example.com", "m\u1eadtkh\u1ea9u") == "e36ac4fe6db75d9f646eba8e6c6e83d4", "UTF8 password digest and padding");
+        int loginCount = transport.Logins; transport.RejectCheck = true;
+        try { cloud.Login(original, "a@example.com", "fixture-password", "fixture-server-terminal"); throw new Exception("check rejection ignored"); }
+        catch (TendaAccountException error) { Check(error.ProviderCode == 100421 && error.Stage == "check", "safe provider diagnostics lost"); }
+        Check(transport.Logins == loginCount, "password sent after rejected preflight"); transport.RejectCheck = false;
+        transport.Mode = "ENCRYPT_UNKNOWN";
+        Rejected(delegate { cloud.Login(original, "a@example.com", "fixture-password", "fixture-server-terminal"); }, "account_password_mode");
+        Check(transport.Logins == loginCount, "password sent with unknown mode"); transport.Mode = "ENCRYPT_EMAIL";
         Check(TendaAccountCloud.Text((Dictionary<string, object>)original["cloudHeaders"], "Terminal") == "fixture-old-terminal", "original mutated");
         Check(TendaAccountCloud.Text(updated, "accountLabel") == "******6789" && !TendaAccountCloud.Serializer().Serialize(updated).Contains("fixture-password"), "password persisted");
         cloud.Refresh(updated); Check(TendaAccountCloud.Text(transport.Body, "access_token") == TendaAccountCloud.Text(updated, "accessToken") && TendaAccountCloud.Text(transport.Body, "terminal") == "fixture-server-terminal", "refresh protocol");
@@ -76,6 +110,6 @@ public static class AccountChecks
         bool rejected = false;
         try { type.GetMethod("AccountSave", flags).Invoke(null, new object[] { configPath, original, hash }); } catch { rejected = true; }
         Check(rejected, "stale config overwritten");
-        return "PASS: account ownership, provider validation, login/refresh protocol, password privacy, OAEP-SHA256, DPAPI persistence and stale-write protection";
+        return "PASS: account preflight, canonical phone/email/legacy digests, UTF8 padding, rejected/unknown-mode stop, safe diagnostics, ownership, refresh, OAEP-SHA256 and DPAPI persistence";
     }
 }
