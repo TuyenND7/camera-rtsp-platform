@@ -6,6 +6,7 @@ import { TEXT_SIZES, useTheme } from '../theme';
 import CameraSettingSelect from '../CameraSettingSelect';
 import { alarmDurations, alarmDurationLabel } from '../alarm';
 import ViewingDeviceSettings from '../ViewingDeviceSettings';
+import TendaAccountSettings from '../TendaAccountSettings';
 
 function numericOptions(current: number, values: number[], label: (value: number) => string) {
   return [...new Set([...values, current])].sort((a, b) => a - b).map(value => ({ value: String(value), label: label(value) }));
@@ -165,6 +166,7 @@ export default function Settings() {
         <header className="settings-heading"><Icon name="bell" size={22} /><div><h2>Báo động</h2></div></header>
         <CameraSettingSelect label="Thời lượng báo động" value={String(form.alarm_duration_seconds ?? 30)} options={alarmDurations.map(seconds => ({ value: String(seconds), label: alarmDurationLabel(seconds) }))} onChange={value => change('alarm_duration_seconds', Number(value))} description="Chọn thời lượng phát còi." icon="bell" />
       </section>}
+      {admin && <TendaAccountSettings />}
       {admin && <section className="panel settings-section storage-settings-section">
         <header className="settings-heading"><Icon name="database" size={22} /><div><h2>Lưu trữ & ghi hình</h2></div>{storage && <span className="subtle-badge">Đã dùng {storage.used_percent}%</span>}</header>
         {loading && <p className="muted" role="status">Đang tải cấu hình…</p>}

@@ -1073,6 +1073,21 @@ tbody tr:last-child td { border-bottom: 0; }
 .alarm-confirm-dialog .alarm-confirm-start { color: #fff; border-color: #bd213b; background: #bd213b; }
 .alarm-confirm-dialog .alarm-confirm-start:hover { color: #fff; border-color: #95192f; background: #95192f; }
 .storage-settings-section { grid-column: 1 / -1; }
+.tenda-account-settings { grid-column: 1 / -1; }
+.tenda-account-row { display: flex; gap: 16px; align-items: center; justify-content: space-between; }
+.tenda-account-row > div { min-width: 0; }
+.tenda-account-row strong { overflow-wrap: anywhere; }
+.tenda-account-row p { margin-top: 5px; font-size: calc(12px * var(--text-scale, 1)); }
+.tenda-account-row > button { flex-shrink: 0; }
+.tenda-account-settings > .notice { margin-top: 12px; }
+.tenda-login-dialog .dialog-body { overflow-y: auto; }
+.tenda-login-dialog .dialog-body > label { display: block; }
+.tenda-login-dialog .dialog-body input { width: 100%; min-width: 0; margin-top: 7px; }
+.tenda-password { display: flex; align-items: center; gap: 8px; }
+.tenda-password input { flex: 1; }
+.tenda-password button { flex-shrink: 0; margin-top: 7px; }
+.tenda-login-dialog .dialog-body > p { font-size: calc(12px * var(--text-scale, 1)); }
+@media (max-width: 600px) { .tenda-account-row { flex-wrap: wrap; } .tenda-login-dialog .dialog-footer { flex-wrap: wrap; } }
 @media (max-width: 760px) {
   .emergency-controls { grid-template-columns: minmax(0, 1fr); gap: 7px; padding: 8px; }
   .emergency-description { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; }

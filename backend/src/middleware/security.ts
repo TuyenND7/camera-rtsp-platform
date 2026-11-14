@@ -15,6 +15,14 @@ export function browserRequestGuard(req: Request, res: Response, next: NextFunct
   next();
 }
 
+// Parser diagnostics can include submitted text. Never echo or log credential bodies.
+export function jsonRequestError(error: any, _req: Request, res: Response, next: NextFunction): void {
+  if (error?.type === 'entity.parse.failed' || error?.type === 'entity.too.large') {
+    res.status(error.type === 'entity.too.large' ? 413 : 400).json({ error: 'Dữ liệu yêu cầu không hợp lệ.' }); return;
+  }
+  next(error);
+}
+
 // No permanent account lockout: a burst is rejected until the rolling window ends.
 export function loginLimiter(maxAttempts = 10, windowMs = 60_000, now = Date.now) {
   const attempts = new Map<string, { count: number; until: number }>();

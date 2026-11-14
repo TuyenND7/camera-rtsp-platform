@@ -189,6 +189,16 @@ function authHeaders(): Record<string, string> {
   return { 'X-Requested-With': 'CameraStation', ...(csrf ? { 'X-CSRF-Token': csrf } : {}) };
 }
 
+export interface TendaAccountStatus {
+  available: boolean;
+  state: 'unavailable' | 'login_required' | 'connected' | 'signing_in' | 'refreshing' | 'retrying';
+  account_label: string;
+  expires_at: number | null;
+  auto_refresh: boolean;
+  sdk_ready: boolean;
+  error?: string;
+}
+
 async function handle<T>(res: Response): Promise<T> {
   if (res.status === 401) {
     csrf = '';
@@ -204,6 +214,12 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 export const api = {
+  async tendaAccount() {
+    return handle<TendaAccountStatus>(await fetch(`${API_BASE}/settings/tenda`, { headers: authHeaders(), cache: 'no-store' }));
+  },
+  async loginTenda(account: string, password: string, signal: AbortSignal) {
+    return handle<{ ok: boolean }>(await fetch(`${API_BASE}/settings/tenda/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ account, password }), signal }));
+  },
   async cameraDeviceSettings(id: number) {
     return handle<CameraDeviceSettings>(await fetch(`${API_BASE}/cameras/${id}/device-settings`, { headers: authHeaders(), cache: 'no-store' }));
   },

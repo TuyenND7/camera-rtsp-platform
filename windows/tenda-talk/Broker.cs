@@ -103,10 +103,17 @@ public static partial class TalkAgent
     {
         var workers = new Dictionary<string, WorkerProcess>(); Process health = null; long checkedAt = 0, published = 0;
         Publish(false);
+        AccountInitialize(configuration);
         try
         {
             while (!File.Exists(Path.Combine(Path.GetDirectoryName(configuration), "stop-agent")))
             {
+                if (accountChanged)
+                {
+                    accountChanged = false;
+                    if (health != null) { try { if (!health.HasExited) health.Kill(); } catch {} health.Dispose(); health = null; }
+                    checkedAt = 0;
+                }
                 if (health != null && health.HasExited) { health.Dispose(); health = null; }
                 if (health == null && Now - checkedAt > 300000)
                 {
@@ -114,6 +121,7 @@ public static partial class TalkAgent
                 }
                 if (health != null && Now - checkedAt > 35000) { try { health.Kill(); } catch {} health.Dispose(); health = null; }
                 bool ready = ProviderReady();
+                try { AccountTick(configuration, workers.Count > 0, ready); } catch (IOException) {} catch (UnauthorizedAccessException) {}
                 if (Now - published >= 250) { Publish(ready); published = Now; }
                 var finished = new List<string>();
                 foreach (var item in workers)
@@ -141,7 +149,7 @@ public static partial class TalkAgent
                     }
                 }
                 foreach (string session in finished) workers.Remove(session);
-                ScanControls(configuration, workers, ready);
+                if (!accountManual) ScanControls(configuration, workers, ready);
                 if (ready) RecoverControls(workers);
                 int scanned = 0;
                 foreach (string directory in Directory.GetDirectories(root))
@@ -157,7 +165,7 @@ public static partial class TalkAgent
                     if (!File.Exists(Path.Combine(directory, "start.json"))) continue;
                     try
                     {
-                        if (!ready || workers.Count >= 16 || !Command(directory, Read(Path.Combine(directory, "start.json")))) { State(directory, "error", 0, 503); continue; }
+                        if (!ready || accountManual || workers.Count >= 16 || !Command(directory, Read(Path.Combine(directory, "start.json")))) { State(directory, "error", 0, 503); continue; }
                         State(directory, "connecting", 0, 0);
                         workers.Add(name, new WorkerProcess { Process = Launch(configuration, "--voice " + instance + " " + name), Directory = directory, Started = Now });
                     }

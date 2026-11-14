@@ -18,7 +18,7 @@ import deviceSettingsRoutes from './routes/deviceSettings';
 import { deviceControls } from './controls/tenda';
 import { talkManager } from './talk/manager';
 import { loadSettings } from './settings';
-import { browserRequestGuard } from './middleware/security';
+import { browserRequestGuard, jsonRequestError } from './middleware/security';
 
 async function main() {
   await waitForDb();
@@ -30,6 +30,7 @@ async function main() {
   app.set('trust proxy', 1); // backend is private; nginx overwrites forwarded headers
   app.use('/api', browserRequestGuard);
   app.use(express.json({ limit: '16kb' }));
+  app.use(jsonRequestError);
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.use('/api/auth', authRoutes);

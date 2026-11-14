@@ -68,11 +68,28 @@ Start-ScheduledTask -TaskName 'Camera Station Tenda Talk'
 
 Lỗi `sdk_account_relink_required` yêu cầu cấp lại phiên TDSEE phù hợp. Lỗi `sdk_runtime_version_mismatch` yêu cầu runtime đúng phiên bản. Agent tự khởi chạy lại với thời gian chờ tăng dần khi process lỗi; lỗi đàm thoại không dừng FFmpeg/recording.
 
-### Giới hạn xác thực hiện tại
+### Đăng nhập và tự gia hạn trên web
 
 Đường đàm thoại không chuyển tiếp từng gói tiếng qua app TDSEE trên tablet và không cần giữ app hãng mở thường xuyên. Khi SDK đã có phiên cache hợp lệ, agent có thể dùng lại. Khi SDK phải đăng nhập lại, agent dùng access token TDSEE đã provision trên PC để xin authorization code từ cloud hãng.
 
-Hiện chưa có luồng đăng nhập/gia hạn token TDSEE độc lập trên máy chủ. Nếu SDK mất phiên và token lưu trên PC đã hết hạn, phải cấp lại phiên cùng chủ tài khoản. Trong lần khôi phục ngày 14/11/2026, phiên mới được lấy từ TDSEE đang đăng nhập trên tablet, đối chiếu đúng tài khoản/project và xác thực thành công với hãng trước khi cập nhật cấu hình DPAPI; giữ nguyên cả ba liên kết camera. Xoá TDSEE không dừng Live/recording RTSP, nhưng có thể làm thiếu nguồn cấp lại phiên cho mic và các lệnh dùng SDK sau này. Không coi việc khôi phục này là đã giải quyết tự gia hạn.
+Mở **Cài đặt → Tài khoản Tenda → Đăng nhập**, nhập email hoặc số điện thoại và mật khẩu TDSEE đang sở hữu camera. Chỉ admin qua HTTPS được dùng chức năng này. Không nhập mật khẩu RTSP vào đây. Vùng đăng ký được giữ theo tài khoản đã provision; tính năng này gia hạn tài khoản hiện có, không tự tìm hoặc chuyển camera sang chủ tài khoản khác.
+
+Backend mã hóa mật khẩu bằng RSA-OAEP-SHA256 trước khi chuyển qua IPC. Khóa riêng và access token chỉ lưu trong thư mục adapter, được Windows DPAPI bảo vệ. Mật khẩu dùng cho lần đăng nhập, không lưu vào cấu hình, database hoặc log. Kết quả web chỉ có trạng thái, tên tài khoản đã che và hạn phiên. Khi đóng hộp thoại hoặc phiên admin bị thu hồi, heartbeat yêu cầu dừng; adapter kiểm tra lại trước khi lưu.
+
+Sau khi đăng nhập thành công, máy chủ tự gọi API refresh trước hạn khoảng hai phút; API của phiên bản TDSEE tham chiếu dùng access token hiện tại và terminal, không có refresh token riêng. Lỗi mạng được thử lại với thời gian chờ tăng dần; khi Tenda từ chối phiên, web báo cần đăng nhập lại. Không lưu mật khẩu để tự đăng nhập vô hạn. Thao tác đăng nhập mới bị chặn khi mic/còi/điều khiển đang chạy; gia hạn cùng chủ tài khoản không dừng các worker đang hoạt động.
+
+Máy chủ dùng terminal riêng và xác minh lại authorization code với hãng, UID và project trước khi thay cấu hình. Cả ba liên kết camera và kho recording được giữ nguyên. Phiên cũ đã provision vẫn dùng được theo cache SDK; cần đăng nhập một lần trên web để bật tự gia hạn. Sau đó không cần lấy phiên từ app TDSEE trên tablet, nhưng vẫn phụ thuộc dịch vụ xác thực/SDK Tenda và có thể cần đăng nhập lại khi hãng thu hồi phiên.
+
+Các endpoint đăng nhập/refresh tham chiếu từ client TDSEE; đây chưa phải bộ SDK đăng nhập có hợp đồng API công khai ổn định. Nhà cung cấp đổi giao thức, yêu cầu xác minh bổ sung hoặc đổi vùng có thể cần cập nhật adapter. Kiểm thử giả lập xác nhận luồng dữ liệu/quyền/mã hóa; đăng nhập và gia hạn tài khoản thật cần được kiểm tra sau khi chủ tài khoản nhập trực tiếp trên web.
+
+Cập nhật adapter hiện có mà không provision lại (PowerShell admin):
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\tenda-talk\Test.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\tenda-talk\Update.ps1
+```
+
+Script biên dịch trước khi dừng task, kiểm hash runtime, giữ `config.bin`, khóa tài khoản và cache SDK. Bản executable trước được giữ trong thư mục riêng để khôi phục. Backend/web cũng cần build và cập nhật bằng Docker Compose như README gốc.
 
 Ngày 14/11/2026, đã kiểm tra mở kênh/gửi PCM im lặng/đóng kênh qua HTTPS trên Lenovo: hai CT3 đồng thời và RH7 riêng đều trả `201`/`204`/`204`. RH7 đã bật lại; cả ba Live tiếp tục phát. Lần kiểm tra này chưa xác nhận giọng nói thực tế tại loa. Xem [sơ đồ các luồng và phụ thuộc](../../docs/he-thong-camera.html).
 

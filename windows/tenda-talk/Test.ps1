@@ -7,6 +7,7 @@ try {
     $executable = Join-Path $temporary 'CameraTalkSdkTest.exe'
     $arguments = @('/nologo','/platform:x64','/r:System.Web.Extensions.dll','/r:System.Security.dll',"/resource:$source\RuntimeHashes.json,RuntimeHashes.json","/out:$executable")
     $arguments += @(Get-ChildItem -LiteralPath $source -Filter '*.cs' | ForEach-Object FullName)
+    $arguments += (Join-Path $source 'tests\AccountChecks.cs')
     & "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" @arguments
     if ($LASTEXITCODE -ne 0) { throw 'Test compilation failed' }
     $agent = [Reflection.Assembly]::Load([IO.File]::ReadAllBytes($executable)).GetType('TalkAgent')
@@ -14,6 +15,8 @@ try {
     $generation = [guid]::NewGuid().ToString('D')
     $agent.GetField('root',$flags).SetValue($null,$temporary)
     $agent.GetField('instance',$flags).SetValue($null,$generation)
+    $accountChecks = $agent.Assembly.GetType('AccountChecks')
+    Write-Output $accountChecks.GetMethod('Run').Invoke($null,[object[]]@(([string]$temporary).ToString()))
     function Now { [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
     function Assert-Ready([string]$method,[bool]$expected) {
         $actual = $agent.GetMethod($method,$flags).Invoke($null,@())
