@@ -26,20 +26,28 @@ export class DuplexPlayback {
     };
     sender.onicecandidate = event => transfer(receiver, toReceiver, event.candidate);
     receiver.onicecandidate = event => transfer(sender, toSender, event.candidate);
-    const failure = () => { if (!this.stopped && [sender.connectionState, receiver.connectionState].includes('failed')) this.onError('Chưa mở được kênh nghe hai chiều trên thiết bị này.'); };
-    sender.onconnectionstatechange = failure; receiver.onconnectionstatechange = failure;
+    let checkReady = () => {};
+    const changed = () => {
+      if (!this.stopped && [sender.connectionState, receiver.connectionState].includes('failed')) this.onError('Chưa mở được kênh nghe hai chiều trên thiết bị này.');
+      checkReady();
+    };
+    sender.onconnectionstatechange = changed; receiver.onconnectionstatechange = changed;
     let timer: number | undefined;
-    const playing = new Promise<void>((resolve, reject) => {
+    const connected = new Promise<void>((resolve, reject) => {
       this.cancel = reject;
-      timer = window.setTimeout(() => reject(new Error('Kênh nghe hai chiều chưa sẵn sàng.')), 6000);
+      timer = window.setTimeout(() => reject(new Error('Kênh nghe hai chiều chưa sẵn sàng.')), 10000);
+      checkReady = () => { if (!this.stopped && receiver.connectionState === 'connected' && audio.srcObject) resolve(); };
       receiver.ontrack = event => {
         if (this.stopped) { event.track.stop(); return; }
         audio.srcObject = new MediaStream([event.track]);
-        void audio.play().then(resolve, () => reject(new Error('Trình duyệt chưa cho phép phát tiếng đàm thoại. Nhấn mic để thử lại.')));
+        // play() can wait for audible RTP. Do not gate the incoming PCM fetch
+        // on it: quiet cameras and Opus DTX may otherwise delay each other.
+        void audio.play().catch(() => { if (!this.stopped) this.onError('Trình duyệt chưa cho phép phát tiếng đàm thoại. Nhấn mic để thử lại.'); });
+        checkReady();
       };
     });
     // Attach a rejection handler while asynchronous SDP operations are running.
-    void playing.catch(() => undefined);
+    void connected.catch(() => undefined);
     try {
       for (const track of this.destination.stream.getAudioTracks()) sender.addTrack(track, this.destination.stream);
       await sender.setLocalDescription(await sender.createOffer());
@@ -49,7 +57,7 @@ export class DuplexPlayback {
       await receiver.setLocalDescription(await receiver.createAnswer());
       await sender.setRemoteDescription(receiver.localDescription!);
       for (const candidate of toSender.splice(0)) await sender.addIceCandidate(candidate);
-      await playing;
+      await connected;
     } finally { window.clearTimeout(timer); this.cancel = undefined; }
   }
   push(cameraId: number, pcm: ArrayBuffer) { if (!this.stopped) this.node?.port.postMessage({ type: 'audio', cameraId, pcm }, [pcm]); }
