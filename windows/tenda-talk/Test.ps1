@@ -62,10 +62,10 @@ try {
     New-Item -ItemType File -Path (Join-Path $requestDirectory 'audio.pcm') | Out-Null
     New-Item -ItemType File -Path (Join-Path $requestDirectory 'heartbeat') | Out-Null
     $talkCommand = $serializer.DeserializeObject(('{"version":1,"camera_id":2,"url_hash":"' + ('a' * 64) + '","agent_instance":"' + $generation + '","created_at":' + (Now) + '}'))
-    if (-not $agent.GetMethod('Command',$flags).Invoke($null,[object[]]@($requestDirectory,$talkCommand))) { throw 'Legacy talk command rejected' }
+    if (-not $agent.GetMethod('Command',$flags).Invoke($null,[object[]]@(([string]$requestDirectory).ToString(),$talkCommand.PSObject.BaseObject))) { throw 'Legacy talk command rejected' }
     foreach ($mode in @($true,$false,'true',1,$null)) {
         $talkCommand['duplex']=$mode
-        $accepted=$agent.GetMethod('Command',$flags).Invoke($null,[object[]]@($requestDirectory,$talkCommand))
+        $accepted=$agent.GetMethod('Command',$flags).Invoke($null,[object[]]@(([string]$requestDirectory).ToString(),$talkCommand.PSObject.BaseObject))
         if ($accepted -ne ($mode -is [bool])) { throw 'Duplex mode validation failed' }
     }
     $command = @{version=1;camera_id=2;url_hash=('a' * 64);agent_instance=$generation;created_at=(Now);action='light';enabled=$true}
