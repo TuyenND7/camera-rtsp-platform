@@ -169,11 +169,39 @@ Từ lúc bật HTTPS, các lệnh cập nhật/khởi chạy phải giữ cả 
 
 3. Nếu CLI đưa một liên kết để bật Serve, mở liên kết bằng tài khoản quản lý tailnet và bật tính năng. CLI sẽ in địa chỉ `https://<ten-may>.<tailnet>.ts.net/`; dùng đúng địa chỉ này, không thay hostname HTTPS bằng IP. Trên máy CAMERA đã cấu hình: `https://camera.taild8cb98.ts.net/live`.
 4. Mở địa chỉ HTTPS trên tablet/điện thoại và đăng nhập web. Trong app Android, nhấn giữ biểu tượng app → **Máy chủ**, thay URL bằng địa chỉ HTTPS vừa nhận. Cài APK 0.2.1 trở lên để có quyền mic và định tuyến audio cho WebView. App chỉ cấp audio cho đúng origin HTTPS đang cấu hình, không cấp camera hay bỏ qua lỗi TLS.
-5. Trong Live, nhấn **mic đỏ** cạnh nút phóng to → **Kiểm tra mic**, cho phép quyền mic nếu hệ thống hỏi. Thanh mức âm thanh phản ứng khi nói. Chọn các camera có trạng thái **Sẵn sàng**, sau đó giữ nút nói. Khi hộp thoại cấp quyền làm ngắt thao tác giữ, nhấn giữ lại sau khi cấp quyền.
+5. Trong Live, nhấn **mic đỏ** ở góc phải ô camera, cho phép quyền mic nếu hệ thống hỏi, rồi nói. Nhấn lại để kết thúc; im lặng 5 giây tự dừng. Đàm thoại nhóm dùng **Khẩn cấp → chọn camera → Nói**.
 
 Nginx tự đánh dấu đúng HTTPS cho backend trên upstream loopback; cookie được đặt Secure theo từng kết nối HTTPS. HTTP LAN hiện có vẫn hoạt động với `COOKIE_SECURE=false`; nếu chỉ dùng HTTPS có thể bật `COOKIE_SECURE=true`. Cổng HTTP thường luôn ghi đè header `X-Forwarded-Proto` từ máy khách, không chấp nhận header giả mạo để mở đàm thoại.
 
 Để tắt proxy HTTPS, chạy `tailscale serve --https=443 off` trong phiên người dùng sở hữu Tailscale. Tham khảo [Tailscale Serve](https://tailscale.com/docs/reference/tailscale-cli/serve).
+
+### Truy cập public bằng Tailscale Funnel
+
+Phù hợp để thỉnh thoảng xem từ xa bằng trình duyệt, không cài Tailscale trên thiết bị xem. Máy CAMERA vẫn cần Tailscale chạy và kết nối Internet. Máy xem thường xuyên có thể tiếp tục dùng LAN hoặc Serve riêng ở cổng 443.
+
+1. Mở PowerShell bằng **đúng tài khoản Windows đang chạy Tailscale** (máy CAMERA: `Tuyen`), dùng Run as administrator khi cần. Tài khoản SSH khác có thể gặp lỗi `Tailscale already in use by ...`; không đăng xuất/chuyển tài khoản Tailscale để xử lý lỗi này.
+2. Kiểm tra `tailscale serve status`, bảo đảm cổng 8443 chưa dùng cho dịch vụ khác. Bật Funnel ở cổng riêng, chuyển tiếp vào upstream loopback đã đánh dấu HTTPS:
+
+```powershell
+& 'C:\Program Files\Tailscale\tailscale.exe' funnel --bg --https=8443 http://127.0.0.1:8083
+& 'C:\Program Files\Tailscale\tailscale.exe' funnel status
+```
+
+3. Nếu CLI yêu cầu bật Funnel, mở liên kết do CLI cung cấp bằng tài khoản quản lý tailnet và bật tính năng. `Serve` đã bật không có nghĩa `Funnel` đã được cấp quyền. Chờ CLI báo **Available on the internet**, rồi mở URL nó in ra. Máy CAMERA đã bật tại `https://camera.taild8cb98.ts.net:8443/live`.
+4. Tắt VPN trên thiết bị xem, dùng 4G/5G hoặc mạng khác để kiểm tra: trang đăng nhập mở được; chưa đăng nhập không đọc được camera/live/recording; đăng nhập xong phát được Live và Playback. HTTPS cho phép xin quyền mic. Trong app Android, nếu muốn dùng public thì đổi Máy chủ sang URL trên; tài khoản web vẫn dùng như cũ, đăng nhập lại nếu cần.
+
+Cổng **443** tiếp tục dành cho Serve riêng; chỉ cổng **8443** bật Funnel. Không dùng lệnh `reset` vì có thể xóa cả cấu hình Serve. Không chuyển tiếp public cổng RTSP/ONVIF, PostgreSQL hoặc SSH; Funnel chỉ đưa web/API/media đã có xác thực ra Internet. Backend và nginx vẫn kiểm tra phiên đăng nhập cho mọi segment HLS, recording và ảnh.
+
+`--bg` giữ cấu hình qua lần khởi động lại Tailscale/máy tính; Windows vẫn cần Tailscale thực sự khởi động và kết nối. Funnel có giới hạn băng thông không điều chỉnh được, vì vậy kiểm tra thực tế khi xem nhiều camera; máy xem nhiều nên ưu tiên LAN/VPN. Link public không làm giảm độ trễ HLS của camera.
+
+Tắt riêng public, giữ Serve riêng:
+
+```powershell
+& 'C:\Program Files\Tailscale\tailscale.exe' funnel --bg --https=8443 off
+& 'C:\Program Files\Tailscale\tailscale.exe' serve status
+```
+
+Tham khảo [Tailscale Funnel](https://tailscale.com/docs/features/tailscale-funnel) và [lệnh Funnel](https://tailscale.com/docs/reference/tailscale-cli/funnel).
 
 ### Tương thích đàm thoại và giới hạn hiện tại
 
