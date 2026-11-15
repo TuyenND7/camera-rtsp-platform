@@ -6,6 +6,7 @@ import android.content.pm.PackageManager;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.Uri;
 import android.net.http.SslError;
@@ -34,11 +35,7 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-
 public final class MainActivity extends Activity {
-    private static final String DEFAULT_URL = "http://camera.local:8081/live";
     private static final String ACTION_SERVER = "vn.tuyen.camerastation.SERVER";
     private static final String ACTION_RELOAD = "vn.tuyen.camerastation.RELOAD";
     private static final int INK = Color.rgb(31, 59, 96);
@@ -60,7 +57,11 @@ public final class MainActivity extends Activity {
     public void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        serverUrl = getPreferences(MODE_PRIVATE).getString("server_url", DEFAULT_URL);
+        SharedPreferences preferences = getPreferences(MODE_PRIVATE);
+        String savedUrl = preferences.getString("server_url", null);
+        serverUrl = ServerAddress.initialUrl(savedUrl, preferences.getBoolean("public_server_migrated", false));
+        boolean serverChanged = savedUrl != null && !serverUrl.equals(savedUrl);
+        preferences.edit().putString("server_url", serverUrl).putBoolean("public_server_migrated", true).apply();
         createViews();
         enterImmersiveMode();
         configureWebView();
@@ -69,7 +70,7 @@ public final class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(0, this::navigateBack);
         }
-        if (state == null || webView.restoreState(state) == null) webView.loadUrl(serverUrl);
+        if (serverChanged || state == null || webView.restoreState(state) == null) webView.loadUrl(serverUrl);
         if (ACTION_SERVER.equals(getIntent().getAction())) root.post(this::showServerDialog);
     }
 
@@ -268,7 +269,7 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle(R.string.server).setView(container)
             .setNegativeButton(R.string.cancel, null).setPositiveButton(R.string.connect, null).create();
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
-            String url = normalizeServerUrl(input.getText().toString());
+            String url = ServerAddress.normalize(input.getText().toString());
             if (url == null) { input.setError(getString(R.string.invalid_url)); return; }
             serverUrl = url;
             getPreferences(MODE_PRIVATE).edit().putString("server_url", url).apply();
@@ -279,18 +280,6 @@ public final class MainActivity extends Activity {
             dialog.dismiss();
         }));
         dialog.show();
-    }
-
-    private static String normalizeServerUrl(String input) {
-        try {
-            URI uri = new URI(input.trim());
-            String scheme = uri.getScheme();
-            if (!("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) || uri.getHost() == null
-                || uri.getRawUserInfo() != null || uri.getRawFragment() != null || uri.getPort() > 65535 || uri.getPort() == 0) return null;
-            String path = uri.getRawPath();
-            return new URI(scheme.toLowerCase(java.util.Locale.ROOT), null, uri.getHost(), uri.getPort(),
-                path == null || path.isEmpty() || "/".equals(path) ? "/live" : uri.getPath(), uri.getQuery(), null).toASCIIString();
-        } catch (URISyntaxException exception) { return null; }
     }
 
     private static boolean sameOrigin(Uri left, Uri right) {

@@ -3,7 +3,8 @@
 App Android mở web Camera Station trọn màn hình, không có thanh tiêu đề riêng. Từ bản 0.2.2, thanh trạng thái và thanh điều hướng Android tự ẩn ngay khi mở app và khi quay lại app; vuốt từ cạnh màn hình để hiện tạm các nút hệ thống. Thoát chế độ phóng to video vẫn giữ app toàn màn hình. Bàn phím và vùng khuyết màn hình vẫn được chừa chỗ. Giao diện vẫn được tải từ máy chủ: cập nhật web rồi tải lại trang là thấy UI mới, không phải build lại APK.
 
 - Android 8.0 trở lên, hỗ trợ tablet dọc/ngang.
-- Mặc định mở `http://camera.local:8081/live`.
+- Từ **0.3.1**, mặc định mở public HTTPS: `https://camera.taild8cb98.ts.net:8443/live`; thiết bị xem không cần Tailscale. Máy CAMERA vẫn cần chạy Tailscale/Funnel và có Internet.
+- Khi nâng cấp, app chuyển một lần từ các địa chỉ CAMERA cũ (`camera.local:8081`, IP Windows đã dùng, hoặc link Tailscale riêng cổng 443) sang public, giữ đường dẫn/trang đang chọn. URL tùy chỉnh khác giữ nguyên. Sau lần nâng cấp này, nếu người dùng chọn lại LAN/VPN thì app giữ lựa chọn đó. Cookie và dữ liệu đăng nhập không bị xóa; nếu chuyển hostname cần đăng nhập web lại.
 - Nhấn giữ biểu tượng **Camera Station** trong launcher → **Máy chủ** để thay URL LAN/VPN hoặc HTTPS. URL được giữ lại khi mở app lần sau.
 - Nhấn giữ biểu tượng app → **Tải lại** để tải lại trang. Khi mất kết nối, màn hình lỗi cũng có nút thử lại và đổi máy chủ. Hỗ trợ nút Back và video toàn màn hình.
 - Trong web, dùng nút menu cạnh tiêu đề để ẩn/hiện điều hướng. App tự mở toàn màn hình; nút phóng to/thu nhỏ cạnh bố cục trên Live view mở riêng vùng xem ra toàn màn hình và dùng được cả khi mở web bằng trình duyệt. Video tự phát, không có thanh pause/tải lại.
@@ -27,7 +28,7 @@ Khi mở bằng trình duyệt thông thường hoặc app cũ, cùng nhóm cài
 
 Kênh native dùng AndroidX WebKit `addWebMessageListener`, chỉ nhận từ main frame của đúng origin HTTPS máy chủ. Từ chối iframe, origin khác, HTTP, trường lạ, giá trị ngoài giới hạn và lệnh không nằm trong danh sách `get/volume/brightness/sleep/wake`. Không mở API Java tổng quát cho website. Nếu WebView chưa hỗ trợ kênh này, web dùng chế độ nội dung thông thường.
 
-Tablet phải truy cập được máy chủ qua LAN/VPN. Chỉ cắm USB không tạo đường kết nối tới máy Windows. Nếu `.local` không phân giải được, nhập IP hoặc hostname VPN trong phần địa chỉ máy chủ. HTTP cần mạng tin cậy/VPN như web; app không tự thêm mã hóa cho HTTP.
+Với link public, tablet chỉ cần Internet. Với địa chỉ LAN/VPN tự chọn, tablet vẫn cần ở trong đúng mạng/VPN. Chỉ cắm USB không tạo đường kết nối tới máy Windows. HTTP cần mạng tin cậy/VPN như web; app không tự thêm mã hóa cho HTTP. Nếu xem liên tục trong nhà, có thể chọn lại `http://camera.local:8081/live` để dùng LAN; mic cần link HTTPS.
 
 ## Build và cài đặt
 
@@ -48,6 +49,14 @@ adb -s <SERIAL_LENOVO> shell am start -n vn.tuyen.camerastation/.MainActivity
 
 Windows dùng `gradlew.bat` thay cho `./gradlew`. APK debug phục vụ phát triển/cài nội bộ, nằm tại `app/build/outputs/apk/debug/app-debug.apk`; bản phát hành cần ký bằng keystore riêng, không commit khóa ký.
 
+Kiểm thử việc chuyển URL (Java thuần, không cần thiết bị):
+
+```bash
+# Từ thư mục project, chọn thư mục output tạm ngoài source:
+javac -d /tmp/camera-server-test android/app/src/main/java/vn/tuyen/camerastation/ServerAddress.java android/tests/ServerAddressTest.java
+java -cp /tmp/camera-server-test vn.tuyen.camerastation.ServerAddressTest
+```
+
 ## Chỉnh UI web qua USB
 
 Khi tablet đang nối ADB với máy phát triển, có thể xem giao diện web qua USB mà không cần mở thêm cổng LAN. Tại thư mục `web`:
@@ -63,7 +72,7 @@ npm run dev -- --host 127.0.0.1 --port 18173 --strictPort
 adb -s <SERIAL_LENOVO> reverse tcp:18173 tcp:18173
 ```
 
-Nhấn giữ biểu tượng **Camera Station** trong launcher → **Máy chủ**, nhập `http://127.0.0.1:18173/login`. Đây là trang đăng nhập từ source trên máy phát triển, có HMR khi sửa `web/src`. Muốn đăng nhập, xem Live/Playback và dữ liệu thật, cấu hình proxy trong `web/vite.config.ts` tới backend/nginx truy cập được; một frontend chạy riêng không thay thế máy chủ camera. Đổi địa chỉ app về `http://camera.local:8081/live` khi dùng máy chủ thật.
+Nhấn giữ biểu tượng **Camera Station** trong launcher → **Máy chủ**, nhập `http://127.0.0.1:18173/login`. Đây là trang đăng nhập từ source trên máy phát triển, có HMR khi sửa `web/src`. Muốn đăng nhập, xem Live/Playback và dữ liệu thật, cấu hình proxy trong `web/vite.config.ts` tới backend/nginx truy cập được; một frontend chạy riêng không thay thế máy chủ camera. Đổi địa chỉ app về `https://camera.taild8cb98.ts.net:8443/live` khi dùng máy chủ thật.
 
 ### Xem đầy đủ UI khi không có máy chủ
 
