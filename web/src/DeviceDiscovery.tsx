@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, DiscoveredDevice, DiscoveryState } from './api';
 import Icon from './Icon';
+import { lockBodyScroll } from './bodyScroll';
 
 export default function DeviceDiscovery({ onSelect, onClose }: { onSelect: (device: DiscoveredDevice) => void; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -27,8 +28,7 @@ export default function DeviceDiscovery({ onSelect, onClose }: { onSelect: (devi
     let stopped = false;
     alive.current = true;
     dialog.current?.showModal();
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const unlockScroll = lockBodyScroll();
     void api.discoveryOptions().then((options) => {
       if (stopped || !alive.current) return;
       const host = window.location.hostname;
@@ -40,7 +40,7 @@ export default function DeviceDiscovery({ onSelect, onClose }: { onSelect: (devi
     }).catch((err) => { if (!stopped && alive.current) { setError(err.message); setStarting(false); } });
     return () => {
       stopped = true; alive.current = false; generation.current++;
-      document.body.style.overflow = previous;
+      unlockScroll();
       if (scanId.current) void api.cancelDiscovery(scanId.current).catch(() => undefined);
     };
   }, [start]);

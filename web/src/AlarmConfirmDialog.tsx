@@ -9,7 +9,7 @@ export default function AlarmConfirmDialog({ cameras, seconds, skipped = [], onC
   const dialog = useRef<HTMLDialogElement>(null), cancel = useRef<HTMLButtonElement>(null), submitted = useRef(false);
   useEffect(() => {
     const element = dialog.current, previous = document.activeElement;
-    element?.showModal(); cancel.current?.focus();
+    element?.showModal(); cancel.current?.focus({ preventScroll: true });
     return () => { element?.close(); if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true }); };
   }, []);
   return <dialog ref={dialog} className="device-dialog alarm-confirm-dialog" aria-labelledby="alarm-confirm-title" aria-describedby="alarm-confirm-description" onCancel={event => { event.preventDefault(); event.stopPropagation(); onClose(); }}

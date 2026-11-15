@@ -18,6 +18,7 @@ import LiveLayoutPicker, { initialLiveLayout, rememberLiveLayout, type LiveLayou
 import LiveClock from '../LiveClock';
 import { useDevice } from '../device';
 import { PageHeader, statusLabels } from '../ui';
+import { lockBodyScroll } from '../bodyScroll';
 
 type LiveTalk = ReturnType<typeof useCameraTalk>;
 
@@ -49,9 +50,7 @@ export default function Grid() {
   }, []);
   useEffect(() => {
     if (!fullscreen) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = previous; };
+    return lockBodyScroll();
   }, [fullscreen]);
 
   async function toggleFullscreen() {

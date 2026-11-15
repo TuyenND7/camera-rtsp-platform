@@ -1079,6 +1079,28 @@ body:has(.live-shell) { min-width: 0; }
 .alarm-confirm-body p { margin: 10px 0 0; }
 .alarm-confirm-dialog .alarm-confirm-start { color: #fff; border-color: #bd213b; background: #bd213b; }
 .alarm-confirm-dialog .alarm-confirm-start:hover { color: #fff; border-color: #95192f; background: #95192f; }
+
+/* One scroll surface avoids squeezing a list between large fixed headings and
+   footers on phones, short windows or enlarged text. */
+.live-device-dialog[open], .emergency-camera-dialog[open], .alarm-confirm-dialog[open], .camera-choice-dialog[open], .camera-control-dialog[open] {
+  display: block;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y pinch-zoom;
+  -webkit-overflow-scrolling: touch;
+}
+.live-device-dialog > .live-device-list, .emergency-camera-dialog > .emergency-camera-list,
+.alarm-confirm-dialog > .alarm-confirm-body, .camera-choice-dialog > .camera-choice-options {
+  max-height: none;
+  overflow: visible;
+}
+.live-device-dialog > .dialog-footer, .emergency-camera-dialog > .dialog-footer,
+.alarm-confirm-dialog > .dialog-footer, .camera-choice-dialog > .camera-choice-footer {
+  position: sticky;
+  z-index: 2;
+  bottom: 0;
+  background: var(--surface, #fff);
+}
 .storage-settings-section { grid-column: 1 / -1; }
 .tenda-account-settings { grid-column: 1 / -1; }
 .tenda-account-row { display: flex; gap: 16px; align-items: center; justify-content: space-between; }

@@ -6,6 +6,7 @@ import CameraPreview from '../CameraPreview';
 import CameraSettings from '../CameraSettings';
 import Icon from '../Icon';
 import { cameraHost, EmptyState, PageHeader, StatusBadge } from '../ui';
+import { lockBodyScroll } from '../bodyScroll';
 
 type CameraForm = {
   name: string; rtsp_url: string; record: boolean; enabled: boolean;
@@ -45,8 +46,7 @@ export default function Cameras() {
   useEffect(() => {
     if (!showForm) return;
     dialog.current?.showModal();
-    const previous = document.body.style.overflow; document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = previous; };
+    return lockBodyScroll();
   }, [showForm]);
 
   function open(camera?: Camera, found?: DiscoveredDevice) {

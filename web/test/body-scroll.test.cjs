@@ -1,0 +1,6 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript');
+const source=ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/bodyScroll.ts'),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS}}).outputText;
+function fixture(overflow=''){const body={style:{overflow}},exports={};vm.runInNewContext(source,{exports,document:{body},Set,Symbol});return {lock:exports.lockBodyScroll,body}}
+test('fullscreen and nested dialog unlock correctly when parent cleans up first',()=>{const f=fixture(),parent=f.lock(),child=f.lock();parent();assert.equal(f.body.style.overflow,'hidden');child();assert.equal(f.body.style.overflow,'')});
+test('discovery can hand off to camera editor without leaking a scroll lock',()=>{const f=fixture(),discovery=f.lock(),editor=f.lock();discovery();assert.equal(f.body.style.overflow,'hidden');editor();assert.equal(f.body.style.overflow,'');const next=f.lock();next();assert.equal(f.body.style.overflow,'')});
+test('child-first cleanup and repeated cleanup preserve the original page style',()=>{const f=fixture('clip'),parent=f.lock(),child=f.lock();child();child();assert.equal(f.body.style.overflow,'hidden');parent();parent();assert.equal(f.body.style.overflow,'clip')});

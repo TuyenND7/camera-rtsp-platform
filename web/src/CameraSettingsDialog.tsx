@@ -2,15 +2,16 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { Camera } from './api';
 import CameraSettings from './CameraSettings';
 import Icon from './Icon';
+import { lockBodyScroll } from './bodyScroll';
 
 export default function CameraSettingsDialog({ camera, onClose }: { camera: Camera; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null), id = useId();
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    const element = dialog.current, previous = document.activeElement, overflow = document.body.style.overflow;
-    element?.showModal(); document.body.style.overflow = 'hidden';
+    const element = dialog.current, previous = document.activeElement;
+    element?.showModal(); const unlockScroll = lockBodyScroll();
     return () => {
-      element?.close(); document.body.style.overflow = overflow;
+      element?.close(); unlockScroll();
       if (previous instanceof HTMLElement && previous.isConnected) {
         previous.focus({ preventScroll: true });
         if (document.activeElement !== previous) previous.closest<HTMLElement>('[role="group"]')?.focus({ preventScroll: true });
