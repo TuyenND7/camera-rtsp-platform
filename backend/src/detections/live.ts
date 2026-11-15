@@ -5,7 +5,7 @@ import { config } from '../config';
 export type Detection = { label: string; confidence: number; box: [number, number, number, number] };
 export type DetectionFrame = { at: number; width: number; height: number; detections: Detection[] };
 export type LiveDetections = { camera_id: number; state: string; synchronized: boolean; updated_at: number; server_time: number; frame_ttl_ms: number; frames: DetectionFrame[] };
-const labels = new Set(['person', 'car', 'motorcycle', 'bicycle', 'truck', 'bus']);
+const labels = new Set(['person', 'car', 'motorcycle', 'bicycle', 'truck', 'bus', 'cat', 'dog']);
 const object = (v: unknown): Record<string, any> => v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, any> : {};
 
 export function sanitizeLiveDetections(raw: unknown, cameraId: number, fps: number, now = Date.now()): LiveDetections {

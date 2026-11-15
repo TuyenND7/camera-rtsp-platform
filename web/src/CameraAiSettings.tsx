@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api, type Camera } from './api';
 
-const objects: Record<string, string> = { person: 'Người', car: 'Ô tô', motorcycle: 'Xe máy', bicycle: 'Xe đạp', truck: 'Xe tải', bus: 'Xe buýt' };
+const objects: Record<string, string> = { person: 'Người', cat: 'Mèo', dog: 'Chó', car: 'Ô tô', motorcycle: 'Xe máy', bicycle: 'Xe đạp', truck: 'Xe tải', bus: 'Xe buýt' };
 const defaults = (camera: Camera) => ({ ...camera, ai_enabled: camera.ai_enabled ?? false, ai_fps: camera.ai_fps ?? 2, ai_confidence: camera.ai_confidence ?? .5, ai_labels: camera.ai_labels ?? ['person'] });
 export default function CameraAiSettings({ camera, onBusy }: { camera: Camera; onBusy: (value: boolean) => void }) {
   const [value, setValue] = useState(defaults(camera)), [busy, setBusy] = useState(false), [error, setError] = useState('');

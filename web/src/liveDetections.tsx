@@ -43,7 +43,7 @@ export function LiveDetectionOverlay({ cameraId, at, enabled }: { cameraId: numb
   const state = useContext(LiveContext).get(cameraId);
   return <DetectionBoxes frame={enabled ? selectDetectionFrame(state, at) : null} />;
 }
-const labels: Record<string, string> = { person: 'Người', car: 'Ô tô', motorcycle: 'Xe máy', bicycle: 'Xe đạp', truck: 'Xe tải', bus: 'Xe buýt' };
+const labels: Record<string, string> = { person: 'Người', cat: 'Mèo', dog: 'Chó', car: 'Ô tô', motorcycle: 'Xe máy', bicycle: 'Xe đạp', truck: 'Xe tải', bus: 'Xe buýt' };
 export function DetectionBoxes({ frame }: { frame: DetectionFrame | null }) {
   const layer = useRef<HTMLDivElement>(null), [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {

@@ -5,7 +5,7 @@ import Icon from '../Icon';
 import { DetectionBoxes } from '../liveDetections';
 import { EmptyState, PageHeader } from '../ui';
 
-const labels: Record<string, string> = { person: 'Người', car: 'Ô tô', motorcycle: 'Xe máy', bicycle: 'Xe đạp', truck: 'Xe tải', bus: 'Xe buýt' };
+const labels: Record<string, string> = { person: 'Người', cat: 'Mèo', dog: 'Chó', car: 'Ô tô', motorcycle: 'Xe máy', bicycle: 'Xe đạp', truck: 'Xe tải', bus: 'Xe buýt' };
 
 export default function Events() {
   const [cameras, setCameras] = useState<Camera[]>([]);

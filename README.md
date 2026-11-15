@@ -17,7 +17,7 @@ NVR sub-stream ──> AI worker (YOLO) ─────> event + snapshot
 - Main stream: ghi nguyên codec/chất lượng gốc.
 - H.264 live: copy, ít tốn CPU. H.265 live: transcode H.264 để trình duyệt phát được.
 - AI: nên dùng sub-stream 640p, 1–5 FPS để không ảnh hưởng recording.
-- AI phát hiện người/xe theo lựa chọn, vẽ khung đồng bộ trên Live, lưu ảnh và mở recording đúng thời điểm. Bật riêng từng camera trong cài đặt Nhận dạng.
+- AI phát hiện người, xe, chó và mèo theo lựa chọn, vẽ khung đồng bộ trên Live, lưu ảnh và mở recording đúng thời điểm. Bật riêng từng camera trong cài đặt Nhận dạng.
 
 ## Thành phần
 
@@ -610,6 +610,8 @@ Tham chiếu [ONVIF Media: Get/SetVideoEncoderConfiguration](https://www.onvif.o
 Các thao tác đổi Wi-Fi, nâng firmware, reset, xóa liên kết, định dạng thẻ và dịch vụ cloud của hãng chưa đưa vào bản tích hợp này. Không sao chép toàn bộ thuộc tính SDK ra web: dữ liệu Wi-Fi/tài khoản/khóa thiết bị luôn bị lọc.
 
 API admin: `GET/PUT /api/cameras/:id/device-settings`. Ghi qua HTTPS + CSRF, body `{ revision, changes: { indicator: 0 } }`; backend và worker Windows đều kiểm tra danh sách trường/giá trị cho phép, ID/fingerprint/generation, revision và khả năng thực tế. Adapter phải công bố `settings_version: 1`. Lệnh SDK ACK chưa khớp đọc lại trả `confirmed: false`.
+
+Nhận dạng chó/mèo dùng các lớp `cat`/`dog` có sẵn trong model YOLOv8n hiện tại. Chọn riêng trong **Cài đặt camera → Nhận dạng**; áp dụng cho khung Live, ảnh sự kiện và bộ lọc sự kiện. Đây là phát hiện đối tượng, chưa bao gồm phân tích xâm nhập vùng, lảng vảng hoặc suy luận hành vi trộm cắp.
 
 ### API nhận dạng Live
 
