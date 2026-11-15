@@ -48,6 +48,7 @@ public static partial class TalkAgent
     }
     static void Publish(bool authenticated)
     {
+        RefreshBindingAddresses();
         try { Write(Path.Combine(root, "status.json"), new { version = 1, control_version = 1, settings_version = 1, duplex_version = 1, instance = instance, updated_at = Now, authenticated = authenticated, bindings = bindings }); } catch (IOException) {}
     }
     static string Authorize(Dictionary<string, object> config)
@@ -159,7 +160,12 @@ public static partial class TalkAgent
             int id = Convert.ToInt32(device["id"]); string model = (string)device["model"];
             if (id < 1 || !ids.Add(id) || ids.Count > 16 || !Regex.IsMatch((string)device["url_hash"], "^[a-f0-9]{64}$") || !Regex.IsMatch((string)device["iotId"], "^[A-Za-z0-9]{20,128}$") || (model != "CT3V1.0" && model != "RH7V2.0")) throw new Exception("sdk_bindings_invalid");
             deviceIds[id] = (string)device["iotId"];
-            bindings.Add(new Dictionary<string, object> { { "id", id }, { "url_hash", device["url_hash"] }, { "model", model } });
+            var binding = new Dictionary<string, object> { { "id", id }, { "url_hash", device["url_hash"] }, { "original_url_hash", device["url_hash"] }, { "model", model } };
+            foreach (string key in new string[] { "serial_hash", "target_hash" }) {
+                string value = BindingHash(device, key);
+                if (value != null) binding[key] = value;
+            }
+            bindings.Add(binding);
         }
         if (ids.Count == 0) throw new Exception("sdk_bindings_invalid");
         return config;
@@ -173,6 +179,7 @@ public static partial class TalkAgent
             var config = Configuration(configuration); root = Path.GetFullPath((string)config["ipcDirectory"]);
             if (Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar)) != ".tenda-talk") throw new Exception("sdk_ipc_directory_invalid");
             Directory.CreateDirectory(root);
+            RefreshBindingAddresses();
             if (args.Length > 2)
             {
                 Guid generation;

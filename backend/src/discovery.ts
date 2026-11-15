@@ -2,6 +2,7 @@ import net from 'net';
 import { Cam } from 'onvif/promises';
 import { pool } from './db';
 import { invalidatePtz } from './ptz';
+import { synchronizeBindingAddress } from './talk/bindingAddresses';
 
 /**
  * Camera Wi-Fi dùng DHCP hay bị router đổi IP (vd .104 -> .102 -> .101). Khi
@@ -47,8 +48,16 @@ export function canPortConnect(host: string, port: number, timeoutMs = PROBE_TIM
 /** Lưu serial lần đầu camera online, để sau này nhận ra camera khi đổi IP. */
 export async function rememberSerial(cameraId: number): Promise<void> {
   const cam = await loadCamera(cameraId);
-  if (!cam || cam.device_serial) return;
+  if (!cam) return;
   const rtsp = new URL(cam.rtsp_url);
+  if (cam.device_serial) {
+    await synchronizeBindingAddress(cam, async () => {
+      const serial = await readSerial(rtsp.hostname, onvifPort(cam), credentials(rtsp));
+      const latest = await loadCamera(cameraId);
+      return serial === cam.device_serial && latest?.device_serial === cam.device_serial && latest.rtsp_url === cam.rtsp_url;
+    });
+    return;
+  }
   const serial = await readSerial(rtsp.hostname, onvifPort(cam), credentials(rtsp));
   if (!serial) return;
   await pool.query('UPDATE cameras SET device_serial = $1 WHERE id = $2 AND device_serial IS NULL', [serial, cameraId]);
@@ -120,6 +129,13 @@ async function moveCamera(cam: CameraNetRow, oldHost: string, newHost: string): 
     [swap(cam.rtsp_url), swap(cam.ai_rtsp_url), swap(cam.onvif_url), cam.id]
   );
   invalidatePtz(cam.id);
+  const moved = await loadCamera(cam.id);
+  if (moved) await synchronizeBindingAddress(moved, async () => {
+    const current = new URL(moved.rtsp_url);
+    const serial = await readSerial(current.hostname, onvifPort(moved), credentials(current));
+    const latest = await loadCamera(moved.id);
+    return serial === cam.device_serial && latest?.rtsp_url === moved.rtsp_url;
+  });
 }
 
 async function readSerial(host: string, port: number, creds: { username: string; password: string }): Promise<string | null> {

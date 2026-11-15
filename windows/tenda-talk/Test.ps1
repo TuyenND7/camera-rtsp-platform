@@ -48,6 +48,18 @@ try {
     }
     Add-Type -AssemblyName System.Web.Extensions
     $serializer = New-Object Web.Script.Serialization.JavaScriptSerializer
+    $addressBinding=$serializer.DeserializeObject(('{"id":3,"url_hash":"' + ('a'*64) + '","original_url_hash":"' + ('a'*64) + '","serial_hash":"' + ('c'*64) + '","target_hash":"' + ('d'*64) + '"}'))
+    $address=$serializer.DeserializeObject(('{"version":1,"url_hash":"' + ('b'*64) + '","original_url_hash":"' + ('a'*64) + '","serial_hash":"' + ('c'*64) + '","target_hash":"' + ('d'*64) + '"}'))
+    $applyAddress=$agent.GetMethod('ApplyBindingAddress',$flags)
+    if (-not $applyAddress.Invoke($null,[object[]]@($addressBinding.PSObject.BaseObject,$address.PSObject.BaseObject)) -or $addressBinding['url_hash'] -ne ('b'*64)) { throw 'Verified address update rejected' }
+    foreach($field in @('original_url_hash','serial_hash','target_hash')) {
+        $previous=$address[$field];$address[$field]=('e'*64)
+        if($applyAddress.Invoke($null,[object[]]@($addressBinding.PSObject.BaseObject,$address.PSObject.BaseObject))) { throw 'Mismatched identity accepted' }
+        $address[$field]=$previous
+    }
+    $address['iotId']='unknown'
+    if($applyAddress.Invoke($null,[object[]]@($addressBinding.PSObject.BaseObject,$address.PSObject.BaseObject))) { throw 'Unknown address fields accepted' }
+    Write-Output 'PASS: DHCP aliases require original binding, serial and unchanged target; cannot replace device identity.'
     $properties = $serializer.DeserializeObject('{"FunctionSet":{"value":{"oneKeyAlarm":1}},"AudibleStatus":{"value":0,"time":100},"TurnLight":{"value":1,"time":101},"WifiConfiguration":{"value":{"password":"fixture-private-camera-password"}}}')
     $state = $agent.GetMethod('ControlStateFromProperties',$flags).Invoke($null,@($properties))
     if (-not $state.alarm_supported -or $null -ne $state.alarm_active -or -not $state.light_supported -or $state.light_enabled -ne $true) { throw 'Invalid device control state' }

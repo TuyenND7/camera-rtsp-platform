@@ -16,6 +16,7 @@ export interface CameraRow {
 
 interface Worker {
   audioGeneration: string;
+  lastIdentityCheck: number;
   handle?: FfmpegHandle; // undefined trong lúc đang probe/spawn
   restartTimer?: NodeJS.Timeout;
   stopping: boolean;
@@ -91,7 +92,7 @@ class StreamManager {
     void this.setStatus(cam.id, 'connecting');
 
     // Đăng ký worker placeholder ngay để stop() có thể hủy trong lúc probe
-    const worker: Worker = { audioGeneration: liveAudio.begin(cam.id), stopping: false, backoffMs, online: false };
+    const worker: Worker = { audioGeneration: liveAudio.begin(cam.id), lastIdentityCheck: 0, stopping: false, backoffMs, online: false };
     this.workers.set(cam.id, worker);
 
     startFfmpeg(
@@ -106,6 +107,9 @@ class StreamManager {
           worker.online = true;
           this.failures.delete(cam.id);
           void this.setStatus(cam.id, 'online', null);
+        }
+        if (!worker.stopping && this.workers.get(cam.id) === worker && /(^|\n)frame=\d+/.test(line) && Date.now() - worker.lastIdentityCheck >= 30_000) {
+          worker.lastIdentityCheck = Date.now();
           void rememberSerial(cam.id).catch(() => undefined);
         }
         if (/error|failed|refused|timed out|Connection/i.test(line)) {

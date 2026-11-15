@@ -41,6 +41,7 @@ export default function EmergencyControls({ cameras, talk, compact = false }: { 
   const mounted = useRef(true), starting = useRef<{ cancelled: boolean; attempted: number[] } | null>(null);
   const stopping = useRef<Promise<void> | null>(null), reading = useRef(false);
   const revision = useRef(0);
+  const identities = useRef<Record<number, string>>({});
   const selectedIds = cameras.filter(camera => selection === null || selection.includes(camera.id)).map(camera => camera.id);
   const current = useRef({ states, uncertain, cameras, selectedIds }); current.current = { states, uncertain, cameras, selectedIds };
   const cameraKey = cameras.map(camera => `${camera.id}:${camera.enabled}:${camera.status === 'online'}:${camera.rtsp_url}`).join('|');
@@ -95,37 +96,57 @@ export default function EmergencyControls({ cameras, talk, compact = false }: { 
 
   useEffect(() => {
     if (!admin) return;
-    let cancelled = false;
+    let cancelled = false, retry: number | undefined;
     const list = cameras.filter(camera => camera.enabled && camera.status === 'online');
-    setLoading(true); setCapabilities({}); const stamp = revision.current;
-    let unresolved = list, retry: number | undefined;
-    async function refreshCapabilities() {
-      if (cancelled || !unresolved.length) return;
-      if (document.hidden) { retry = window.setTimeout(() => void refreshCapabilities(), 10_000); return; }
-      const capabilities: Record<number, TalkCapability> = {};
-      for (let offset = 0; offset < unresolved.length && !cancelled; offset += 16) {
-        try { for (const item of await api.talkCapabilities(unresolved.slice(offset, offset + 16).map(camera => camera.id))) capabilities[item.camera_id] = item; }
-        catch { /* Retry unavailable SDK/network state without enabling an unverified mic. */ }
-      }
+    const next = Object.fromEntries(cameras.map(camera => [camera.id, `${camera.rtsp_url}:${camera.enabled}:${camera.status === 'online'}`]));
+    const same = (id: number) => identities.current[id] === next[id];
+    let pendingMic = list.filter(camera => !same(camera.id) || !capabilities[camera.id]?.supported);
+    let pendingControls = cameras.filter(camera => !same(camera.id) || !states[camera.id]?.available);
+    const retained = new Set(cameras.filter(camera => same(camera.id)).map(camera => camera.id));
+    setCapabilities(value => Object.fromEntries(Object.entries(value).filter(([id]) => retained.has(Number(id)))));
+    setStates(value => Object.fromEntries(Object.entries(value).map(([id, state]) => [id, retained.has(Number(id)) ? state : { ...state, available: false, alarm_supported: false, light_supported: false }])));
+    identities.current = next;
+    setLoading(true);
+    async function refresh() {
       if (cancelled) return;
-      setCapabilities(value => ({ ...value, ...capabilities }));
-      unresolved = unresolved.filter(camera => capabilities[camera.id]?.supported !== true);
-      if (unresolved.length) retry = window.setTimeout(() => void refreshCapabilities(), 10_000);
-    }
-    async function load() {
-      // An RTSP failure can coexist with an active siren lease. Read its stop state too.
-      const controlResults = commands(cameras.map(camera => camera.id), id => api.deviceControls(id));
-      await refreshCapabilities();
-      const controls = await controlResults;
+      if (document.hidden) { retry = window.setTimeout(() => void refresh(), 10_000); return; }
+      const stamp = revision.current;
+      const microphone = async () => {
+        const found: Record<number, TalkCapability> = {};
+        for (let offset = 0; offset < pendingMic.length && !cancelled; offset += 16) {
+          try { for (const item of await api.talkCapabilities(pendingMic.slice(offset, offset + 16).map(camera => camera.id))) found[item.camera_id] = item; }
+          catch { /* Keep unavailable cameras unverified and retry. */ }
+        }
+        if (cancelled) return;
+        setCapabilities(value => ({ ...value, ...found }));
+        pendingMic = pendingMic.filter(camera => !found[camera.id]?.supported);
+      };
+      const controls = async () => {
+        const found: Record<number, DeviceControls> = {};
+        let next = 0;
+        const read = async () => {
+          while (!cancelled && next < pendingControls.length) {
+            const camera = pendingControls[next++];
+            try {
+              const state = await api.deviceControls(camera.id);
+              if (!cancelled && stamp === revision.current) {
+                found[camera.id] = state;
+                setStates(value => ({ ...value, [camera.id]: state }));
+              }
+            } catch { /* Retry just the unavailable controls. */ }
+          }
+        };
+        await Promise.all([read(), read()]);
+        if (!cancelled) pendingControls = pendingControls.filter(camera => !found[camera.id]?.available);
+      };
+      // One unavailable camera must not delay already verified cameras.
+      await Promise.all([microphone(), controls()]);
       if (cancelled) return;
-      setStates(value => {
-        const next = { ...value };
-        for (const item of controls) if (stamp === revision.current && item.result.status === 'fulfilled') next[item.id] = item.result.value;
-        return next;
-      });
       setLoading(false);
+      if (pendingMic.length || pendingControls.length) retry = window.setTimeout(() => void refresh(), 10_000);
     }
-    void load(); return () => { cancelled = true; window.clearTimeout(retry); };
+    void refresh();
+    return () => { cancelled = true; window.clearTimeout(retry); };
   }, [cameraKey, admin]);
 
   function names(ids: number[]) { return ids.map(id => current.current.cameras.find(camera => camera.id === id)?.name ?? `Camera ${id}`).join(', '); }
@@ -202,12 +223,12 @@ export default function EmergencyControls({ cameras, talk, compact = false }: { 
   const deadlines = Object.values(states).flatMap(state => alarmIds.includes(state.camera_id) && state.ends_at ? [state.ends_at] : []);
   const remaining = deadlines.length ? Math.max(0, Math.ceil((Math.max(...deadlines) - now) / 1000)) : null;
   return <section className={`emergency-controls${compact ? ' compact' : ''}`} aria-labelledby="emergency-title">
-    <div className="emergency-description"><h2 id="emergency-title"><button type="button" className="emergency-selector" onClick={() => setPickerOpen(true)} aria-label={`Chọn camera khẩn cấp, hiện chọn ${scopeLabel}`} aria-haspopup="dialog" aria-expanded={pickerOpen} title={`Chọn camera · Còi: ${alarmTargets.length}/${selectedIds.length} · Mic: ${micTargets.length}/${selectedIds.length}`}><Icon name="shield" size={compact ? 18 : 20} /><span className="emergency-selector-label">Khẩn cấp</span><span className="emergency-scope-count">{selection === null ? 'Tất cả' : selectedIds.length}</span><Icon name="chevronDown" size={13} /></button></h2><span>{loading ? 'Đang kiểm tra camera…' : `Còi: ${alarmTargets.length}/${selectedIds.length} · Mic: ${micTargets.length}/${selectedIds.length} camera`}</span></div>
+    <div className="emergency-description"><h2 id="emergency-title"><button type="button" className="emergency-selector" onClick={() => setPickerOpen(true)} aria-label={`Chọn camera khẩn cấp, hiện chọn ${scopeLabel}`} aria-haspopup="dialog" aria-expanded={pickerOpen} title={loading && !alarmTargets.length && !micTargets.length ? 'Đang kiểm tra camera…' : `Chọn camera · Còi: ${alarmTargets.length}/${selectedIds.length} · Mic: ${micTargets.length}/${selectedIds.length}`}><Icon name="shield" size={compact ? 18 : 20} /><span className="emergency-selector-label">Khẩn cấp</span><span className="emergency-scope-count">{selection === null ? 'Tất cả' : selectedIds.length}</span><Icon name="chevronDown" size={13} /></button></h2><span>{loading ? 'Đang kiểm tra camera…' : `Còi: ${alarmTargets.length}/${selectedIds.length} · Mic: ${micTargets.length}/${selectedIds.length} camera`}</span></div>
     <div className="emergency-actions">
-      <button type="button" className={`emergency-alarm${alarmOn || mode !== 'idle' ? ' active' : ''}`} disabled={!secure || checkingAlarm || mode === 'stopping' || (!alarmOn && mode === 'idle' && (loading || !alarmTargets.length)) || talk.blocked} onClick={() => void alarm()} aria-pressed={alarmOn || mode !== 'idle'} aria-label={`${alarmOn ? 'Dừng' : 'Bật'} báo động ${scopeLabel}`}>
+      <button type="button" className={`emergency-alarm${alarmOn || mode !== 'idle' ? ' active' : ''}`} disabled={!secure || checkingAlarm || mode === 'stopping' || (!alarmOn && mode === 'idle' && !alarmTargets.length) || talk.blocked} onClick={() => void alarm()} aria-pressed={alarmOn || mode !== 'idle'} aria-label={`${alarmOn ? 'Dừng' : 'Bật'} báo động ${scopeLabel}`}>
         <Icon name="bell" size={compact ? 18 : 21} />{checkingAlarm ? 'Đang tải…' : compact ? mode === 'stopping' ? 'Đang dừng…' : mode === 'starting' ? 'Hủy còi' : alarmOn ? `Dừng còi${remaining !== null && remaining > 0 ? ` · ${remaining}s` : ''}` : 'Báo động' : mode === 'stopping' ? 'Đang dừng báo động…' : mode === 'starting' ? 'Hủy / dừng báo động' : alarmOn ? `Dừng báo động${remaining !== null && remaining > 0 ? ` · ${remaining}s` : ''}` : 'Báo động'}
       </button>
-      <button type="button" className={`emergency-mic${broadcast ? ' active' : ''}`} disabled={talk.blocked || (!broadcast && (!secure || loading || !micTargets.length || micTargets.length > 16 || mode !== 'idle'))} onClick={() => talk.toggleAll(micTargets.map(camera => camera.id), () => stopAlarms())} aria-pressed={broadcast} aria-label={broadcast ? talk.phase === 'preparing' ? 'Hủy kết nối mic' : 'Kết thúc đàm thoại khẩn cấp' : `Nói tới ${scopeLabel}`}>
+      <button type="button" className={`emergency-mic${broadcast ? ' active' : ''}`} disabled={talk.blocked || (!broadcast && (!secure || !micTargets.length || micTargets.length > 16 || mode !== 'idle'))} onClick={() => talk.toggleAll(micTargets.map(camera => camera.id), () => stopAlarms())} aria-pressed={broadcast} aria-label={broadcast ? talk.phase === 'preparing' ? 'Hủy kết nối mic' : 'Kết thúc đàm thoại khẩn cấp' : `Nói tới ${scopeLabel}`}>
         <Icon name="microphone" size={compact ? 18 : 21} />{compact ? broadcast ? talk.phase === 'preparing' ? 'Hủy mic' : 'Dừng nói' : 'Nói' : broadcast ? talk.phase === 'preparing' ? 'Hủy kết nối mic' : 'Kết thúc đàm thoại' : `Nói tới ${scopeLabel}`}
       </button>
     </div>
