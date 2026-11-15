@@ -16,9 +16,13 @@ function Protected({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SessionUser | null | undefined>();
   const [error, setError] = useState('');
   useEffect(() => {
-    let stopped = false;
-    void api.session().then((value) => { if (!stopped) setUser(value); }).catch(() => { if (!stopped) setError('Không thể kiểm tra phiên đăng nhập. Vui lòng tải lại trang.'); });
-    return () => { stopped = true; };
+    let stopped = false, timer: number | undefined;
+    async function load() {
+      try { const value = await api.session(); if (!stopped) { setUser(value); setError(''); } }
+      catch { if (!stopped) { setError('Chưa kết nối được máy chủ. Đang thử lại…'); timer = window.setTimeout(() => void load(), 3000); } }
+    }
+    void load();
+    return () => { stopped = true; window.clearTimeout(timer); };
   }, []);
   if (error) return <main className="loading-state" role="alert">{error}</main>;
   if (user === undefined) return <main className="loading-state">Đang kiểm tra đăng nhập…</main>;

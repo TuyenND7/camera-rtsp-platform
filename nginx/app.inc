@@ -3,12 +3,31 @@ server_tokens off;
 client_max_body_size 16k;
 
 # Inherited by every location, including denied requests and media files.
-add_header Cache-Control "private, no-store" always;
+set $camera_cache_control "private, no-store";
+add_header Cache-Control $camera_cache_control always;
 add_header X-Content-Type-Options nosniff always;
 add_header X-Frame-Options DENY always;
 add_header Referrer-Policy no-referrer always;
 add_header Permissions-Policy "camera=(), microphone=(self), geolocation=()" always;
 add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'" always;
+
+# Keep bootstrap and detection metadata small over the public relay. Video and
+# streaming microphone PCM are deliberately absent from these MIME types.
+gzip on;
+gzip_vary on;
+gzip_proxied any;
+gzip_comp_level 5;
+gzip_min_length 1024;
+gzip_types application/javascript text/css application/json image/svg+xml;
+
+# Vite filenames contain content hashes; these public assets contain no camera
+# data. Authentication, API responses, playlists and recordings stay no-store.
+location /assets/ {
+    set $camera_cache_control "public, max-age=31536000, immutable";
+    proxy_pass http://web:80;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+}
 
 # Web admin (React static build served by 'web' service)
 location / {

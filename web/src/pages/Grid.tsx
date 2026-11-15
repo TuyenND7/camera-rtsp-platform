@@ -66,24 +66,30 @@ export default function Grid() {
   }
 
   useEffect(() => {
-    api.listCameras().then((items) => {
-      setCameras(items);
-      const enabled = items.filter((camera) => camera.enabled);
-      const focused = enabled.find((camera) => camera.id === focusedCameraId);
-      const size = focused ? 1 : 4;
-      const initial = focused ? [focused] : enabled.slice(0, size);
-      setLayout(size);
-      setSlots(Array.from({ length: size }, (_, index) => initial[index]?.id ?? null));
-    }).catch((error) => setErr(error.message));
+    let active = true, initialized = false, timer: number | undefined, controller: AbortController | undefined;
+    async function load() {
+      if (!active) return;
+      if (!initialized || !document.hidden) {
+        controller = new AbortController();
+        try {
+          const items = await api.listCameras(controller.signal);
+          if (!active) return;
+          setCameras(items); setErr('');
+          if (!initialized) {
+            const enabled = items.filter(camera => camera.enabled);
+            const focused = enabled.find(camera => camera.id === focusedCameraId);
+            const size = focused ? 1 : 4, initial = focused ? [focused] : enabled.slice(0, size);
+            setLayout(size);
+            setSlots(Array.from({ length: size }, (_, index) => initial[index]?.id ?? null));
+            initialized = true;
+          }
+        } catch { if (active && !initialized) setErr('Chưa kết nối được máy chủ. Đang thử lại…'); }
+      }
+      if (active) timer = window.setTimeout(() => void load(), 5000);
+    }
+    void load();
+    return () => { active = false; controller?.abort(); window.clearTimeout(timer); };
   }, [focusedCameraId]);
-
-  // Cập nhật trạng thái online/offline mà không đổi lựa chọn camera của người dùng.
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      api.listCameras().then((items) => { setCameras(items); setErr(''); }).catch(() => undefined);
-    }, 5000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   const cameraById = useMemo(() => new Map(cameras.map(camera => [camera.id, camera])), [cameras]);
   const visible = useMemo(

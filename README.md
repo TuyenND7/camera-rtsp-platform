@@ -527,6 +527,10 @@ git remote set-url origin https://github.com/TuyenND7/camera-rtsp-platform.git
 git pull --ff-only
 docker compose up -d --build
 
+# Nạp lại cấu hình gateway và địa chỉ container web sau khi cập nhật
+docker compose exec -T nginx nginx -t
+docker compose exec -T nginx nginx -s reload
+
 # Backup PostgreSQL (chạy trong thư mục project)
 mkdir -p backups
 docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > backups/camera_platform-$(date +%F).sql
@@ -539,6 +543,10 @@ docker compose down -v
 ```
 
 Backup `storage/` bằng công cụ backup filesystem/NAS theo lịch; không dùng `docker compose down -v` nếu chưa có backup DB.
+
+Khi mạng xem Live gián đoạn, trình phát tự thử lại kể cả lúc video chưa có frame hoặc bị dừng do lỗi mạng. Các lượt đọc trạng thái có thời hạn 10 giây và không xếp chồng trên màn Live. Tạm dừng Playback vẫn được giữ nguyên.
+
+Gateway nén JS/CSS và JSON; chỉ các tệp giao diện có tên chứa hash trong `/assets/` được lưu cache lâu dài. API dữ liệu camera, playlist, recording và snapshot vẫn yêu cầu đăng nhập, dùng `private, no-store`. Nếu camera không phản hồi cả trong LAN, cần kiểm tra nguồn và kết nối Wi-Fi của camera; tải lại web không khôi phục được kết nối Wi-Fi đó.
 
 ## API
 

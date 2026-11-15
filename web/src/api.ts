@@ -215,6 +215,17 @@ async function handle<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Polling reads must finish or abort, including their response body. */
+async function read<T>(path: string, signal?: AbortSignal, parse: (res: Response) => Promise<T> = handle<T>): Promise<T> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener('abort', abort, { once: true });
+  if (signal?.aborted) abort();
+  const timer = window.setTimeout(abort, 10000);
+  try { return await parse(await fetch(`${API_BASE}${path}`, { headers: authHeaders(), signal: controller.signal, cache: 'no-store' })); }
+  finally { window.clearTimeout(timer); signal?.removeEventListener('abort', abort); }
+}
+
 export const api = {
   async liveDetections(cameraIds: number[], signal: AbortSignal) {
     return handle<LiveDetectionState[]>(await fetch(`${API_BASE}/events/live?camera_ids=${cameraIds.join(',')}`, { headers: authHeaders(), signal, cache: 'no-store' }));
@@ -268,17 +279,18 @@ export const api = {
     await fetch(`${API_BASE}/talk/sessions/${encodeURIComponent(id)}`, { method: 'DELETE', headers: authHeaders(), keepalive: true });
   },
   async session(): Promise<SessionUser | null> {
-    const response = await fetch(`${API_BASE}/auth/session`, { cache: 'no-store' });
-    if (response.status === 401) { csrf = ''; return null; }
-    const data = await handle<{ user: SessionUser; csrf: string }>(response);
-    csrf = data.csrf; return data.user;
+    return read('/auth/session', undefined, async response => {
+      if (response.status === 401) { csrf = ''; return null; }
+      const data = await handle<{ user: SessionUser; csrf: string }>(response);
+      csrf = data.csrf; return data.user;
+    });
   },
   async logout() {
     await handle<void>(await fetch(`${API_BASE}/auth/logout`, { method: 'POST', headers: authHeaders() }));
     csrf = '';
   },
   async health() {
-    return handle<{ ok: boolean }>(await fetch(`${API_BASE}/health`));
+    return read<{ ok: boolean }>('/health');
   },
   async discoveryOptions() {
     return handle<{ subnets: string[]; default_subnet: string }>(await fetch(`${API_BASE}/cameras/discovery/options`, { headers: authHeaders() }));
@@ -306,9 +318,8 @@ export const api = {
     csrf = data.csrf; return data;
   },
 
-  async listCameras() {
-    const res = await fetch(`${API_BASE}/cameras`, { headers: authHeaders() });
-    return handle<Camera[]>(res);
+  async listCameras(signal?: AbortSignal) {
+    return read<Camera[]>('/cameras', signal);
   },
 
   async getCamera(id: number) {
@@ -366,8 +377,7 @@ export const api = {
   },
 
   async storageStatus() {
-    const res = await fetch(`${API_BASE}/recordings/storage`, { headers: authHeaders() });
-    return handle<StorageStatus>(res);
+    return read<StorageStatus>('/recordings/storage');
   },
 
   recordingPlaylist(cameraId: number, day: string, from?: string) {

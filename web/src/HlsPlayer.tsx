@@ -58,12 +58,13 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
     if (video.ended) video.currentTime = 0;
     video.play().catch((error) => {
       if (attempt !== playAttempt.current || error?.name === 'AbortError') return;
-      playRequested.current = false;
+      const retryLive = live && error?.name !== 'NotAllowedError';
+      playRequested.current = retryLive;
       callbacks.current.onPlayingChange?.(false);
-      callbacks.current.onWaitingChange?.(false);
+      callbacks.current.onWaitingChange?.(retryLive);
       callbacks.current.onPlaybackError?.(error?.name === 'NotAllowedError'
         ? 'Nhấn Phát để bắt đầu xem video.'
-        : 'Chưa phát được bản ghi. Hãy thử chọn lại mốc thời gian.');
+        : live ? 'Đang kết nối lại camera…' : 'Chưa phát được bản ghi. Hãy thử chọn lại mốc thời gian.');
     });
   }
 
@@ -76,7 +77,7 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
   }
 
   useImperativeHandle(ref, () => ({
-    reload() { setGeneration((value) => value + 1); },
+    reload() { if (live) playRequested.current = true; setGeneration((value) => value + 1); },
     seek(seconds: number) {
       const video = videoRef.current;
       if (!video || !Number.isFinite(seconds)) return;
@@ -138,6 +139,7 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
 
     let hls: Hls | null = null;
     let retryTimer: number | undefined;
+    let nativeReady: (() => void) | undefined;
 
     if (Hls.isSupported()) {
       hls = new Hls({
@@ -190,22 +192,28 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = src;
-      video.addEventListener('loadedmetadata', () => {
+      nativeReady = () => {
         if (startPosition > 0) video.currentTime = startPosition;
         video.playbackRate = rate.current;
         if (playRequested.current) playVideo();
-      }, { once: true });
+      };
+      video.addEventListener('loadedmetadata', nativeReady, { once: true });
     }
 
-    // Live đứng hình > 12s (camera mất kết nối rồi online lại) -> tự tải lại.
+    // Startup can be paused with readyState=0 after a network error, too.
+    // Preserve an explicit user pause; recover an interrupted live play request.
     let lastTime = -1;
     let stalledChecks = 0;
     const watchdog = live ? window.setInterval(() => {
-      if (video.paused || document.hidden) return;
-      stalledChecks = video.currentTime === lastTime ? stalledChecks + 1 : 0;
+      if (!playRequested.current || document.hidden) return;
+      stalledChecks = video.paused || video.currentTime === lastTime ? stalledChecks + 1 : 0;
       lastTime = video.currentTime;
-      if (stalledChecks >= 3) setGeneration((value) => value + 1);
+      if (video.paused && video.readyState >= 2 && !video.error) playVideo();
+      if (stalledChecks >= 3) { stalledChecks = 0; setGeneration((value) => value + 1); }
     }, 4000) : undefined;
+    const reconnect = () => { if (live && !document.hidden && playRequested.current) setGeneration(value => value + 1); };
+    const visible = () => { if (video.paused || video.readyState < 2) reconnect(); };
+    if (live) { window.addEventListener('online', reconnect); document.addEventListener('visibilitychange', visible); }
 
     return () => {
       playAttempt.current++;
@@ -213,7 +221,11 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
       if (watchdog) window.clearInterval(watchdog);
       liveHls.current = null;
       callbacks.current.onLiveDate?.(null);
+      if (nativeReady) video.removeEventListener('loadedmetadata', nativeReady);
+      window.removeEventListener('online', reconnect);
+      document.removeEventListener('visibilitychange', visible);
       if (hls) hls.destroy();
+      else { video.pause(); video.removeAttribute('src'); video.load(); }
     };
   }, [src, live, startPosition, generation]);
 
