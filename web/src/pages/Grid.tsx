@@ -14,7 +14,7 @@ import CameraAudioDialog from '../CameraAudioDialog';
 import { cameraAudioChanged, getCameraAudio, setCameraAudio, type CameraAudio } from '../cameraAudio';
 import useCameraTalk from '../useCameraTalk';
 import EmergencyControls from '../EmergencyControls';
-import LiveLayoutPicker, { LayoutSize } from '../LiveLayoutPicker';
+import LiveLayoutPicker, { initialLiveLayout, rememberLiveLayout, type LiveLayout } from '../LiveLayoutPicker';
 import LiveClock from '../LiveClock';
 import { useDevice } from '../device';
 import { PageHeader, statusLabels } from '../ui';
@@ -27,7 +27,7 @@ export default function Grid() {
   const focusedCameraId = Number(searchParams.get('camera'));
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [slots, setSlots] = useState<Array<number | null>>([]);
-  const [layout, setLayout] = useState<LayoutSize>(focusedCameraId > 0 ? 1 : 4);
+  const [layout, setLayout] = useState<LiveLayout>(() => focusedCameraId > 0 ? 1 : initialLiveLayout());
   const [pickerOpen, setPickerOpen] = useState(false);
   const [settingsCameraId, setSettingsCameraId] = useState<number | null>(null);
   const [pickerSlot, setPickerSlot] = useState<number | null>(null);
@@ -78,9 +78,9 @@ export default function Grid() {
           if (!initialized) {
             const enabled = items.filter(camera => camera.enabled);
             const focused = enabled.find(camera => camera.id === focusedCameraId);
-            const size = focused ? 1 : 4, initial = focused ? [focused] : enabled.slice(0, size);
+            const size = focused ? 1 : initialLiveLayout(), initial = focused ? [focused] : enabled.slice(0, size === 'list' ? 4 : size);
             setLayout(size);
-            setSlots(Array.from({ length: size }, (_, index) => initial[index]?.id ?? null));
+            setSlots(Array.from({ length: size === 'list' ? initial.length : size }, (_, index) => initial[index]?.id ?? null));
             initialized = true;
           }
         } catch { if (active && !initialized) setErr('Chưa kết nối được máy chủ. Đang thử lại…'); }
@@ -92,22 +92,24 @@ export default function Grid() {
   }, [focusedCameraId]);
 
   const cameraById = useMemo(() => new Map(cameras.map(camera => [camera.id, camera])), [cameras]);
-  const visible = useMemo(
-    () => Array.from({ length: layout }, (_, index) => cameraById.get(slots[index] ?? -1) ?? null),
-    [cameraById, layout, slots]
-  );
+  const visible = useMemo(() => {
+    const items = Array.from({ length: layout === 'list' ? slots.length : layout }, (_, index) => cameraById.get(slots[index] ?? -1) ?? null);
+    if (layout === 'list' && slots.length < 16 && (!items.length || cameras.some(camera => !slots.includes(camera.id)))) items.push(null);
+    return items;
+  }, [cameraById, cameras, layout, slots]);
   const selected = useMemo(() => new Set(visible.flatMap(camera => camera ? [camera.id] : [])), [visible]);
   const cameraTalk = useCameraTalk(cameras, selected, false);
   const talkActive = cameraTalk.phase !== 'idle';
 
-  function changeLayout(size: LayoutSize) {
+  function changeLayout(size: LiveLayout) {
     setLayout(size);
-    setSlots(current => Array.from({ length: size }, (_, index) => current[index] ?? null));
+    rememberLiveLayout(size);
+    setSlots(current => size === 'list' ? current.filter(id => id !== null) : Array.from({ length: size }, (_, index) => current[index] ?? null));
     setPickerOpen(false);
   }
 
   function closeSlot(index: number) {
-    setSlots(current => current.map((id, slot) => slot === index ? null : id));
+    setSlots(current => layout === 'list' ? current.filter((_, slot) => slot !== index) : current.map((id, slot) => slot === index ? null : id));
   }
 
   function openPicker(index?: number) {
@@ -117,10 +119,10 @@ export default function Grid() {
   }
 
   function chooseCamera(id: number, index: number) {
-    if (!cameraById.has(id) || index < 0 || index >= layout) return;
+    if (!cameraById.has(id) || index < 0 || index >= (layout === 'list' ? 16 : layout)) return;
     setSlots(current => {
       if (current.includes(id)) return current;
-      return Array.from({ length: layout }, (_, slot) => slot === index ? id : current[slot] ?? null);
+      return Array.from({ length: layout === 'list' ? Math.max(current.length, index + 1) : layout }, (_, slot) => slot === index ? id : current[slot] ?? null);
     });
     setPickerOpen(false);
   }
@@ -141,7 +143,7 @@ export default function Grid() {
         <div className={`mi-camera-grid layout-${layout}`}>
           {visible.map((camera, index) => camera
             ? <CameraTile key={`slot-${index}`} cameraTalk={cameraTalk} talkActive={talkActive} camera={camera} onClose={() => closeSlot(index)} onSettings={() => { cameraTalk.stop(); setSettingsCameraId(camera.id); }} />
-            : <button key={`slot-${index}`} type="button" className="empty-camera-tile" onClick={() => openPicker(index)} aria-label={`Chọn camera cho ô ${index + 1}`}><Icon name="plus" size={26} /><span>Chọn camera</span><small>Thêm vào ô {index + 1}</small></button>)}
+            : <button key={`slot-${index}`} type="button" className="empty-camera-tile" onClick={() => openPicker(index)} aria-label={`Chọn camera cho ô ${index + 1}`}><Icon name="plus" size={26} /><span>{layout === 'list' ? 'Thêm camera' : 'Chọn camera'}</span>{layout !== 'list' && <small>Thêm vào ô {index + 1}</small>}</button>)}
         </div>
       </>}
       {settingsCameraId !== null && cameraById.has(settingsCameraId) && <CameraSettingsDialog key={settingsCameraId} camera={cameraById.get(settingsCameraId)!} onClose={() => setSettingsCameraId(null)} />}

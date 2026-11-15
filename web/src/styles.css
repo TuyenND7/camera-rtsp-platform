@@ -220,6 +220,13 @@ tbody tr:last-child td { border-bottom: 0; }
 .live-layout-menu button[aria-checked=true], .live-layout-menu button:hover { color: var(--blue); background: var(--selection-bg, #eaf3ff); }
 .live-layout-preview { display: grid; grid-template-columns: repeat(var(--layout-columns), minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 2px; width: 26px; height: 20px; }
 .live-layout-preview i { border: 1px solid currentColor; border-radius: 1px; opacity: .8; }
+
+/* A scrollable single column keeps phone video readable without shrinking rows. */
+body:has(.live-shell) { min-width: 0; }
+.live-shell .mi-camera-grid.layout-list { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; scrollbar-width: thin; }
+.live-shell .layout-list > .mi-camera-card { flex: 0 0 auto; width: 100%; }
+.live-shell .mi-camera-grid.layout-list .mi-camera-video { flex: none; height: auto; aspect-ratio: 16 / 9; }
+.live-shell .layout-list > .empty-camera-tile { flex: 0 0 auto; min-height: 72px; }
 .mi-camera-controls { position: absolute; top: 8px; right: 8px; z-index: 3; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 16px); }
 .mi-camera-controls[hidden] { display: none; }
 .mi-camera-controls .mi-camera-control { display: inline-flex; flex: 0 0 44px; align-items: center; justify-content: center; width: 44px; height: 44px; min-height: 44px; padding: 0; border: 1px solid #ffffff33; border-radius: 7px; color: var(--text-soft, #e5edf8); background: #10243ecc; }
