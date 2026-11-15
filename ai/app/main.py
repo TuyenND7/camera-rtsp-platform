@@ -1,7 +1,8 @@
 """Nhận dạng đối tượng từ sub-stream NVR hoặc HLS live và ghi sự kiện vào PostgreSQL.
 
-Worker này cố ý dùng sub-stream khi người dùng cấu hình `ai_rtsp_url`: không kéo main-stream
-độ phân giải cao cho AI. Khi để trống, nó đọc HLS live do backend đã tạo, phù hợp để thử nghiệm.
+Mặc định phân tích segment HLS local, dùng program date-time để vẽ khung đúng hình
+đang xem. Luồng RTSP riêng là tùy chọn cho sự kiện; không suy đoán tọa độ đồng bộ
+của một luồng khác. Không kết nối cloud của hãng để chạy model.
 """
 
 from __future__ import annotations
@@ -17,9 +18,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+os.environ.setdefault("OPENCV_FFMPEG_LOGLEVEL", "-8")
+
 import cv2
 import psycopg
 from ultralytics import YOLO
+from .live import FrameHistory, playlist_segments
 
 
 logging.basicConfig(
@@ -32,7 +36,7 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 STORAGE_ROOT = Path(os.getenv("STORAGE_ROOT", "/storage"))
 MODEL_PATH = os.getenv("AI_MODEL", "/models/yolov8n.pt")
 DEVICE = os.getenv("AI_DEVICE", "cpu")
-SYNC_SECONDS = float(os.getenv("AI_SYNC_SECONDS", "15"))
+SYNC_SECONDS = float(os.getenv("AI_SYNC_SECONDS", "3"))
 EVENT_COOLDOWN_SECONDS = float(os.getenv("AI_EVENT_COOLDOWN_SECONDS", "20"))
 
 
@@ -56,12 +60,15 @@ class Detector:
 
     def __init__(self) -> None:
         log.info("loading model=%s device=%s", MODEL_PATH, DEVICE)
+        if DEVICE == "cpu":
+            import torch
+            torch.set_num_threads(2)
         self.model = YOLO(MODEL_PATH)
         self.lock = threading.Lock()
 
     def detect(self, image: Any, confidence: float) -> list[dict[str, Any]]:
         with self.lock:
-            result = self.model.predict(image, conf=confidence, device=DEVICE, verbose=False)[0]
+            result = self.model.predict(image, conf=confidence, device=DEVICE, imgsz=640, max_det=32, verbose=False)[0]
         if result.boxes is None:
             return []
         names = result.names
@@ -83,6 +90,7 @@ class CameraWorker:
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.run, name=f"ai-camera-{camera.id}", daemon=True)
         self.last_event: dict[str, float] = {}
+        self.history = FrameHistory(STORAGE_ROOT, camera.id, synchronized=not bool(camera.ai_rtsp_url))
 
     def start(self) -> None:
         self.thread.start()
@@ -94,6 +102,64 @@ class CameraWorker:
         return self.thread.is_alive()
 
     def run(self) -> None:
+        if not self.camera.ai_rtsp_url:
+            self.run_live()
+            return
+        self.run_rtsp()
+
+    def run_live(self) -> None:
+        # Analyze completed HLS segments once, using their program date-time.
+        # The viewer is a few seconds behind this edge; boxes share its clock.
+        directory = STORAGE_ROOT / 'live' / str(self.camera.id)
+        seen: list[tuple[str, float]] = []
+        self.history.clear('waiting')
+        last_frame = time.monotonic()
+        try:
+            while not self.stop_event.is_set():
+                try:
+                    playlist = (directory / 'index.m3u8').read_text(encoding='utf8')
+                    segments = [segment for segment in playlist_segments(playlist)
+                                if -3 < time.time() - segment.at < 15]
+                except (OSError, ValueError):
+                    segments = []
+                for segment in segments:
+                    key = (segment.name, segment.at)
+                    if key in seen or self.stop_event.is_set():
+                        continue
+                    cap = cv2.VideoCapture(str(directory / segment.name), cv2.CAP_FFMPEG)
+                    try:
+                        if not cap.isOpened():
+                            continue
+                        fps = cap.get(cv2.CAP_PROP_FPS)
+                        fps = fps if 1 <= fps <= 120 else 25
+                        frame_index, next_at = 0, 0.0
+                        while not self.stop_event.is_set():
+                            ok, frame = cap.read()
+                            if not ok or frame is None:
+                                break
+                            offset = frame_index / fps
+                            frame_index += 1
+                            if offset + .001 < next_at or offset >= segment.duration:
+                                continue
+                            next_at = offset + 1 / max(self.camera.ai_fps, .1)
+                            self.process_frame(frame, segment.at + offset)
+                            last_frame = time.monotonic()
+                    finally:
+                        cap.release()
+                    seen.append(key)
+                    seen = seen[-40:]
+                if time.monotonic() - last_frame > 10:
+                    self.history.clear('waiting')
+                    last_frame = time.monotonic()
+                self.stop_event.wait(.25)
+        except Exception:
+            log.exception('camera=%s live AI stopped', self.camera.id)
+            self.history.clear('error')
+        finally:
+            if self.stop_event.is_set():
+                self.history.clear('stopped')
+
+    def run_rtsp(self) -> None:
         cap: cv2.VideoCapture | None = None
         next_frame_at = 0.0
         try:
@@ -103,7 +169,7 @@ class CameraWorker:
                         cap.release()
                     # Không ghi URL vì URL RTSP thường chứa mật khẩu.
                     log.info("camera=%s opening AI source", self.camera.id)
-                    cap = cv2.VideoCapture(self.camera.source_url, cv2.CAP_FFMPEG)
+                    cap = cv2.VideoCapture(self.camera.source_url, cv2.CAP_FFMPEG, [cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000, cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000])
                     if not cap.isOpened():
                         cap.release()
                         cap = None
@@ -128,15 +194,24 @@ class CameraWorker:
             if cap is not None:
                 cap.release()
 
-    def process_frame(self, frame: Any) -> None:
+    def process_frame(self, frame: Any, captured_at: float | None = None) -> None:
         wanted = set(self.camera.ai_labels)
         detections = [item for item in self.detector.detect(frame, self.camera.ai_confidence) if item["label"] in wanted]
+        if self.stop_event.is_set():
+            return
+        captured_at = captured_at if captured_at is not None else time.time()
+        height, width = frame.shape[:2]
+        if self.history.synchronized:
+            self.history.add(captured_at, width, height, detections)
+        else:
+            self.history.write()
         if not detections:
             return
 
         now = time.monotonic()
+        by_label = {label: max((item for item in detections if item["label"] == label), key=lambda item: item["confidence"]) for label in {item["label"] for item in detections}}
         accepted = [
-            item for item in detections
+            item for item in by_label.values()
             if now - self.last_event.get(item["label"], float("-inf")) >= EVENT_COOLDOWN_SECONDS
         ]
         if not accepted:
@@ -144,7 +219,7 @@ class CameraWorker:
 
         snapshot_path = self.write_snapshot(frame)
         for item in accepted:
-            self.insert_event(item, snapshot_path)
+            self.insert_event(item, snapshot_path, captured_at, width, height, detections)
             self.last_event[item["label"]] = now
 
     def write_snapshot(self, frame: Any) -> str:
@@ -158,15 +233,15 @@ class CameraWorker:
             raise RuntimeError("cannot write AI event snapshot")
         return relative.as_posix()
 
-    def insert_event(self, item: dict[str, Any], snapshot_path: str) -> None:
-        metadata = json.dumps({"box": item["box"], "ai_fps": self.camera.ai_fps})
+    def insert_event(self, item: dict[str, Any], snapshot_path: str, captured_at: float, width: int, height: int, detections: list[dict]) -> None:
+        metadata = json.dumps({"box": item["box"], "ai_fps": self.camera.ai_fps, "width": width, "height": height, "detections": detections, "synchronized": self.history.synchronized})
         with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
             conn.execute(
                 """
-                INSERT INTO detection_events (camera_id, label, confidence, snapshot_path, metadata)
-                VALUES (%s, %s, %s, %s, %s::jsonb)
+                INSERT INTO detection_events (camera_id, label, confidence, snapshot_path, metadata, detected_at)
+                VALUES (%s, %s, %s, %s, %s::jsonb, %s)
                 """,
-                (self.camera.id, item["label"], item["confidence"], snapshot_path, metadata),
+                (self.camera.id, item["label"], item["confidence"], snapshot_path, metadata, datetime.fromtimestamp(captured_at, timezone.utc)),
             )
         log.info(
             "camera=%s event=%s confidence=%.2f",
@@ -209,7 +284,9 @@ class Runtime:
         for camera_id, worker in list(self.workers.items()):
             if camera_id not in desired or desired[camera_id] != worker.camera or not worker.is_alive():
                 worker.stop()
-                self.workers.pop(camera_id, None)
+                worker.thread.join(timeout=5)
+                if not worker.is_alive():
+                    self.workers.pop(camera_id, None)
         for camera in desired.values():
             if camera.id not in self.workers:
                 worker = CameraWorker(camera, self.detector)

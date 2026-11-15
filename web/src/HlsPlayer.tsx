@@ -12,6 +12,7 @@ interface Props {
   startPosition?: number;
   /** Gọi khoảng 4 lần/giây khi video chạy, và ngay sau khi seek. */
   onTime?: (seconds: number) => void;
+  onLiveDate?: (at: number | null) => void;
   onPlayingChange?: (playing: boolean) => void;
   onWaitingChange?: (waiting: boolean) => void;
   onPlaybackError?: (message: string) => void;
@@ -33,14 +34,15 @@ export interface HlsPlayerHandle {
 
 /** Player HLS dùng hls.js, fallback native HLS (Safari). */
 const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
-  { src, live = false, controls = true, muted = true, volume = 1, startPosition = -1, onTime, onPlayingChange, onWaitingChange, onPlaybackError, onAudioAvailable },
+  { src, live = false, controls = true, muted = true, volume = 1, startPosition = -1, onTime, onLiveDate, onPlayingChange, onWaitingChange, onPlaybackError, onAudioAvailable },
   ref
 ) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const liveHls = useRef<Hls | null>(null);
   const { playbackVolume } = useDevice();
   useEffect(() => { if (videoRef.current) videoRef.current.volume = Math.max(0, Math.min(1, playbackVolume * volume)); }, [playbackVolume, volume]);
-  const callbacks = useRef({ onTime, onPlayingChange, onWaitingChange, onPlaybackError, onAudioAvailable });
-  callbacks.current = { onTime, onPlayingChange, onWaitingChange, onPlaybackError, onAudioAvailable };
+  const callbacks = useRef({ onTime, onLiveDate, onPlayingChange, onWaitingChange, onPlaybackError, onAudioAvailable });
+  callbacks.current = { onTime, onLiveDate, onPlayingChange, onWaitingChange, onPlaybackError, onAudioAvailable };
   const playRequested = useRef(true);
   const playAttempt = useRef(0);
   const rate = useRef(1);
@@ -163,6 +165,7 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
           xhr.withCredentials = new URL(url, window.location.href).origin === window.location.origin;
         },
       });
+      liveHls.current = hls;
       hls.loadSource(src);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -208,6 +211,8 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
       playAttempt.current++;
       if (retryTimer) window.clearTimeout(retryTimer);
       if (watchdog) window.clearInterval(watchdog);
+      liveHls.current = null;
+      callbacks.current.onLiveDate?.(null);
       if (hls) hls.destroy();
     };
   }, [src, live, startPosition, generation]);
@@ -215,7 +220,14 @@ const HlsPlayer = forwardRef<HlsPlayerHandle, Props>(function HlsPlayer(
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    const time = () => callbacks.current.onTime?.(video.currentTime);
+    const time = () => {
+      callbacks.current.onTime?.(video.currentTime);
+      const date = liveHls.current?.playingDate;
+      let nativeStart: Date | undefined;
+      if (!date) { try { nativeStart = (video as HTMLVideoElement & { getStartDate?: () => Date }).getStartDate?.(); } catch { /* No program clock: keep AI boxes hidden. */ } }
+      const at = date?.getTime() ?? (nativeStart && Number.isFinite(nativeStart.getTime()) ? nativeStart.getTime() + video.currentTime * 1000 : null);
+      callbacks.current.onLiveDate?.(at !== null && Number.isFinite(at) ? at : null);
+    };
     const playing = () => {
       callbacks.current.onPlayingChange?.(!video.paused && !video.ended);
       if (video.paused) callbacks.current.onWaitingChange?.(false);

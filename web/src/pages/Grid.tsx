@@ -1,3 +1,4 @@
+import { LiveAiProvider, LiveDetectionOverlay } from '../liveDetections';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, Camera } from '../api';
@@ -118,7 +119,7 @@ export default function Grid() {
     setPickerOpen(false);
   }
   return (
-    <section ref={livePage} className={`mi-live-page${fullscreen ? ' is-fullscreen' : ''}`}>
+    <LiveAiProvider cameraIds={visible.flatMap(camera => camera?.ai_enabled && camera.enabled && camera.status === 'online' ? [camera.id] : [])}><section ref={livePage} className={`mi-live-page${fullscreen ? ' is-fullscreen' : ''}`}>
       <PageHeader title="Live view" className="mi-live-heading" titleActions={<div className="mi-live-selectors">
           <button type="button" className="mi-camera-picker-button" onClick={() => openPicker()} aria-label={`Chọn camera Live view, đang chọn ${selected.size} camera`}><Icon name="video" size={18} />{selected.size}<Icon name="chevronDown" size={15} /></button>
           <LiveLayoutPicker value={layout} onChange={changeLayout} />
@@ -139,7 +140,7 @@ export default function Grid() {
       </>}
       {settingsCameraId !== null && cameraById.has(settingsCameraId) && <CameraSettingsDialog key={settingsCameraId} camera={cameraById.get(settingsCameraId)!} onClose={() => setSettingsCameraId(null)} />}
       {pickerOpen && <LiveDevicePicker cameras={cameras} selected={selected} slot={pickerSlot} onChoose={id => { if (pickerSlot !== null) chooseCamera(id, pickerSlot); }} onClose={() => setPickerOpen(false)} />}
-    </section>
+    </section></LiveAiProvider>
   );
 }
 
@@ -195,6 +196,7 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
   const [controlsVisible, setControlsVisible] = useState(false);
   const [muted, setMuted] = useState(true);
   const [duplexMuted, setDuplexMuted] = useState(false);
+  const [frameDate, setFrameDate] = useState<number | null>(null);
   const [hasAudio, setHasAudio] = useState<boolean | null>(null);
   const [audio, setAudio] = useState(() => getCameraAudio(camera.id)), [audioOpen, setAudioOpen] = useState(false);
   const offline = camera.status !== 'online';
@@ -286,7 +288,8 @@ function LiveVideo({ camera, className, offlineLabel, children, actions, onClose
     }} onKeyDown={event => {
       if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setControlsVisible(value => !value); }
     }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setControlsVisible(false); }}>
-      {!offline && <HlsPlayer ref={player} src={`/live/${camera.id}/index.m3u8`} live controls={false} volume={audio.listen / 100} muted={muted || audio.listen === 0 || talkActive} onAudioAvailable={setHasAudio} />}
+      {!offline && <HlsPlayer ref={player} src={`/live/${camera.id}/index.m3u8`} live controls={false} volume={audio.listen / 100} muted={muted || audio.listen === 0 || talkActive} onAudioAvailable={setHasAudio} onLiveDate={setFrameDate} />}
+      <LiveDetectionOverlay cameraId={camera.id} at={frameDate} enabled={!!camera.ai_enabled && !offline} />
       {offline && (
         <div className="mi-stream-state">
           <strong className="mi-stream-label"><i className={`status-dot ${camera.status}`} />{offlineLabel}</strong>

@@ -18,6 +18,8 @@ export interface DeviceControls {
   ends_at?: number | null;
   confirmed?: boolean;
 }
+export type DetectionFrame = { at: number; width: number; height: number; detections: Array<{ label: string; confidence: number; box: [number, number, number, number] }> };
+export type LiveDetectionState = { camera_id: number; state: string; synchronized: boolean; updated_at: number; frame_ttl_ms: number; frames: DetectionFrame[] };
 export interface TalkCapability { camera_id: number; supported: boolean; reason: string; codec?: string }
 export interface TalkSession { id: string; camera_ids: number[]; listen_camera_ids?: number[]; sample_rate: number; max_seconds: number }
 export interface ServerSettings {
@@ -81,7 +83,7 @@ export interface DetectionEvent {
   label: string;
   confidence: number;
   snapshot_url: string | null;
-  metadata: { box?: number[]; ai_fps?: number };
+  metadata: { box?: number[]; ai_fps?: number; width?: number; height?: number; detections?: DetectionFrame['detections'] };
 }
 
 export interface OnvifProfile {
@@ -214,6 +216,9 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 export const api = {
+  async liveDetections(cameraIds: number[], signal: AbortSignal) {
+    return handle<LiveDetectionState[]>(await fetch(`${API_BASE}/events/live?camera_ids=${cameraIds.join(',')}`, { headers: authHeaders(), signal, cache: 'no-store' }));
+  },
   async tendaAccount() {
     return handle<TendaAccountStatus>(await fetch(`${API_BASE}/settings/tenda`, { headers: authHeaders(), cache: 'no-store' }));
   },

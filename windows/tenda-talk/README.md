@@ -143,3 +143,11 @@ App Android vẫn chỉ hiển thị website. Snapshot PNG được tạo từ v
 Agent công bố thêm `settings_version: 1`. `DeviceSettings.cs` lọc các thuộc tính công khai theo danh sách cho phép, giữ nguyên những trường khác trong cấu trúc khi sửa nhìn đêm hoặc còi/đèn báo động. Revision tính trên các giá trị đã lọc; thay đổi bên TDSEE làm revision cũ bị từ chối. Mở tab cài đặt chỉ đọc, không tự đặt lại thông số.
 
 Các request `settings` trong IPC yêu cầu binding/generation/tuổi lệnh như lệnh còi/đèn, chỉ nhận số nguyên và các trường đã khai báo. Không nhận tên thuộc tính/service/URL tùy ý, reset hoặc định dạng thẻ. Camera đang đàm thoại/còi sẽ từ chối cập nhật. Trạng thái đọc lại phải khớp mới xác nhận; không lộ các thuộc tính Wi-Fi hoặc khóa thiết bị. Cài đặt âm lượng chỉ được công bố nếu model thực sự trả về các thuộc tính volume.
+
+## Camera đổi IP qua DHCP
+
+Liên kết SDK giữ camera ID/IoT ID gốc. Các binding đã xác nhận danh tính có thêm `serial_hash` (SHA-256 serial ONVIF đã lưu) và `target_hash` (SHA-256 RTSP URL chuẩn hóa với hostname thay bằng `camera.invalid`). Không chứa mật khẩu dạng rõ trong hai trường này. `url_hash` vẫn đối chiếu chính xác URL đang dùng.
+
+Khi backend xác nhận serial thực tế tại IP mới bằng đúng tài khoản ONVIF và các thành phần RTSP còn lại không đổi, nó ghi alias riêng trong `<storage>/.tenda-talk/bindings/<cameraId>.json`. Alias phải khớp `original_url_hash`, `serial_hash`, `target_hash` của provisioning. Adapter áp dụng cho broker và từng worker; lỗi đọc ngắn chỉ dùng giá trị đã kiểm tra trong tối đa 3 giây. File sai/đổi thiết bị/đổi tài khoản/đổi đường dẫn không tự được tin cậy. Không sửa IoT ID hoặc token tài khoản khi chuyển IP.
+
+Các binding cũ chưa có hai hash danh tính vẫn dùng URL chính xác và cần xác nhận serial/provisioning trước khi bật tự chuyển IP. Máy CAMERA đã được xác nhận lại cả ba camera bằng serial ONVIF, chỉ IP thay đổi; bản DPAPI trước cập nhật giữ riêng trên máy. Mỗi 30 giây khi có frame video, backend kiểm tra lại liên kết để khôi phục sau lần SDK khởi động chậm. Web thử lại các camera chưa sẵn sàng; một camera mất kết nối không khóa các camera đã xác nhận.

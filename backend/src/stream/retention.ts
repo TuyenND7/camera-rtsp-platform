@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { config } from '../config';
+import { pool } from '../db';
 import { isNotFound, mapLimit, STAT_CONCURRENCY, statIfExists } from '../fsutil';
 
 export interface StorageStatus {
@@ -80,7 +81,7 @@ let cleanupRunning = false;
  * Dọn recording theo hai chính sách an toàn:
  * - RECORD_RETENTION_HOURS > 0: xoá nguyên ngày recording đã quá hạn.
  * - Dung lượng filesystem chứa /storage >= ngưỡng: xoá nguyên ngày cũ nhất
- *   cho tới mức target. Không chạm live stream, snapshot AI, hay ngày đang ghi.
+ *   cho tới mức target. Dọn cả snapshot AI của ngày cũ; không chạm live stream hay ngày đang ghi.
  */
 export function startRetentionJob(): NodeJS.Timeout {
   let lastStarted = Number.NEGATIVE_INFINITY;
@@ -122,12 +123,15 @@ export async function getStorageStatus(): Promise<StorageStatus> {
   };
 }
 
-async function cleanup(): Promise<void> {
+export async function cleanup(): Promise<void> {
   const retentionHours = config.recordRetentionHours;
   const thresholdPercent = config.storageCleanupThresholdPercent;
   const targetPercent = cleanupTargetPercent();
   let days = await scanRecordingDays();
   const today = currentRecordDay();
+  // AI snapshots use UTC folders; protect their active day as well.
+  const snapshotToday = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const completed = (day: RecordingDay) => day.day < today && day.day < snapshotToday;
   const cutoff = retentionHours > 0
     ? Date.now() - retentionHours * 3600 * 1000
     : null;
@@ -147,7 +151,7 @@ async function cleanup(): Promise<void> {
   if (cutoff !== null) {
     const kept: RecordingDay[] = [];
     for (const day of days) {
-      if (day.day < today && day.newestMtimeMs < cutoff) {
+      if (completed(day) && day.newestMtimeMs < cutoff) {
         await removeDay(day, 'retention');
         record(day, 'retention', null);
         removed++;
@@ -163,7 +167,7 @@ async function cleanup(): Promise<void> {
   if (disk.usedPercent >= thresholdPercent) {
     const bytesToFree = Math.max(0, disk.used - Math.floor(disk.total * targetPercent / 100));
     let quotaFreed = 0;
-    const candidates = days.filter((day) => day.day < today).sort((a, b) => a.day.localeCompare(b.day));
+    const candidates = days.filter(completed).sort((a, b) => a.day.localeCompare(b.day));
     const removedDays = new Set<RecordingDay>();
 
     console.warn(
@@ -227,20 +231,26 @@ async function collectRecordingDays(): Promise<RecordingDay[]> {
   const recRoot = path.join(config.storageRoot, 'rec');
   const results: RecordingDay[] = [];
 
-  for (const cameraId of await listDirectories(recRoot)) {
+  const snapshotRoot = path.join(config.storageRoot, 'events');
+  const cameras = new Set([...(await listDirectories(recRoot)), ...(await listDirectories(snapshotRoot))]);
+  for (const cameraId of cameras) {
+    if (!/^\d+$/.test(cameraId) || Number(cameraId) > 2147483647) continue;
     const camDir = path.join(recRoot, cameraId);
-    for (const day of await listDirectories(camDir)) {
+    const dates = new Set([...(await listDirectories(camDir)), ...(await listDirectories(path.join(snapshotRoot, cameraId)))]);
+    for (const day of dates) {
       if (!/^\d{8}$/.test(day)) continue;
       const dayDir = path.join(camDir, day);
       const recording = await directoryStats(dayDir, false);
       // Bản H.264 phục vụ browser playback là dẫn xuất của ngày recording này.
       const archive = await directoryStats(path.join(config.storageRoot, 'playback', cameraId, day), true);
       const prepared = await directoryStats(path.join(config.storageRoot, 'playback', 'prepared', cameraId, day), true);
+      const snapshots = await directoryStats(path.join(snapshotRoot, cameraId, day), false);
+      const thumbs = await directoryStats(path.join(config.storageRoot, 'thumbs', cameraId, day), false);
       results.push({
         path: dayDir,
         day,
-        bytes: recording.bytes + archive.bytes + prepared.bytes,
-        newestMtimeMs: recording.newestMtimeMs,
+        bytes: recording.bytes + archive.bytes + prepared.bytes + snapshots.bytes + thumbs.bytes,
+        newestMtimeMs: Math.max(recording.newestMtimeMs, snapshots.newestMtimeMs),
       });
     }
   }
@@ -288,7 +298,10 @@ async function directoryStats(dir: string, recursive: boolean): Promise<{ bytes:
 
 async function removeDay(day: RecordingDay, reason: string): Promise<void> {
   const cameraId = path.basename(path.dirname(day.path));
+  // Remove only events whose images belong to this completed snapshot day.
+  await pool.query('DELETE FROM detection_events WHERE camera_id = $1 AND snapshot_path LIKE $2', [Number(cameraId), `events/${cameraId}/${day.day}/%`]);
   await fs.promises.rm(day.path, { recursive: true, force: true });
+  await fs.promises.rm(path.join(config.storageRoot, 'events', cameraId, day.day), { recursive: true, force: true });
   // Bản H.264 phục vụ browser playback là dẫn xuất của recording gốc, nên dọn
   // cùng ngày để quota thực sự được giải phóng và không để orphan files.
   await fs.promises.rm(path.join(config.storageRoot, 'playback', cameraId, day.day), { recursive: true, force: true });

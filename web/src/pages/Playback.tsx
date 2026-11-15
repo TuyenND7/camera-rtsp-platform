@@ -28,6 +28,7 @@ export default function Playback() {
   const cameraId = Number(id);
   const requestedDay = searchParams.get('day') ?? '';
   const requestedFile = searchParams.get('segment') ?? '';
+  const requestedAt = Date.parse(searchParams.get('at') ?? '');
   const [cam, setCam] = useState<Camera | null>(null);
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [days, setDays] = useState<string[]>([]);
@@ -180,8 +181,9 @@ export default function Playback() {
     if (!cam || !dayData || source || pendingSegment || segments.length === 0 || positionMs !== null) return;
     const requested = segments.find((segment) => segment.file === requestedFile);
     const latest = [...segments].reverse().find((segment) => segment.offset_s !== null) ?? segments[segments.length - 1];
-    seek((requested ?? latest).startMs);
-  }, [cam, dayData, pendingSegment, positionMs, requestedFile, seek, segments, source]);
+    const event = Number.isFinite(requestedAt) ? segmentAt(segments, requestedAt) : null;
+    seek(event?.inside ? requestedAt : (requested ?? latest).startMs);
+  }, [cam, dayData, pendingSegment, positionMs, requestedFile, requestedAt, seek, segments, source]);
 
   // ---- Chế độ segment: chuẩn bị HLS H.264 cho segment HEVC đã chọn ----
   useEffect(() => {

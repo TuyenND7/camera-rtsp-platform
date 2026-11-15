@@ -1,9 +1,22 @@
 import { Router } from 'express';
 import { pool } from '../db';
 import { requireAuth } from '../middleware/auth';
+import { readLiveDetections } from '../detections/live';
 
 const router = Router();
 router.use(requireAuth);
+
+// Read-only, authenticated metadata; hidden worker files are never web-served.
+router.get('/live', async (req, res) => {
+  const raw = req.query.camera_ids;
+  if (typeof raw !== 'string' || !/^\d+(,\d+){0,15}$/.test(raw)) { res.status(400).json({ error: 'Chọn từ 1 đến 16 camera.' }); return; }
+  const ids = raw.split(',').map(Number);
+  if (new Set(ids).size !== ids.length || ids.some(id => !Number.isSafeInteger(id) || id < 1 || id > 2147483647)) { res.status(400).json({ error: 'Camera không hợp lệ.' }); return; }
+  try {
+    const { rows } = await pool.query('SELECT id, status, enabled, ai_enabled, ai_fps FROM cameras WHERE id = ANY($1::int[]) ORDER BY id', [ids]);
+    res.json(await Promise.all(rows.map(readLiveDetections)));
+  } catch { res.status(503).json({ error: 'Chưa đọc được kết quả nhận dạng.' }); }
+});
 
 /** Sự kiện nhận dạng, có thể lọc theo camera và khoảng thời gian ISO. */
 router.get('/', async (req, res) => {

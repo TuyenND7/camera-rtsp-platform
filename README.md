@@ -17,7 +17,7 @@ NVR sub-stream ──> AI worker (YOLO) ─────> event + snapshot
 - Main stream: ghi nguyên codec/chất lượng gốc.
 - H.264 live: copy, ít tốn CPU. H.265 live: transcode H.264 để trình duyệt phát được.
 - AI: nên dùng sub-stream 640p, 1–5 FPS để không ảnh hưởng recording.
-- Event AI: mặc định nhận `person`, `car`, `motorcycle`, có ảnh snapshot và trang lọc sự kiện. Cần bật AI cho từng camera; phiên bản hiện tại chưa vẽ khung nhận dạng trên Live.
+- AI phát hiện người/xe theo lựa chọn, vẽ khung đồng bộ trên Live, lưu ảnh và mở recording đúng thời điểm. Bật riêng từng camera trong cài đặt Nhận dạng.
 
 ## Thành phần
 
@@ -124,7 +124,7 @@ Bộ 36 icon nét mảnh được tạo bằng **Imagegen tích hợp**, giữ m
 
 ## App Android cho tablet
 
-Thư mục [`android/`](android/README.md) chứa app **Camera Station** mở web trọn khung, không có thanh tiêu đề riêng, mặc định `http://camera.local:8081/live`. Nhấn giữ biểu tượng app trong launcher để tải lại hoặc đổi máy chủ; hỗ trợ video toàn màn hình. UI tải trực tiếp từ máy chủ nên cập nhật web không cần cài lại APK. Xem hướng dẫn build, cài qua ADB và xem trước UI qua USB trong [android/README.md](android/README.md).
+Thư mục [`android/`](android/README.md) chứa app **Camera Station** mở web trọn khung, không có thanh tiêu đề riêng, từ bản 0.3.1 mặc định `https://camera.taild8cb98.ts.net:8443/live`, tự chuyển link CAMERA cũ một lần khi nâng cấp. Nhấn giữ biểu tượng app trong launcher để tải lại hoặc đổi máy chủ; hỗ trợ video toàn màn hình. UI tải trực tiếp từ máy chủ nên cập nhật web không cần cài lại APK. Xem hướng dẫn build, cài qua ADB và xem trước UI qua USB trong [android/README.md](android/README.md).
 
 Khi chưa kết nối được máy chủ, chạy `npm run dev:ui` trong `web`, chuyển tiếp cổng 18173 qua ADB và mở `http://127.0.0.1:18173/live` trong app. Chế độ xem trước không cần mật khẩu, dùng API/video mẫu cục bộ để chỉnh Live, Playback, Thiết bị và Sự kiện; không bỏ xác thực ở backend thật và không được dùng để build production.
 
@@ -290,7 +290,7 @@ STORAGE_CLEANUP_TARGET_PERCENT=85
 STORAGE_CLEANUP_INTERVAL_MINUTES=10
 ```
 
-`RECORD_RETENTION_HOURS=0` nghĩa là không xoá theo số ngày cố định. Khi phân vùng chứa `Documents/CameraRTSP/storage` đạt **90%**, backend xoá **nguyên ngày recording cũ nhất đã hoàn tất** cho đến khi còn 85%. Nó không xoá live stream, snapshot AI hoặc ngày đang ghi. Không commit file `.env` lên Git. Giữ `AI_DEVICE=cpu` nếu chưa chuẩn bị NVIDIA Container Toolkit/CUDA cho WSL 2.
+`RECORD_RETENTION_HOURS=0` nghĩa là không xoá theo số ngày cố định. Khi phân vùng chứa `Documents/CameraRTSP/storage` đạt **90%**, backend xoá **nguyên ngày recording cũ nhất đã hoàn tất** cho đến khi còn 85%. Ảnh sự kiện AI của ngày cũ được tính vào quota và dọn cùng chính sách; metadata tương ứng cũng được xóa. Ngày đang ghi theo múi giờ recording và ngày snapshot UTC đang hoạt động được bảo vệ; live stream được giữ. Không commit file `.env` lên Git. Giữ `AI_DEVICE=cpu` nếu chưa chuẩn bị NVIDIA Container Toolkit/CUDA cho WSL 2.
 
 Nếu bản cũ đã có dữ liệu tại `C:\CameraRTSP\storage`, dừng stack, copy dữ liệu sang Documents trước rồi mới bật cấu hình mới; chỉ xoá thư mục cũ sau khi đã mở Playback kiểm tra:
 
@@ -479,7 +479,7 @@ Nginx yêu cầu phiên đăng nhập cho HLS/recording/snapshot. Vẫn phải g
    - `RTSP URL`: main-stream.
    - `Recording`: bật.
    - `Codec`: `Auto` trước; chỉ chọn H.264/H.265 khi đã biết codec.
-   - Bật **Nhận dạng AI**, điền `AI RTSP URL` là sub-stream, chọn FPS/ngưỡng/nhãn.
+   - Mở **Cài đặt camera → Nhận dạng**, bật **Phát hiện trên Live**, chọn Người/FPS/ngưỡng từ các tùy chọn; thay đổi áp dụng ngay. Mặc định 2 hình/giây, ngưỡng 50%.
 5. Camera phải chuyển sang `online`. Mở **Live** để xem HLS, **Playback** chọn ngày đã ghi, **Sự kiện AI** để xem event/snapshot, và **Multi-view** để chọn nhiều camera.
 
 Nếu camera `error`, xem hai log sau trước:
@@ -498,9 +498,13 @@ Các lỗi phổ biến: sai đường dẫn RTSP của NVR, VM không route t�
 | H.264 | Copy | Copy codec gốc, phát/seek trực tiếp trên web |
 | H.265/HEVC | Transcode sang H.264 | Giữ bản gốc + HLS H.264 tương thích web |
 
-Recording luôn giữ bản copy codec gốc nên không mất chất lượng. Vì Chrome/Edge không phát hoặc seek HLS/HEVC ổn định, camera H.265 có thêm một archive H.264 chỉ phục vụ web Playback; tính năng này dùng thêm CPU/dung lượng. Khi archive đã phủ phần recording của ngày đó, Playback đọc thẳng archive local và nhảy tới mốc đã chọn, không cần chuyển đổi lại. Với recording H.265 cũ chưa có archive đầy đủ, lần đầu mở một mốc Playback hệ thống chuyển file local của chính mốc đó sang H.264, sau đó dùng lại bản cache; thao tác này không kết nối lại RTSP/camera. Mặc định recording chia thành segment 60 giây để lần chuẩn bị đầu tiên không phải chờ chuyển đổi một đoạn quá dài. AI đọc sub-stream độc lập, có cooldown để giảm event trùng lặp; đây là nhận dạng đối tượng, không phải nhận diện khuôn mặt/biển số.
+Recording luôn giữ bản copy codec gốc nên không mất chất lượng. Vì Chrome/Edge không phát hoặc seek HLS/HEVC ổn định, camera H.265 có thêm một archive H.264 chỉ phục vụ web Playback; tính năng này dùng thêm CPU/dung lượng. Khi archive đã phủ phần recording của ngày đó, Playback đọc thẳng archive local và nhảy tới mốc đã chọn, không cần chuyển đổi lại. Với recording H.265 cũ chưa có archive đầy đủ, lần đầu mở một mốc Playback hệ thống chuyển file local của chính mốc đó sang H.264, sau đó dùng lại bản cache; thao tác này không kết nối lại RTSP/camera. Mặc định recording chia thành segment 60 giây để lần chuẩn bị đầu tiên không phải chờ chuyển đổi một đoạn quá dài. AI mặc định đọc segment Live local có `EXT-X-PROGRAM-DATE-TIME`, lấy mẫu theo FPS đã chọn và lưu lịch sử khung trong `/storage/.detections/`. Web dùng thời gian hình đang phát để chọn đúng tọa độ, kể cả khi HLS chậm vài giây; bỏ khung cũ, sai camera hoặc thiếu đồng bộ. Không đốt khung vào recording. Worker dùng một model YOLOv8n chung, CPU inference giới hạn 2 thread, cooldown giảm sự kiện trùng cùng lớp. Đây là phát hiện đối tượng; không gắn tên người hay đọc biển số. Nếu cấu hình riêng `ai_rtsp_url`, worker vẫn lưu sự kiện nhưng không vẽ khung của luồng khác lên Live.
 
 ## Dung lượng, hiệu năng và lưu trữ
+
+**AI trên web:** mở cài đặt từ ô Live → **Nhận dạng**. Chọn các đối tượng, tốc độ và độ tin cậy; lưu ngay, không khởi động lại video hoặc ngắt mic khi chỉ đổi các tùy chọn AI. Khung xanh và độ tin cậy xuất hiện khi model phát hiện đối tượng trong hình đang xem. **Hoạt động/Sự kiện** tự làm mới, có ảnh kèm khung và liên kết recording đúng thời điểm. Tắt AI, mất nguồn hình hoặc metadata quá cũ sẽ bỏ khung. API và ảnh sự kiện vẫn yêu cầu phiên đăng nhập.
+
+**SDK Tenda:** tài liệu thiết bị có phát hiện người; API LinkVisual mô tả sự kiện human detection (`intelligentTypeList=3`). Phần tích hợp SDK hiện tại chưa xác nhận một kênh tọa độ khung thời gian thực từ firmware. Khung Live ở tính năng này do model trên máy chủ tạo từ chính video đã lưu local, không giả lập kết quả SDK. Xem [API sự kiện LinkVisual](https://help.aliyun.com/zh/document_detail/130276.html). Phát hiện người không tự bật còi hoặc đổi cấu hình báo động trên camera; nút báo động thủ công vẫn cần xác nhận.
 
 Ước tính recording: **10,8 GB/ngày cho mỗi 1 Mbps** bitrate. Ví dụ 16 camera × 4 Mbps cần khoảng 691 GB/ngày hoặc 20,7 TB cho 30 ngày, chưa tính RAID/dự phòng.
 
@@ -509,7 +513,7 @@ Recording luôn giữ bản copy codec gốc nên không mất chất lượng. 
 - Có thể đặt `RECORD_RETENTION_HOURS` lớn hơn 0 nếu cần một giới hạn thời gian độc lập. Việc dọn theo quota vẫn là lớp bảo vệ cuối cùng khi ổ đĩa sắp đầy.
 - Không dùng thư mục Documents làm nơi duy nhất cho dữ liệu quan trọng: nên có RAID và backup ngoài máy cho recording cần lưu lâu dài.
 - Giảm bitrate main stream trước khi giảm retention nếu cần tiết kiệm dung lượng.
-- Dùng sub-stream AI. Nhiều luồng AI hoặc nhiều live H.265 cần server Linux/NVIDIA chuyên dụng; cấu hình CPU mặc định phù hợp để bắt đầu, không phải cam kết hiệu năng cho số camera không giới hạn.
+- Dùng mức 1–2 hình/giây cho AI khi chạy CPU; luồng phụ riêng phù hợp nếu chỉ cần sự kiện. Nhiều luồng AI hoặc nhiều live H.265 cần server Linux/NVIDIA chuyên dụng; cấu hình CPU mặc định phù hợp để bắt đầu, không phải cam kết hiệu năng cho số camera không giới hạn.
 
 ## Vận hành, backup và cập nhật
 
@@ -597,3 +601,7 @@ Tham chiếu [ONVIF Media: Get/SetVideoEncoderConfiguration](https://www.onvif.o
 Các thao tác đổi Wi-Fi, nâng firmware, reset, xóa liên kết, định dạng thẻ và dịch vụ cloud của hãng chưa đưa vào bản tích hợp này. Không sao chép toàn bộ thuộc tính SDK ra web: dữ liệu Wi-Fi/tài khoản/khóa thiết bị luôn bị lọc.
 
 API admin: `GET/PUT /api/cameras/:id/device-settings`. Ghi qua HTTPS + CSRF, body `{ revision, changes: { indicator: 0 } }`; backend và worker Windows đều kiểm tra danh sách trường/giá trị cho phép, ID/fingerprint/generation, revision và khả năng thực tế. Adapter phải công bố `settings_version: 1`. Lệnh SDK ACK chưa khớp đọc lại trả `confirmed: false`.
+
+### API nhận dạng Live
+
+`GET /api/events/live?camera_ids=1,2,3` yêu cầu đăng nhập, tối đa 16 ID khác nhau. Trả trạng thái và lịch sử tọa độ theo epoch UTC (ms), kích thước hình, độ tin cậy; không trả URL RTSP, tài khoản hoặc ảnh thô. File IPC giới hạn 2 MB/camera, lịch sử 30 giây, tối đa 32 đối tượng/khung; metadata lỗi/cũ trả trạng thái chờ. Worker ghi file atomically, nguồn hình lỗi không ngăn recording/đàm thoại.

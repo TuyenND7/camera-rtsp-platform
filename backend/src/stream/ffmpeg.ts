@@ -108,7 +108,7 @@ export function buildArgs(
     '-f', 'hls',
     '-hls_time', String(config.hlsSegmentSeconds),
     '-hls_list_size', String(config.hlsListSize),
-    '-hls_flags', 'delete_segments+append_list+omit_endlist',
+    '-hls_flags', 'delete_segments+append_list+omit_endlist+program_date_time',
     '-hls_segment_filename', path.join(paths.liveDir, 'seg_%06d.ts'),
     paths.liveIndex
   );

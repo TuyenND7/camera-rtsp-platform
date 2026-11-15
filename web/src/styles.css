@@ -1145,3 +1145,14 @@ tbody tr:last-child td { border-bottom: 0; }
 @keyframes screen-hint-fade { to { opacity: 0; } }
 @media (pointer: coarse) { .mi-live-screen-button::after { position: absolute; inset: -4px 0; content: ''; } }
 @media (max-width: 620px) { .viewing-device-fields { grid-template-columns: minmax(0, 1fr); } }
+
+.detection-layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+.detection-box { position: absolute; border: 2px solid #39e58c; border-radius: 3px; box-shadow: 0 0 0 1px #03180b80; }
+.detection-box > span { position: absolute; left: -2px; top: -2px; transform: translateY(-100%); white-space: nowrap; padding: 2px 5px; border-radius: 3px 3px 0 0; color: #062213; background: #39e58c; font-size: calc(11px * var(--text-scale, 1)); font-weight: 750; line-height: 1.3; }
+.detection-box > span.inside { top: 0; transform: none; }
+.camera-ai-settings { display: grid; gap: 18px; padding: 16px 0; }
+.camera-ai-labels { display: flex; flex-wrap: wrap; gap: 12px 20px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.camera-ai-labels legend { font-weight: 650; }
+.event-picture { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #101d30; }
+.event-picture > img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.camera-settings-switch { flex-wrap: wrap; }

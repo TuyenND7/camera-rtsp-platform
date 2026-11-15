@@ -163,14 +163,16 @@ router.put('/:id', async (req, res) => {
     return;
   }
   const cam = rows[0];
-  invalidatePtz(cam.id);
-  talkManager.invalidateCamera(cam.id);
-  deviceControls.cancelCamera(cam.id);
-  // Áp dụng thay đổi lên worker
-  if (cam.enabled) {
-    await streamManager.restart(cam.id);
-  } else {
-    streamManager.stop(cam.id);
+  const sourceChanged = rtsp_url !== undefined || enabled !== undefined || record !== undefined || codec !== undefined;
+  if (sourceChanged || onvif_url !== undefined) {
+    invalidatePtz(cam.id);
+    talkManager.invalidateCamera(cam.id);
+    deviceControls.cancelCamera(cam.id);
+  }
+  // AI options consume the existing live files and do not interrupt video/talk.
+  if (sourceChanged) {
+    if (cam.enabled) await streamManager.restart(cam.id);
+    else streamManager.stop(cam.id);
   }
   res.json(cam);
 });
