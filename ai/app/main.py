@@ -60,6 +60,7 @@ class Detector:
 
     def __init__(self) -> None:
         log.info("loading model=%s device=%s", MODEL_PATH, DEVICE)
+        cv2.setNumThreads(1)
         if DEVICE == "cpu":
             import torch
             torch.set_num_threads(2)
@@ -126,7 +127,7 @@ class CameraWorker:
                     key = (segment.name, segment.at)
                     if key in seen or self.stop_event.is_set():
                         continue
-                    cap = cv2.VideoCapture(str(directory / segment.name), cv2.CAP_FFMPEG)
+                    cap = cv2.VideoCapture(str(directory / segment.name), cv2.CAP_FFMPEG, [cv2.CAP_PROP_N_THREADS, 1])
                     try:
                         if not cap.isOpened():
                             continue
@@ -134,14 +135,16 @@ class CameraWorker:
                         fps = fps if 1 <= fps <= 120 else 25
                         frame_index, next_at = 0, 0.0
                         while not self.stop_event.is_set():
-                            ok, frame = cap.read()
-                            if not ok or frame is None:
+                            if not cap.grab():
                                 break
                             offset = frame_index / fps
                             frame_index += 1
                             if offset + .001 < next_at or offset >= segment.duration:
                                 continue
                             next_at = offset + 1 / max(self.camera.ai_fps, .1)
+                            ok, frame = cap.retrieve()
+                            if not ok or frame is None:
+                                continue
                             self.process_frame(frame, segment.at + offset)
                             last_frame = time.monotonic()
                     finally:
@@ -169,15 +172,14 @@ class CameraWorker:
                         cap.release()
                     # Không ghi URL vì URL RTSP thường chứa mật khẩu.
                     log.info("camera=%s opening AI source", self.camera.id)
-                    cap = cv2.VideoCapture(self.camera.source_url, cv2.CAP_FFMPEG, [cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000, cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000])
+                    cap = cv2.VideoCapture(self.camera.source_url, cv2.CAP_FFMPEG, [cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000, cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000, cv2.CAP_PROP_N_THREADS, 1])
                     if not cap.isOpened():
                         cap.release()
                         cap = None
                         self.stop_event.wait(5)
                         continue
 
-                ok, frame = cap.read()
-                if not ok or frame is None:
+                if not cap.grab():
                     cap.release()
                     cap = None
                     self.stop_event.wait(2)
@@ -187,6 +189,9 @@ class CameraWorker:
                 if now < next_frame_at:
                     continue
                 next_frame_at = now + 1 / max(self.camera.ai_fps, 0.1)
+                ok, frame = cap.retrieve()
+                if not ok or frame is None:
+                    continue
                 self.process_frame(frame)
         except Exception:
             log.exception("camera=%s worker stopped after an unexpected error", self.camera.id)

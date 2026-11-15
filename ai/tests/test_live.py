@@ -57,6 +57,36 @@ class LiveTests(unittest.TestCase):
             worker.process_frame(SimpleNamespace(shape=(360, 640, 3)), at + 2)
             self.assertEqual(len(saved), 1)
 
+    def test_live_sampling_converts_only_requested_frames(self):
+        with patch.dict(sys.modules, {'cv2': SimpleNamespace(), 'psycopg': SimpleNamespace(), 'ultralytics': SimpleNamespace(YOLO=None)}), patch.dict(os.environ, {'DATABASE_URL': 'fixture'}):
+            main = importlib.import_module('app.main')
+        with tempfile.TemporaryDirectory() as directory, patch.object(main, 'STORAGE_ROOT', Path(directory)):
+            worker = main.CameraWorker(main.CameraConfig(3, 'Fixture', None, 2, .5, ('person',)), None)
+            stream = Path(directory) / 'live' / '3'
+            stream.mkdir(parents=True)
+            at = time.time() - 2
+            date = main.datetime.fromtimestamp(at, main.timezone.utc).isoformat()
+            (stream / 'index.m3u8').write_text(f'#EXT-X-PROGRAM-DATE-TIME:{date}\n#EXTINF:2,\nseg_001.ts\n')
+            converted, captured = [], []
+            class Capture:
+                index = 0
+                def isOpened(self): return True
+                def get(self, _): return 25
+                def grab(self):
+                    self.index += 1
+                    return self.index <= 50
+                def retrieve(self):
+                    converted.append(self.index)
+                    return True, SimpleNamespace()
+                def release(self): worker.stop()
+            video = SimpleNamespace(VideoCapture=lambda *_: Capture(), CAP_FFMPEG=1, CAP_PROP_N_THREADS=70, CAP_PROP_FPS=5)
+            worker.process_frame = lambda _, timestamp: captured.append(timestamp)
+            with patch.object(main, 'cv2', video):
+                worker.run_live()
+            self.assertEqual(len(converted), 4)
+            self.assertAlmostEqual(captured[0], at, places=4)
+            self.assertTrue(all(.5 <= b - a <= .54 for a, b in zip(captured, captured[1:])))
+
 
 if __name__ == '__main__':
     unittest.main()

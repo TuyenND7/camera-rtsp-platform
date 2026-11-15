@@ -15,7 +15,7 @@ export function LiveAiProvider({ cameraIds, children }: { cameraIds: number[]; c
         controller = new AbortController(); timeout = window.setTimeout(() => controller?.abort(), 5000);
         try {
           const values = await api.liveDetections(key.split(',').map(Number), controller.signal);
-          if (active) setItems(new Map(values.map(value => [value.camera_id, value])));
+          if (active) setItems(new Map(values.map(value => [value.camera_id, normalizeDetectionClock(value)])));
         } catch { if (active) setItems(new Map()); }
         finally { window.clearTimeout(timeout); }
       }
@@ -25,6 +25,12 @@ export function LiveAiProvider({ cameraIds, children }: { cameraIds: number[]; c
     return () => { active = false; controller?.abort(); window.clearTimeout(timer); window.clearTimeout(timeout); };
   }, [key]);
   return <LiveContext.Provider value={items}>{children}</LiveContext.Provider>;
+}
+
+export function normalizeDetectionClock(value: LiveDetectionState, now = Date.now()): LiveDetectionState {
+  // Video/frame timestamps share the server clock. Only freshness uses the
+  // viewer's clock, which may differ by minutes on a tablet or Windows host.
+  return { ...value, updated_at: Number.isFinite(value.server_time) ? now - Math.max(0, value.server_time - value.updated_at) : value.updated_at };
 }
 
 export function selectDetectionFrame(value: LiveDetectionState | undefined, at: number | null, now = Date.now()): DetectionFrame | null {

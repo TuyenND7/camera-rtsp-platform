@@ -4,12 +4,12 @@ import { config } from '../config';
 
 export type Detection = { label: string; confidence: number; box: [number, number, number, number] };
 export type DetectionFrame = { at: number; width: number; height: number; detections: Detection[] };
-export type LiveDetections = { camera_id: number; state: string; synchronized: boolean; updated_at: number; frame_ttl_ms: number; frames: DetectionFrame[] };
+export type LiveDetections = { camera_id: number; state: string; synchronized: boolean; updated_at: number; server_time: number; frame_ttl_ms: number; frames: DetectionFrame[] };
 const labels = new Set(['person', 'car', 'motorcycle', 'bicycle', 'truck', 'bus']);
 const object = (v: unknown): Record<string, any> => v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, any> : {};
 
 export function sanitizeLiveDetections(raw: unknown, cameraId: number, fps: number, now = Date.now()): LiveDetections {
-  const fallback: LiveDetections = { camera_id: cameraId, state: 'waiting', synchronized: false, updated_at: 0, frame_ttl_ms: Math.max(750, Math.min(2500, 1500 / Math.max(.1, fps))), frames: [] };
+  const fallback: LiveDetections = { camera_id: cameraId, state: 'waiting', synchronized: false, updated_at: 0, server_time: now, frame_ttl_ms: Math.max(750, Math.min(2500, 1500 / Math.max(.1, fps))), frames: [] };
   const value = object(raw);
   if (value.version !== 1 || value.camera_id !== cameraId || !Number.isFinite(value.updated_at) || value.updated_at > now + 3000 || value.updated_at < now - 12000) return fallback;
   const synchronized = value.synchronized === true;
