@@ -18,7 +18,7 @@ export interface DeviceControls {
   ends_at?: number | null;
   confirmed?: boolean;
 }
-export type DetectionFrame = { at: number; width: number; height: number; detections: Array<{ label: string; confidence: number; box: [number, number, number, number] }> };
+export type DetectionFrame = { at: number; width: number; height: number; detections: Array<{ label: string; confidence: number; box: [number, number, number, number]; track_id?: string; track_number?: number }> };
 export type LiveDetectionState = { camera_id: number; state: string; synchronized: boolean; updated_at: number; server_time: number; frame_ttl_ms: number; frames: DetectionFrame[] };
 export interface TalkCapability { camera_id: number; supported: boolean; reason: string; codec?: string }
 export interface TalkSession { id: string; camera_ids: number[]; listen_camera_ids?: number[]; sample_rate: number; max_seconds: number }
@@ -83,7 +83,7 @@ export interface DetectionEvent {
   label: string;
   confidence: number;
   snapshot_url: string | null;
-  metadata: { box?: number[]; ai_fps?: number; width?: number; height?: number; detections?: DetectionFrame['detections'] };
+  metadata: { box?: number[]; track_id?: string; track_number?: number; ai_fps?: number; width?: number; height?: number; detections?: DetectionFrame['detections'] };
 }
 
 export interface OnvifProfile {

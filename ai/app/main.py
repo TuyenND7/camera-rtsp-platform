@@ -24,6 +24,7 @@ import cv2
 import psycopg
 from ultralytics import YOLO
 from .live import FrameHistory, playlist_segments
+from .tracking import ObjectTracker
 
 
 logging.basicConfig(
@@ -37,7 +38,7 @@ STORAGE_ROOT = Path(os.getenv("STORAGE_ROOT", "/storage"))
 MODEL_PATH = os.getenv("AI_MODEL", "/models/yolov8n.pt")
 DEVICE = os.getenv("AI_DEVICE", "cpu")
 SYNC_SECONDS = float(os.getenv("AI_SYNC_SECONDS", "3"))
-EVENT_COOLDOWN_SECONDS = float(os.getenv("AI_EVENT_COOLDOWN_SECONDS", "20"))
+TRACK_MAX_IDLE_SECONDS = float(os.getenv("AI_TRACK_MAX_IDLE_SECONDS", "8"))
 
 
 @dataclass(frozen=True)
@@ -90,7 +91,7 @@ class CameraWorker:
         self.detector = detector
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.run, name=f"ai-camera-{camera.id}", daemon=True)
-        self.last_event: dict[str, float] = {}
+        self.tracker = ObjectTracker(camera.id, max_idle_seconds=TRACK_MAX_IDLE_SECONDS)
         self.history = FrameHistory(STORAGE_ROOT, camera.id, synchronized=not bool(camera.ai_rtsp_url))
 
     def start(self) -> None:
@@ -206,6 +207,7 @@ class CameraWorker:
             return
         captured_at = captured_at if captured_at is not None else time.time()
         height, width = frame.shape[:2]
+        detections = self.tracker.update(detections, captured_at, width, height)
         if self.history.synchronized:
             self.history.add(captured_at, width, height, detections)
         else:
@@ -213,19 +215,18 @@ class CameraWorker:
         if not detections:
             return
 
-        now = time.monotonic()
-        by_label = {label: max((item for item in detections if item["label"] == label), key=lambda item: item["confidence"]) for label in {item["label"] for item in detections}}
-        accepted = [
-            item for item in by_label.values()
-            if now - self.last_event.get(item["label"], float("-inf")) >= EVENT_COOLDOWN_SECONDS
-        ]
+        accepted = self.tracker.pending_events(detections)
         if not accepted:
             return
 
-        snapshot_path = self.write_snapshot(frame)
-        for item in accepted:
-            self.insert_event(item, snapshot_path, captured_at, width, height, detections)
-            self.last_event[item["label"]] = now
+        try:
+            snapshot_path = self.write_snapshot(frame)
+            for item in accepted:
+                self.insert_event(item, snapshot_path, captured_at, width, height, detections)
+                self.tracker.mark_reported(item)
+        except Exception:
+            # Retry unreported tracks on the next frame, without killing AI.
+            log.exception('camera=%s cannot save tracked event', self.camera.id)
 
     def write_snapshot(self, frame: Any) -> str:
         timestamp = datetime.now(timezone.utc)
@@ -239,12 +240,13 @@ class CameraWorker:
         return relative.as_posix()
 
     def insert_event(self, item: dict[str, Any], snapshot_path: str, captured_at: float, width: int, height: int, detections: list[dict]) -> None:
-        metadata = json.dumps({"box": item["box"], "ai_fps": self.camera.ai_fps, "width": width, "height": height, "detections": detections, "synchronized": self.history.synchronized})
+        metadata = json.dumps({"box": item["box"], "track_id": item["track_id"], "track_number": item["track_number"], "ai_fps": self.camera.ai_fps, "width": width, "height": height, "detections": detections, "synchronized": self.history.synchronized})
         with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
             conn.execute(
                 """
                 INSERT INTO detection_events (camera_id, label, confidence, snapshot_path, metadata, detected_at)
                 VALUES (%s, %s, %s, %s, %s::jsonb, %s)
+                ON CONFLICT DO NOTHING
                 """,
                 (self.camera.id, item["label"], item["confidence"], snapshot_path, metadata, datetime.fromtimestamp(captured_at, timezone.utc)),
             )

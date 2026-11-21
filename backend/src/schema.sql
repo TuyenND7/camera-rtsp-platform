@@ -92,3 +92,8 @@ CREATE TABLE IF NOT EXISTS detection_events (
 
 CREATE INDEX IF NOT EXISTS idx_detection_events_camera_time
   ON detection_events (camera_id, detected_at DESC);
+
+-- Retrying a tracked sighting must not create another event for that same ID.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_detection_events_track
+  ON detection_events (camera_id, (metadata->>'track_id'))
+  WHERE metadata ? 'track_id';

@@ -613,6 +613,10 @@ API admin: `GET/PUT /api/cameras/:id/device-settings`. Ghi qua HTTPS + CSRF, bod
 
 Nhận dạng chó/mèo dùng các lớp `cat`/`dog` có sẵn trong model YOLOv8n hiện tại. Chọn riêng trong **Cài đặt camera → Nhận dạng**; áp dụng cho khung Live, ảnh sự kiện và bộ lọc sự kiện. Đây là phát hiện đối tượng, chưa bao gồm phân tích xâm nhập vùng, lảng vảng hoặc suy luận hành vi trộm cắp.
 
+AI gán ID theo dõi riêng cho từng đối tượng trong mỗi camera. Live và Sự kiện hiển thị `Người #3`, `Mèo #4`… Đối tượng phải xuất hiện trong ít nhất hai khung được phân tích trước khi tạo sự kiện; mỗi ID chỉ tạo một sự kiện, kể cả khi đứng trong hình lâu hơn 20 giây. PostgreSQL có unique index theo camera/track ID để lần ghi lại không tạo sự kiện trùng. Hai người cùng xuất hiện có hai ID và hai sự kiện riêng.
+
+`AI_TRACK_MAX_IDLE_SECONDS=8` giữ ID qua khoảng mất dấu ngắn, tính theo thời gian video và độc lập FPS. Thay biến `AI_EVENT_COOLDOWN_SECONDS` cũ bằng biến này khi cấu hình lại; giá trị cũ không còn điều khiển việc ghi sự kiện. Đây là tracking vị trí/chuyển động chạy trên máy chủ, không nhận diện danh tính: ra khỏi hình quá thời gian chờ, khởi động lại AI, thay cấu hình AI hoặc chuyển camera có thể tạo ID mới. Đối tượng giao nhau, bị che lâu và FPS thấp vẫn có thể bị đổi ID; chưa chống trùng giữa nhiều camera.
+
 ### API nhận dạng Live
 
-`GET /api/events/live?camera_ids=1,2,3` yêu cầu đăng nhập, tối đa 16 ID khác nhau. Trả trạng thái và lịch sử tọa độ theo epoch UTC (ms), kích thước hình, độ tin cậy; không trả URL RTSP, tài khoản hoặc ảnh thô. File IPC giới hạn 2 MB/camera, lịch sử 30 giây, tối đa 32 đối tượng/khung; metadata lỗi/cũ trả trạng thái chờ. Worker ghi file atomically, nguồn hình lỗi không ngăn recording/đàm thoại.
+`GET /api/events/live?camera_ids=1,2,3` yêu cầu đăng nhập, tối đa 16 ID khác nhau. Trả trạng thái và lịch sử tọa độ theo epoch UTC (ms), kích thước hình, độ tin cậy, `track_id`/`track_number` nếu có; không trả URL RTSP, tài khoản hoặc ảnh thô. File IPC giới hạn 2 MB/camera, lịch sử 30 giây, tối đa 32 đối tượng/khung; metadata lỗi/cũ trả trạng thái chờ. Worker ghi file atomically, nguồn hình lỗi không ngăn recording/đàm thoại.

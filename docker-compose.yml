@@ -67,7 +67,7 @@ services:
       AI_MODEL: ${AI_MODEL}
       AI_DEVICE: ${AI_DEVICE}
       AI_SYNC_SECONDS: ${AI_SYNC_SECONDS}
-      AI_EVENT_COOLDOWN_SECONDS: ${AI_EVENT_COOLDOWN_SECONDS}
+      AI_TRACK_MAX_IDLE_SECONDS: ${AI_TRACK_MAX_IDLE_SECONDS:-8}
     volumes:
       - type: bind
         source: ${STORAGE_HOST_DIR:-./storage}

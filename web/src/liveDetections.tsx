@@ -44,6 +44,10 @@ export function LiveDetectionOverlay({ cameraId, at, enabled }: { cameraId: numb
   return <DetectionBoxes frame={enabled ? selectDetectionFrame(state, at) : null} />;
 }
 const labels: Record<string, string> = { person: 'Người', cat: 'Mèo', dog: 'Chó', car: 'Ô tô', motorcycle: 'Xe máy', bicycle: 'Xe đạp', truck: 'Xe tải', bus: 'Xe buýt' };
+export function detectionLabel(detection: { label: string; track_number?: number }): string {
+  const number = detection.track_number;
+  return `${labels[detection.label] ?? detection.label}${typeof number === 'number' && Number.isInteger(number) && number > 0 ? ` #${number}` : ''}`;
+}
 export function DetectionBoxes({ frame }: { frame: DetectionFrame | null }) {
   const layer = useRef<HTMLDivElement>(null), [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
@@ -57,7 +61,7 @@ export function DetectionBoxes({ frame }: { frame: DetectionFrame | null }) {
   return <div className="detection-layer" ref={layer} aria-hidden="true" data-ai-detections={frame?.detections.length ?? 0}>
     {scale > 0 && frame?.detections.map((detection, index) => {
       const [x1, y1, x2, y2] = detection.box;
-      return <div key={index} className="detection-box" style={{ left: left + x1 * scale, top: top + y1 * scale, width: (x2 - x1) * scale, height: (y2 - y1) * scale }}><span className={y1 * scale < 22 ? 'inside' : ''}>{labels[detection.label] ?? detection.label} {Math.round(detection.confidence * 100)}%</span></div>;
+      return <div key={detection.track_id ?? index} className="detection-box" style={{ left: left + x1 * scale, top: top + y1 * scale, width: (x2 - x1) * scale, height: (y2 - y1) * scale }}><span className={y1 * scale < 22 ? 'inside' : ''}>{detectionLabel(detection)} {Math.round(detection.confidence * 100)}%</span></div>;
     })}
   </div>;
 }

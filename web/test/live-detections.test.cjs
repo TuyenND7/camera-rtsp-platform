@@ -3,6 +3,12 @@ const code=ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/liveDe
 const now=1700000000000,frames=[{at:now-5000,detections:['old']},{at:now-3500,detections:['person']},{at:now-3000,detections:[]}],state={state:'ready',synchronized:true,updated_at:now,frame_ttl_ms:750,frames};
 test('overlay follows displayed video time, never newest server result or a future frame',()=>{assert.equal(exports_.selectDetectionFrame(state,now-3300,now),frames[1]);assert.equal(exports_.selectDetectionFrame(state,now-2900,now),frames[2]);assert.equal(exports_.selectDetectionFrame(state,now-4000,now),null)});
 test('no timestamp, stale worker, stopped or unsynchronized source clears Live overlay',()=>{assert.equal(exports_.selectDetectionFrame(state,null,now),null);for(const change of [{updated_at:now-13000},{state:'waiting'},{synchronized:false}])assert.equal(exports_.selectDetectionFrame({...state,...change},now-3300,now),null)});
+test('Live and events show tracking number while legacy snapshots retain plain labels',()=>{
+ assert.equal(exports_.detectionLabel({label:'person',track_number:3}),'Người #3');
+ assert.equal(exports_.detectionLabel({label:'cat',track_number:4}),'Mèo #4');
+ assert.equal(exports_.detectionLabel({label:'dog'}),'Chó');
+ assert.equal(exports_.detectionLabel({label:'person',track_number:-1}),'Người');
+});
 test('viewer clock skew does not hide fresh boxes or extend stale worker lifetime',()=>{
  for(const skew of [-180000,180000]){
   const viewerNow=now+skew;

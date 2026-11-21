@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config';
 
-export type Detection = { label: string; confidence: number; box: [number, number, number, number] };
+export type Detection = { label: string; confidence: number; box: [number, number, number, number]; track_id?: string; track_number?: number };
 export type DetectionFrame = { at: number; width: number; height: number; detections: Detection[] };
 export type LiveDetections = { camera_id: number; state: string; synchronized: boolean; updated_at: number; server_time: number; frame_ttl_ms: number; frames: DetectionFrame[] };
 const labels = new Set(['person', 'car', 'motorcycle', 'bicycle', 'truck', 'bus', 'cat', 'dog']);
@@ -23,7 +23,13 @@ export function sanitizeLiveDetections(raw: unknown, cameraId: number, fps: numb
       if (!labels.has(d.label) || !Number.isFinite(d.confidence) || d.confidence < 0 || d.confidence > 1 || !Array.isArray(d.box) || d.box.length !== 4 || !d.box.every(Number.isFinite)) continue;
       const [left, top, right, bottom] = d.box as number[];
       const box: Detection['box'] = [Math.max(0, Math.min(width, left)), Math.max(0, Math.min(height, top)), Math.max(0, Math.min(width, right)), Math.max(0, Math.min(height, bottom))];
-      if (box[2] > box[0] && box[3] > box[1]) detections.push({ label: d.label, confidence: d.confidence, box });
+      if (box[2] > box[0] && box[3] > box[1]) {
+        const detection: Detection = { label: d.label, confidence: d.confidence, box };
+        if (Number.isInteger(d.track_number) && d.track_number > 0 && d.track_number <= 2147483647 && typeof d.track_id === 'string' && new RegExp(`^c${cameraId}-[a-f0-9]{12}-${d.track_number}$`).test(d.track_id)) {
+          detection.track_id = d.track_id; detection.track_number = d.track_number;
+        }
+        detections.push(detection);
+      }
     }
     frames.push({ at, width, height, detections });
   }

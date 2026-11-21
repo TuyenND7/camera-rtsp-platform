@@ -33,7 +33,7 @@ class LiveTests(unittest.TestCase):
             self.assertEqual(json.loads(history.file.read_text())['frames'], [])
             self.assertFalse(history.file.with_suffix('.tmp').exists())
 
-    def test_worker_groups_people_and_uses_capture_time_for_event(self):
+    def test_worker_saves_each_confirmed_person_once_and_uses_capture_time(self):
         with patch.dict(sys.modules, {'cv2': SimpleNamespace(), 'psycopg': SimpleNamespace(), 'ultralytics': SimpleNamespace(YOLO=None)}), patch.dict(os.environ, {'DATABASE_URL': 'fixture'}):
             main = importlib.import_module('app.main')
         with tempfile.TemporaryDirectory() as directory, patch.object(main, 'STORAGE_ROOT', Path(directory)):
@@ -45,17 +45,44 @@ class LiveTests(unittest.TestCase):
             worker.insert_event = lambda *args: saved.append(args)
             at = time.time() - 3
             worker.process_frame(SimpleNamespace(shape=(360, 640, 3)), at)
-            self.assertEqual(len(saved), 1)
-            self.assertEqual(saved[0][2], at)
-            self.assertEqual(len(saved[0][-1]), 2)
+            self.assertEqual(len(saved), 0)
             worker.process_frame(SimpleNamespace(shape=(360, 640, 3)), at + .5)
-            self.assertEqual(len(saved), 1)
+            self.assertEqual(len(saved), 2)
+            self.assertEqual(saved[0][2], at + .5)
+            self.assertEqual(len(saved[0][-1]), 2)
+            self.assertNotEqual(saved[0][0]['track_id'], saved[1][0]['track_id'])
+            for offset in range(1, 30):
+                worker.process_frame(SimpleNamespace(shape=(360, 640, 3)), at + offset)
+            self.assertEqual(len(saved), 2)
             detections.clear()
-            worker.process_frame(SimpleNamespace(shape=(360, 640, 3)), at + 1)
+            worker.process_frame(SimpleNamespace(shape=(360, 640, 3)), at + 30)
             self.assertEqual(json.loads(worker.history.file.read_text())['frames'][-1]['detections'], [])
             worker.stop()
-            worker.process_frame(SimpleNamespace(shape=(360, 640, 3)), at + 2)
-            self.assertEqual(len(saved), 1)
+            worker.process_frame(SimpleNamespace(shape=(360, 640, 3)), at + 31)
+            self.assertEqual(len(saved), 2)
+
+    def test_failed_event_save_is_retried_without_repeating_successful_events(self):
+        with patch.dict(sys.modules, {'cv2': SimpleNamespace(), 'psycopg': SimpleNamespace(), 'ultralytics': SimpleNamespace(YOLO=None)}), patch.dict(os.environ, {'DATABASE_URL': 'fixture'}):
+            main = importlib.import_module('app.main')
+        with tempfile.TemporaryDirectory() as directory, patch.object(main, 'STORAGE_ROOT', Path(directory)):
+            detections = [{'label': 'person', 'confidence': .9, 'box': [10, 20, 60, 100]}]
+            worker = main.CameraWorker(main.CameraConfig(1, 'Fixture', None, 1, .5, ('person',)), SimpleNamespace(detect=lambda *_: detections))
+            worker.write_snapshot = lambda _: 'events/fixture.jpg'
+            calls = []
+            def save(*args):
+                calls.append(args)
+                if len(calls) == 1:
+                    raise RuntimeError('database temporarily unavailable')
+            worker.insert_event = save
+            at = time.time() - 5
+            frame = SimpleNamespace(shape=(360, 640, 3))
+            worker.process_frame(frame, at)
+            with self.assertLogs('camera-ai', level='ERROR'):
+                worker.process_frame(frame, at + 1)
+            worker.process_frame(frame, at + 2)
+            worker.process_frame(frame, at + 3)
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(calls[0][0]['track_id'], calls[1][0]['track_id'])
 
     def test_live_sampling_converts_only_requested_frames(self):
         with patch.dict(sys.modules, {'cv2': SimpleNamespace(), 'psycopg': SimpleNamespace(), 'ultralytics': SimpleNamespace(YOLO=None)}), patch.dict(os.environ, {'DATABASE_URL': 'fixture'}):
