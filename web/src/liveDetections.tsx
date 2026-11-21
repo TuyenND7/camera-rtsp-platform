@@ -46,7 +46,7 @@ export function LiveDetectionOverlay({ cameraId, at, enabled }: { cameraId: numb
 const labels: Record<string, string> = { person: 'Người', cat: 'Mèo', dog: 'Chó', car: 'Ô tô', motorcycle: 'Xe máy', bicycle: 'Xe đạp', truck: 'Xe tải', bus: 'Xe buýt' };
 export function detectionLabel(detection: { label: string; track_number?: number }): string {
   const number = detection.track_number;
-  return `${labels[detection.label] ?? detection.label}${typeof number === 'number' && Number.isInteger(number) && number > 0 ? ` #${number}` : ''}`;
+  return `${labels[detection.label] ?? detection.label} · ${typeof number === 'number' && Number.isInteger(number) && number > 0 ? `ID #${number}` : 'Chưa có ID'}`;
 }
 export function DetectionBoxes({ frame }: { frame: DetectionFrame | null }) {
   const layer = useRef<HTMLDivElement>(null), [size, setSize] = useState({ width: 0, height: 0 });
