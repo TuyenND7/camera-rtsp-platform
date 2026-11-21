@@ -5,7 +5,21 @@ import { config } from '../config';
 export type Detection = { label: string; confidence: number; box: [number, number, number, number]; track_id?: string; track_number?: number };
 export type DetectionFrame = { at: number; width: number; height: number; detections: Detection[] };
 export type LiveDetections = { camera_id: number; state: string; synchronized: boolean; updated_at: number; server_time: number; frame_ttl_ms: number; frames: DetectionFrame[] };
-const labels = new Set(['person', 'car', 'motorcycle', 'bicycle', 'truck', 'bus', 'cat', 'dog']);
+export const detectionLabels = ['person', 'car', 'motorcycle', 'bicycle', 'truck', 'bus', 'cat', 'dog'];
+const labels = new Set(detectionLabels);
+type OverlaySettings = { ai_overlay_enabled?: boolean; ai_overlay_labels?: string[] };
+
+export function isOverlaySettingsValid(enabled: unknown, selected: unknown): boolean {
+  return (enabled === undefined || typeof enabled === 'boolean') && (selected === undefined ||
+    (Array.isArray(selected) && selected.length <= labels.size && new Set(selected).size === selected.length && selected.every(label => typeof label === 'string' && labels.has(label))));
+}
+
+export function filterLiveOverlay(value: LiveDetections, settings: OverlaySettings): LiveDetections {
+  if (settings.ai_overlay_enabled === false || settings.ai_overlay_labels?.length === 0) return { ...value, state: 'hidden', frames: [] };
+  if (!settings.ai_overlay_labels) return value;
+  const selected = new Set(settings.ai_overlay_labels);
+  return { ...value, frames: value.frames.map(frame => ({ ...frame, detections: frame.detections.filter(detection => selected.has(detection.label)) })) };
+}
 const object = (v: unknown): Record<string, any> => v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, any> : {};
 
 export function sanitizeLiveDetections(raw: unknown, cameraId: number, fps: number, now = Date.now()): LiveDetections {
@@ -37,14 +51,15 @@ export function sanitizeLiveDetections(raw: unknown, cameraId: number, fps: numb
   return { ...fallback, state: ['ready', 'error', 'stopped'].includes(value.state) ? value.state : 'waiting', synchronized, updated_at: value.updated_at, frames };
 }
 
-export async function readLiveDetections(camera: { id: number; status: string; ai_enabled: boolean; enabled: boolean; ai_fps: number }): Promise<LiveDetections> {
+export async function readLiveDetections(camera: { id: number; status: string; ai_enabled: boolean; enabled: boolean; ai_fps: number } & OverlaySettings): Promise<LiveDetections> {
   const empty = sanitizeLiveDetections(null, camera.id, camera.ai_fps);
   if (!camera.enabled || !camera.ai_enabled) return { ...empty, state: 'disabled' };
   if (camera.status !== 'online') return { ...empty, state: 'offline' };
+  if (camera.ai_overlay_enabled === false || camera.ai_overlay_labels?.length === 0) return filterLiveOverlay(empty, camera);
   try {
     const file = path.join(config.storageRoot, '.detections', `${camera.id}.json`);
     const stat = await fs.lstat(file);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 2 * 1024 * 1024) return empty;
-    return sanitizeLiveDetections(JSON.parse(await fs.readFile(file, 'utf8')), camera.id, camera.ai_fps);
+    return filterLiveOverlay(sanitizeLiveDetections(JSON.parse(await fs.readFile(file, 'utf8')), camera.id, camera.ai_fps), camera);
   } catch { return empty; }
 }

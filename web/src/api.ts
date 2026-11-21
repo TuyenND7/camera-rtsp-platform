@@ -49,6 +49,8 @@ export interface Camera {
   ai_fps?: number;
   ai_confidence?: number;
   ai_labels?: string[];
+  ai_overlay_enabled?: boolean;
+  ai_overlay_labels?: string[];
   onvif_url?: string | null;
   status: string;
   last_error?: string | null;

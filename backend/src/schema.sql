@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS cameras (
   ai_fps       REAL NOT NULL DEFAULT 2,
   ai_confidence REAL NOT NULL DEFAULT 0.5,
   ai_labels    TEXT[] NOT NULL DEFAULT ARRAY['person', 'car', 'motorcycle'],
+  ai_overlay_enabled BOOLEAN NOT NULL DEFAULT true,
+  ai_overlay_labels TEXT[] NOT NULL DEFAULT ARRAY['person', 'car', 'motorcycle', 'bicycle', 'truck', 'bus', 'cat', 'dog'],
   status       TEXT NOT NULL DEFAULT 'stopped',  -- stopped | connecting | online | error
   last_error   TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -48,6 +50,8 @@ ALTER TABLE cameras ADD COLUMN IF NOT EXISTS ai_rtsp_url TEXT;
 ALTER TABLE cameras ADD COLUMN IF NOT EXISTS ai_fps REAL NOT NULL DEFAULT 2;
 ALTER TABLE cameras ADD COLUMN IF NOT EXISTS ai_confidence REAL NOT NULL DEFAULT 0.5;
 ALTER TABLE cameras ADD COLUMN IF NOT EXISTS ai_labels TEXT[] NOT NULL DEFAULT ARRAY['person', 'car', 'motorcycle'];
+ALTER TABLE cameras ADD COLUMN IF NOT EXISTS ai_overlay_enabled BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE cameras ADD COLUMN IF NOT EXISTS ai_overlay_labels TEXT[] NOT NULL DEFAULT ARRAY['person', 'car', 'motorcycle', 'bicycle', 'truck', 'bus', 'cat', 'dog'];
 -- PTZ qua ONVIF. NULL = http://<host RTSP>/onvif/device_service, dùng tài khoản RTSP.
 ALTER TABLE cameras ADD COLUMN IF NOT EXISTS onvif_url TEXT;
 -- Serial ONVIF: nhận ra camera khi DHCP đổi IP để tự cập nhật địa chỉ.

@@ -13,7 +13,7 @@ router.get('/live', async (req, res) => {
   const ids = raw.split(',').map(Number);
   if (new Set(ids).size !== ids.length || ids.some(id => !Number.isSafeInteger(id) || id < 1 || id > 2147483647)) { res.status(400).json({ error: 'Camera không hợp lệ.' }); return; }
   try {
-    const { rows } = await pool.query('SELECT id, status, enabled, ai_enabled, ai_fps FROM cameras WHERE id = ANY($1::int[]) ORDER BY id', [ids]);
+    const { rows } = await pool.query('SELECT id, status, enabled, ai_enabled, ai_fps, ai_overlay_enabled, ai_overlay_labels FROM cameras WHERE id = ANY($1::int[]) ORDER BY id', [ids]);
     res.json(await Promise.all(rows.map(readLiveDetections)));
   } catch { res.status(503).json({ error: 'Chưa đọc được kết quả nhận dạng.' }); }
 });

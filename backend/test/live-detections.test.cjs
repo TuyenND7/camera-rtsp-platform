@@ -1,6 +1,23 @@
-const {test}=require('node:test'),assert=require('node:assert/strict'),{sanitizeLiveDetections}=require('../dist/detections/live');
+const {test}=require('node:test'),assert=require('node:assert/strict'),{sanitizeLiveDetections,filterLiveOverlay,isOverlaySettingsValid}=require('../dist/detections/live');
 const now=1700000000000,frame={at:now-3000,width:640,height:360,detections:[{label:'person',confidence:.9,box:[-10,-20,700,400]}]},state={version:1,camera_id:3,updated_at:now,state:'ready',synchronized:true,frames:[frame]};
 test('response supplies server clock without trusting worker clock metadata',()=>{assert.equal(sanitizeLiveDetections({...state,server_time:now+3600000},3,2,now).server_time,now)});
+test('Live visibility and class choices preserve tracking data and event snapshots',()=>{
+ const detections=['person','cat','dog'].map((label,i)=>({label,confidence:.9,box:[5,10,120,200],track_id:`c3-012345abcdef-${i+1}`,track_number:i+1}));
+ const original=sanitizeLiveDetections({...state,frames:[{...frame,detections}]},3,2,now);
+ assert.deepEqual(filterLiveOverlay(original,{}),original);
+ for(const settings of [{ai_overlay_enabled:false},{ai_overlay_labels:[]}]){
+  const hidden=filterLiveOverlay(original,settings);assert.equal(hidden.state,'hidden');assert.deepEqual(hidden.frames,[]);
+ }
+ const selected=filterLiveOverlay(original,{ai_overlay_enabled:true,ai_overlay_labels:['cat']});
+ assert.deepEqual(selected.frames[0].detections,[detections[1]]);
+ assert.equal(selected.frames[0].at,frame.at);
+ assert.deepEqual(original.frames[0].detections,detections);
+ assert.deepEqual(filterLiveOverlay(original,{ai_overlay_enabled:true,ai_overlay_labels:['person','cat','dog']}).frames[0].detections,detections);
+});
+test('overlay settings accept off and empty selection, reject unknown or duplicate classes',()=>{
+ for(const [enabled,selected] of [[undefined,undefined],[false,[]],[true,['person','cat','dog']]])assert(isOverlaySettingsValid(enabled,selected));
+ for(const [enabled,selected] of [[null,[]],['false',[]],[true,null],[true,'cat'],[true,['cat','cat']],[true,['unknown']],[true,[1]]])assert(!isOverlaySettingsValid(enabled,selected));
+});
 test('only well-formed camera-local tracking IDs reach Live; old detections still work',()=>{
  const tracked={label:'person',confidence:.9,box:[1,2,100,200],track_id:'c3-012345abcdef-7',track_number:7};
  const sanitize=patch=>sanitizeLiveDetections({...state,frames:[{...frame,detections:[{...tracked,...patch}]}]},3,2,now).frames[0].detections[0];

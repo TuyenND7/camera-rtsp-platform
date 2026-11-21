@@ -8,6 +8,7 @@ import { talkManager } from '../talk/manager';
 import { deviceControls } from '../controls/tenda';
 import { rediscoverCamera } from '../discovery';
 import { deviceDiscovery, discoveryNetworks, KnownCamera, normalizeDiscoverySubnet } from '../deviceDiscovery';
+import { detectionLabels, isOverlaySettingsValid } from '../detections/live';
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
@@ -61,7 +62,7 @@ router.post('/onvif/probe', async (req, res) => {
 router.get('/', async (_req, res) => {
   const { rows } = await pool.query(
     `SELECT id, name, rtsp_url, enabled, record, codec, ai_enabled, ai_rtsp_url,
-            ai_fps, ai_confidence, ai_labels, onvif_url, status, last_error, updated_at
+            ai_fps, ai_confidence, ai_labels, ai_overlay_enabled, ai_overlay_labels, onvif_url, status, last_error, updated_at
      FROM cameras ORDER BY id`
   );
   res.json(rows);
@@ -92,6 +93,8 @@ router.post('/', async (req, res) => {
     ai_fps = 2,
     ai_confidence = 0.5,
     ai_labels = ['person', 'car', 'motorcycle'],
+    ai_overlay_enabled = true,
+    ai_overlay_labels = detectionLabels,
     onvif_url = null,
   } = req.body ?? {};
   if (!name || !rtsp_url) {
@@ -110,11 +113,14 @@ router.post('/', async (req, res) => {
     res.status(400).json({ error: 'ai_fps must be 0.1..10, ai_confidence 0..1, ai_labels must be a string array' });
     return;
   }
+  if (!isOverlaySettingsValid(ai_overlay_enabled, ai_overlay_labels)) {
+    res.status(400).json({ error: 'Cấu hình khung Live không hợp lệ.' }); return;
+  }
   const { rows } = await pool.query<CameraRow>(
     `INSERT INTO cameras (
-       name, rtsp_url, enabled, record, codec, ai_enabled, ai_rtsp_url, ai_fps, ai_confidence, ai_labels, onvif_url
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-    [name, rtsp_url, enabled, record, codec, ai_enabled, ai_rtsp_url || null, ai_fps, ai_confidence, ai_labels, onvif_url || null]
+       name, rtsp_url, enabled, record, codec, ai_enabled, ai_rtsp_url, ai_fps, ai_confidence, ai_labels, onvif_url, ai_overlay_enabled, ai_overlay_labels
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+    [name, rtsp_url, enabled, record, codec, ai_enabled, ai_rtsp_url || null, ai_fps, ai_confidence, ai_labels, onvif_url || null, ai_overlay_enabled, ai_overlay_labels]
   );
   const cam = rows[0];
   if (cam.enabled) streamManager.start(cam);
@@ -123,7 +129,10 @@ router.post('/', async (req, res) => {
 
 // Cập nhật camera
 router.put('/:id', async (req, res) => {
-  const { name, rtsp_url, enabled, record, codec, ai_enabled, ai_rtsp_url, ai_fps, ai_confidence, ai_labels, onvif_url } = req.body ?? {};
+  const { name, rtsp_url, enabled, record, codec, ai_enabled, ai_rtsp_url, ai_fps, ai_confidence, ai_labels, onvif_url, ai_overlay_enabled, ai_overlay_labels } = req.body ?? {};
+  if (!isOverlaySettingsValid(ai_overlay_enabled, ai_overlay_labels)) {
+    res.status(400).json({ error: 'Cấu hình khung Live không hợp lệ.' }); return;
+  }
   if (codec !== undefined && !['auto', 'h264', 'h265'].includes(codec)) {
     res.status(400).json({ error: 'codec must be auto|h264|h265' });
     return;
@@ -150,12 +159,14 @@ router.put('/:id', async (req, res) => {
        ai_confidence = COALESCE($9, ai_confidence),
        ai_labels = COALESCE($10, ai_labels),
        onvif_url = CASE WHEN $12::text = '' THEN NULL ELSE COALESCE($12, onvif_url) END,
+       ai_overlay_enabled = COALESCE($13, ai_overlay_enabled),
+       ai_overlay_labels = COALESCE($14, ai_overlay_labels),
        updated_at = now()
      WHERE id = $11 RETURNING *`,
     [
       name ?? null, rtsp_url ?? null, enabled ?? null, record ?? null, codec ?? null,
       ai_enabled ?? null, ai_rtsp_url ?? null, ai_fps ?? null, ai_confidence ?? null,
-      ai_labels ?? null, req.params.id, onvif_url ?? null,
+      ai_labels ?? null, req.params.id, onvif_url ?? null, ai_overlay_enabled ?? null, ai_overlay_labels ?? null,
     ]
   );
   if (!rows[0]) {
