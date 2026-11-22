@@ -211,7 +211,7 @@ export function uiPreviewPlugin(): Plugin {
             const day = days()[0]; const start = Date.parse(`${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}T10:00:00+07:00`);
             let events: DetectionEvent[] = cameras.filter(cam => cam.ai_enabled).map((cam, index) => ({ id: index + 1, camera_id: cam.id, camera_name: cam.name,
               detected_at: new Date(start + index * 30_000).toISOString(), label: index % 2 ? 'car' : 'person', confidence: 0.93,
-              snapshot_url: '/__ui-preview__/scene.svg', metadata: { box: [120, 80, 300, 240], ai_fps: 2 } }));
+              snapshot_url: '/__ui-preview__/scene.svg', thumbnail_url: '/__ui-preview__/scene.svg', metadata: { box: [120, 80, 300, 240], ai_fps: 2 } }));
             if (url.searchParams.get('cameraId')) events = events.filter(value => value.camera_id === Number(url.searchParams.get('cameraId')));
             if (url.searchParams.get('label')) events = events.filter(value => value.label === url.searchParams.get('label'));
             json(res, events.slice(0, Number(url.searchParams.get('limit') ?? 100))); return;

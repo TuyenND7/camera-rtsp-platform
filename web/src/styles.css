@@ -1149,7 +1149,9 @@ body:has(.live-shell) { min-width: 0; }
   .mi-live-clock { flex-direction: row; gap: 8px; }
 }
 @container live-wall (max-width: 620px) {
-  .simple-shell.live-shell .mi-live-page > .mi-live-heading { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'leading' 'clock' 'emergency'; }
+  .simple-shell.live-shell .mi-live-page > .mi-live-heading { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'leading leading' 'clock emergency'; }
+  .mi-live-heading > .page-heading-title { width: 100%; flex-wrap: nowrap; }
+  .mi-live-clock { justify-self: start; flex-direction: column; align-items: flex-start; gap: 0; }
 }
 
 .viewing-device-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
@@ -1185,3 +1187,96 @@ body:has(.live-shell) { min-width: 0; }
 .event-picture { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #101d30; }
 .event-picture > img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .camera-settings-switch { flex-wrap: wrap; }
+
+/* Phone Live keeps one title row and one clock/emergency row. */
+@media (max-width: 760px) {
+  .simple-shell.live-shell .app-topbar { display: none; }
+  .simple-shell.live-shell .mi-live-page > .mi-live-heading { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'leading leading' 'clock emergency'; gap: 5px 8px; }
+  .simple-shell.live-shell .mi-live-heading > .page-heading-title { justify-self: stretch; width: 100%; flex-wrap: nowrap; gap: 5px; }
+  .simple-shell.live-shell .mi-live-heading h1 { margin: 0; font-size: clamp(14px, calc(15px * var(--text-scale, 1)), 18px); line-height: 1.2; }
+  .simple-shell.live-shell .mi-live-heading .sidebar-visibility-toggle { display: inline-flex; width: 28px; height: 32px; min-height: 32px; padding: 0; border: 0; background: transparent; }
+  .simple-shell.live-shell .mi-live-page.is-fullscreen .sidebar-visibility-toggle { display: none; }
+  .simple-shell.live-shell .mi-live-selectors { margin-left: auto; gap: 4px; flex-wrap: nowrap; }
+  .simple-shell.live-shell .mi-camera-picker-button, .simple-shell.live-shell .mi-layout-picker { min-height: 32px; padding: 3px 4px; gap: 3px; font-size: clamp(10px, calc(11px * var(--text-scale, 1)), 13px); }
+  .simple-shell.live-shell .mi-live-fullscreen-button, .simple-shell.live-shell .mi-live-screen-button { width: 30px; min-height: 32px; padding: 0; }
+  .simple-shell.live-shell .mi-live-clock { justify-self: start; flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.1; }
+  .simple-shell.live-shell .mi-live-clock strong { font-size: clamp(17px, calc(18px * var(--text-scale, 1)), 22px); }
+  .simple-shell.live-shell .mi-live-clock > span { font-size: clamp(9px, calc(10px * var(--text-scale, 1)), 12px); }
+  .simple-shell.live-shell .mi-live-heading > .page-actions { justify-self: end; min-width: 0; }
+  .simple-shell.live-shell .mi-live-actions { flex-wrap: nowrap; }
+  .simple-shell.live-shell .mi-live-actions > .emergency-controls.compact { flex-basis: auto; width: auto; padding: 2px 4px; gap: 5px; }
+  .simple-shell.live-shell .emergency-controls.compact .emergency-description h2 { font-size: clamp(10px, calc(10px * var(--text-scale, 1)), 12px); }
+  .simple-shell.live-shell .emergency-controls.compact .emergency-selector { min-height: 32px; gap: 3px; }
+  .simple-shell.live-shell .emergency-controls.compact .emergency-scope-count { display: inline-flex; font-size: clamp(9px, calc(10px * var(--text-scale, 1)), 12px); }
+  .simple-shell.live-shell .emergency-controls.compact .emergency-actions { display: flex; gap: 4px; }
+  .simple-shell.live-shell .emergency-controls.compact .emergency-actions > button { min-width: 34px; min-height: 32px; padding: 3px 6px; font-size: 11px; }
+  .simple-shell.live-shell .emergency-controls.compact .emergency-action-label { display: none; }
+  .simple-shell.live-shell .emergency-controls.compact .emergency-actions > button[aria-pressed=true] .emergency-action-label { display: inline; }
+  .simple-shell.live-shell .emergency-controls.compact:has(button[aria-pressed=true]) .emergency-selector-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .simple-shell.live-shell .emergency-actions .app-icon { display: inline-block !important; }
+
+  .mobile-card-list { min-width: 0; overflow: visible; }
+  .simple-shell .mobile-card-list .responsive-camera-table { display: block; width: 100%; min-width: 0; }
+  .responsive-camera-table thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .responsive-camera-table tbody { display: grid; gap: 10px; }
+  .responsive-camera-table tbody > tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface, #fff); }
+  .responsive-camera-table tbody > tr > td { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; padding: 0; border: 0; overflow-wrap: anywhere; white-space: normal; }
+  .responsive-camera-table td[data-label]::before { margin-bottom: 4px; color: var(--text-muted); font-size: calc(10px * var(--text-scale, 1)); font-weight: 650; content: attr(data-label); }
+  .responsive-camera-table tbody > tr > td:first-child { grid-column: 1 / -1; }
+  .responsive-camera-table tbody > tr > td:first-child::before { display: none; }
+  .responsive-camera-table .card-actions { grid-column: 1 / -1; justify-content: flex-start; padding-top: 10px; border-top: 1px solid var(--line); }
+  .responsive-camera-table .card-actions > .button { width: 100%; justify-content: center; }
+  .responsive-camera-table .row-actions { width: 100%; flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+  .responsive-camera-table .device-cell, .responsive-camera-table .device-cell > span:last-child { min-width: 0; max-width: 100%; }
+  .responsive-camera-table .device-cell strong { overflow-wrap: anywhere; white-space: normal; }
+  .responsive-camera-table .ip-address { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .responsive-camera-table .status-badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .devices-page .page-actions, .events-page .page-actions { max-width: 100%; flex-shrink: 1; }
+}
+@media (max-width: 360px) {
+  .simple-shell.live-shell .mi-layout-picker > .app-icon:first-child, .simple-shell.live-shell .mi-camera-picker-button > .app-icon:last-child { display: none !important; }
+  .simple-shell.live-shell .mi-live-heading h1 { font-size: clamp(13px, calc(13px * var(--text-scale, 1)), 14px); }
+  .simple-shell.live-shell .mi-layout-picker { font-size: 11px; }
+}
+
+.event-layout-picker { display: inline-flex; flex-direction: row; align-items: center; gap: 7px; }
+.event-layout-picker select { min-height: 36px; margin: 0; }
+.events-page .table-toolbar { flex-wrap: wrap; }
+.events-page .filter-field { flex: 1 1 180px; min-width: 0; flex-direction: column; align-items: stretch; gap: 5px; }
+.events-page .filter-field select { width: 100%; min-width: 0; }
+.event-grid.event-layout-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.event-grid.event-layout-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.event-grid.event-layout-list { display: flex; flex-direction: column; }
+.event-grid > .event-card { min-width: 0; }
+.event-grid .event-card > div { min-width: 0; }
+.simple-shell .event-card > .event-picture { padding: 0; }
+.event-preview { position: relative; display: block; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; overflow: hidden; border: 0; border-radius: 0; background: #101d30; }
+.event-preview:hover:not(:disabled) { background: #101d30; }
+.event-preview > img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.event-image-status { position: absolute; inset: 0; display: grid; place-items: center; padding: 8px; color: #b2bfd4; font-size: calc(11px * var(--text-scale, 1)); }
+.event-card .event-label { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.event-card h3, .event-card time, .event-playback { overflow-wrap: anywhere; white-space: normal; }
+.event-layout-list > .event-card { display: grid; grid-template-columns: minmax(100px, 180px) minmax(0, 1fr); }
+.event-layout-list .event-picture, .event-layout-list .event-no-image { min-height: 120px; height: 100%; aspect-ratio: auto; }
+.event-layout-list .event-card .panel-heading { flex-wrap: wrap; gap: 6px; }
+.event-image-dialog { width: min(1100px, calc(100vw - 24px)); }
+.event-image-dialog[open] { display: flex; flex-direction: column; max-height: calc(100dvh - 24px); }
+.event-original-picture { position: relative; flex: 1 1 auto; width: 100%; height: min(65dvh, 720px); min-height: 120px; overflow: hidden; background: #101d30; }
+.event-original-picture > img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; }
+.event-original-image { opacity: 0; }
+.event-original-image.loaded { opacity: 1; }
+.event-original-loading { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; color: #fff; background: #101d3040; }
+.event-image-dialog .dialog-footer { flex-shrink: 0; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 760px) {
+  body:has(.events-page, .mobile-card-list) { min-width: 0; }
+  .event-layout-list > .event-card { grid-template-columns: minmax(88px, 32%) minmax(0, 1fr); }
+  .event-layout-list .event-card > div:not(.event-picture) { padding: 10px; }
+  .event-layout-list .event-label, .event-grid.event-layout-2 .event-label, .event-grid.event-layout-3 .event-label { font-size: calc(11px * var(--text-scale, 1)); }
+  .event-grid.event-layout-2 .event-card > div:not(.event-picture), .event-grid.event-layout-3 .event-card > div:not(.event-picture) { padding: 8px; }
+  .event-grid.event-layout-2 .panel-heading, .event-grid.event-layout-3 .panel-heading { flex-wrap: wrap; gap: 4px; }
+  .event-grid.event-layout-2 .event-card h3, .event-grid.event-layout-3 .event-card h3 { font-size: calc(12px * var(--text-scale, 1)); }
+  .event-grid .event-playback { display: inline-flex; align-items: center; gap: 4px; font-size: calc(11px * var(--text-scale, 1)); }
+  .events-page .table-toolbar { gap: 10px; }
+  .events-page .filter-field { flex: 1 1 140px; min-width: 0; }
+  .events-page .filter-field select { width: 100%; min-width: 0; }
+}

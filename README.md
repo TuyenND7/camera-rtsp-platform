@@ -621,6 +621,12 @@ AI gán ID theo dõi riêng cho từng đối tượng trong mỗi camera. Live 
 
 `AI_TRACK_MAX_IDLE_SECONDS=8` giữ ID qua khoảng mất dấu ngắn, tính theo thời gian video và độc lập FPS. Thay biến `AI_EVENT_COOLDOWN_SECONDS` cũ bằng biến này khi cấu hình lại; giá trị cũ không còn điều khiển việc ghi sự kiện. Đây là tracking vị trí/chuyển động chạy trên máy chủ, không nhận diện danh tính: ra khỏi hình quá thời gian chờ, khởi động lại AI, thay cấu hình AI hoặc chuyển camera có thể tạo ID mới. Đối tượng giao nhau, bị che lâu và FPS thấp vẫn có thể bị đổi ID; chưa chống trùng giữa nhiều camera.
 
+### Giao diện mobile và ảnh sự kiện
+
+Trên mobile, header Live dùng hai hàng gọn: tiêu đề và nút chọn ở trên, giờ/ngày và khẩn cấp ở dưới. Chỉ có một tiêu đề Live; menu điều hướng vẫn mở được từ nút cạnh tiêu đề. Danh sách Playback và Thiết bị chuyển thành thẻ, hiển thị thông tin và thao tác ngay trong chiều rộng điện thoại.
+
+Trang Sự kiện có chế độ **Danh sách / 2 cột / 3 cột**, nhớ riêng trên từng trình duyệt. Danh sách chỉ tải thumbnail JPEG tối đa 320×180 và tải lười theo vùng xem; ảnh gốc chỉ tải khi mở ảnh. Worker AI tạo thumbnail cạnh ảnh gốc; ảnh sự kiện cũ được API tạo một lần rồi dùng lại, tối đa hai tiến trình FFmpeg cùng lúc. `GET /api/events/:id/thumbnail` yêu cầu phiên đăng nhập và không cho đọc file ngoài thư mục sự kiện. Thumbnail được dọn cùng ngày snapshot theo retention, ảnh gốc giữ nguyên độ phân giải.
+
 ### API nhận dạng Live
 
 `GET /api/events/live?camera_ids=1,2,3` yêu cầu đăng nhập, tối đa 16 ID khác nhau. Trả trạng thái và lịch sử tọa độ theo epoch UTC (ms), kích thước hình, độ tin cậy, `track_id`/`track_number` nếu có; không trả URL RTSP, tài khoản hoặc ảnh thô. File IPC giới hạn 2 MB/camera, lịch sử 30 giây, tối đa 32 đối tượng/khung; metadata lỗi/cũ trả trạng thái chờ. Worker ghi file atomically, nguồn hình lỗi không ngăn recording/đàm thoại.

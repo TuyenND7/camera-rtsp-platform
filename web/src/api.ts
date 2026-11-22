@@ -85,6 +85,7 @@ export interface DetectionEvent {
   label: string;
   confidence: number;
   snapshot_url: string | null;
+  thumbnail_url?: string | null;
   metadata: { box?: number[]; track_id?: string; track_number?: number; ai_fps?: number; width?: number; height?: number; detections?: DetectionFrame['detections'] };
 }
 

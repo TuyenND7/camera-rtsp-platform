@@ -13,6 +13,34 @@ from app.live import FrameHistory, playlist_segments
 
 
 class LiveTests(unittest.TestCase):
+    def test_snapshot_thumbnail_is_bounded_atomic_and_optional(self):
+        with patch.dict(sys.modules, {'cv2': SimpleNamespace(), 'psycopg': SimpleNamespace(), 'ultralytics': SimpleNamespace(YOLO=None)}), patch.dict(os.environ, {'DATABASE_URL': 'fixture'}):
+            main = importlib.import_module('app.main')
+        for fail_thumbnail in (False, True):
+            with self.subTest(fail_thumbnail=fail_thumbnail), tempfile.TemporaryDirectory() as directory, patch.object(main, 'STORAGE_ROOT', Path(directory)):
+                sizes = []
+                def resize(frame, size):
+                    sizes.append(size)
+                    if fail_thumbnail:
+                        raise RuntimeError('resize fixture failure')
+                    return frame
+                def write(filename, *_):
+                    Path(filename).write_bytes(b'fixture-jpeg-payload')
+                    return True
+                cv = SimpleNamespace(resize=resize, imwrite=write, IMWRITE_JPEG_QUALITY=1)
+                worker = main.CameraWorker(main.CameraConfig(1, 'Fixture', None, 2, .5, ('person',)), None)
+                with patch.object(main, 'cv2', cv):
+                    if fail_thumbnail:
+                        with self.assertLogs('camera-ai', level='WARNING'):
+                            relative = worker.write_snapshot(SimpleNamespace(shape=(1620, 2880, 3)))
+                    else:
+                        relative = worker.write_snapshot(SimpleNamespace(shape=(1620, 2880, 3)))
+                original = Path(directory) / relative
+                self.assertTrue(original.exists())
+                self.assertEqual(original.with_suffix('.thumb.jpg').exists(), not fail_thumbnail)
+                self.assertEqual(sizes, [(320, 180)])
+                self.assertFalse(list(original.parent.glob('*.tmp.jpg')))
+
     def test_playlist_clock_advances_and_rejects_paths_without_time(self):
         entries = playlist_segments('#EXTINF:2,\n#EXT-X-PROGRAM-DATE-TIME:2026-11-15T12:00:00.000+0000\nseg_001.ts\n#EXTINF:2,\nseg_002.ts\n#EXTINF:2,\n../../config.bin\n')
         self.assertEqual([e.name for e in entries], ['seg_001.ts', 'seg_002.ts'])

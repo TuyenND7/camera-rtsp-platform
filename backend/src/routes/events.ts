@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db';
 import { requireAuth } from '../middleware/auth';
 import { readLiveDetections } from '../detections/live';
+import { eventThumbnails, EventImageMissing, EventThumbnailBusy } from '../detections/thumbnails';
 
 const router = Router();
 router.use(requireAuth);
@@ -16,6 +17,23 @@ router.get('/live', async (req, res) => {
     const { rows } = await pool.query('SELECT id, status, enabled, ai_enabled, ai_fps, ai_overlay_enabled, ai_overlay_labels FROM cameras WHERE id = ANY($1::int[]) ORDER BY id', [ids]);
     res.json(await Promise.all(rows.map(readLiveDetections)));
   } catch { res.status(503).json({ error: 'Chưa đọc được kết quả nhận dạng.' }); }
+});
+
+/** Thumbnail riêng cho danh sách; giữ nguyên ảnh gốc. */
+router.get('/:id/thumbnail', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1 || !/^[1-9]\d*$/.test(req.params.id)) { res.status(400).json({ error: 'Sự kiện không hợp lệ.' }); return; }
+  try {
+    const { rows } = await pool.query('SELECT snapshot_path FROM detection_events WHERE id = $1', [id]);
+    if (!rows[0]?.snapshot_path) { res.sendStatus(404); return; }
+    const file = await eventThumbnails.get(rows[0].snapshot_path);
+    res.set({ 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
+    res.type('jpg').sendFile(file, error => { if (error && !res.headersSent) res.sendStatus(404); });
+  } catch (error) {
+    if (error instanceof EventImageMissing) { res.sendStatus(404); return; }
+    if (error instanceof EventThumbnailBusy) { res.set('Retry-After', '2').sendStatus(503); return; }
+    res.status(502).json({ error: 'Chưa tạo được ảnh xem trước.' });
+  }
 });
 
 /** Sự kiện nhận dạng, có thể lọc theo camera và khoảng thời gian ISO. */
@@ -60,6 +78,7 @@ router.get('/', async (req, res) => {
   res.json(rows.map((row) => ({
     ...row,
     snapshot_url: row.snapshot_path ? `/${row.snapshot_path}` : null,
+    thumbnail_url: row.snapshot_path ? `/api/events/${row.id}/thumbnail` : null,
   })));
 });
 
