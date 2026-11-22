@@ -1,0 +1,11 @@
+{
+  "id": "/",
+  "name": "Camera Station",
+  "short_name": "Camera",
+  "start_url": "/live",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#101d30",
+  "theme_color": "#101d30",
+  "icons": [{ "src": "/brand/camera-mark.png", "sizes": "any", "type": "image/png", "purpose": "any" }]
+}

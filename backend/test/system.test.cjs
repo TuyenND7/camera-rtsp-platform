@@ -1,0 +1,62 @@
+const {test,after}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{spawnSync}=require('node:child_process');
+const root=fs.mkdtempSync(path.join(os.tmpdir(),'camera-system-'));process.env.STORAGE_ROOT=root;
+const {config}=require('../dist/config');
+const {parseRecordingCoverage,coverageGaps,previousDay}=require('../dist/system/coverage');
+const {evaluateCameraHealth}=require('../dist/system/health');
+const {encoderBudget,encodingSignature,performanceDefaults,validPerformance}=require('../dist/system/performance');
+const {buildArgs,resolvePaths}=require('../dist/stream/ffmpeg');
+after(()=>fs.rmSync(root,{recursive:true,force:true}));
+const unavailable={nvenc:{available:false},vaapi:{available:false}};
+test('recording coverage uses UTC filenames, preserves real gaps and rejects traversal or invalid calendar dates',()=>{
+ const text='#EXTM3U\n#EXTINF:60,\nrec_20261122_235930.ts\n#EXTINF:30,\nrec_20261123_000100.ts\n#EXTINF:10,\n../../rec_20261123_000200.ts\n#EXTINF:60,\nrec_20260231_000000.ts\n';
+ const rows=parseRecordingCoverage(text);assert.equal(rows.length,2);assert.equal(rows[0].start_ms,Date.parse('2026-11-22T23:59:30Z'));
+ assert.deepEqual(coverageGaps(rows),[{start_at:'2026-11-23T00:00:30.000Z',end_at:'2026-11-23T00:01:00.000Z',duration_s:30,reason:'missing_recording'}]);
+ assert.equal(previousDay('20260301'),'20260228');assert.equal(previousDay('20260101'),'20251231');
+ assert.deepEqual(coverageGaps([...rows,{file:'overlap',start_ms:rows[0].end_ms-1,end_ms:rows[1].start_ms+1,duration_s:31}]),[]);
+});
+test('camera reachability, Live freshness and actual completed recording have independent states',()=>{
+ const c={id:1,name:'Fixture',enabled:true,record:true,status:'online'},now=Date.now();
+ assert.deepEqual(evaluateCameraHealth(c,now,1000,now-30000,false),{video:'ready',recording:'recording'});
+ assert.equal(evaluateCameraHealth(c,now,1000,now-500000,false).recording,'stalled');
+ assert.equal(evaluateCameraHealth(c,now,60000,now-30000,false).video,'stalled');
+ assert.equal(evaluateCameraHealth(c,now,1000,now-30000,false,false,30000).video,'stalled');
+ assert.equal(evaluateCameraHealth({...c,status:'error'},now,1000,now-30000,false).recording,'waiting');
+ assert.deepEqual(evaluateCameraHealth({...c,enabled:false},now,null,null,false),{video:'disabled',recording:'disabled'});
+ assert.deepEqual(evaluateCameraHealth(c,now,null,null,true),{video:'waiting',recording:'waiting'});
+ assert.deepEqual(evaluateCameraHealth(c,now,1000,null,false,true),{video:'ready',recording:'waiting'});
+ assert.equal(evaluateCameraHealth(c,now,1000,now-1000,false,true).recording,'recording');
+ assert.equal(evaluateCameraHealth(c,now,1000,null,false,false).recording,'stalled');
+});
+test('quiet/full budgets keep safe GPU fallback and adaptive AI changes do not require a stream restart',()=>{
+ const quiet=encoderBudget({...performanceDefaults,mode:'quiet',encoder:'auto'},unavailable);
+ assert.equal(quiet.encoder,'software');assert.equal(quiet.threads,2);assert.equal(quiet.width,1280);assert.equal(quiet.ai_max_fps,1);
+ const full=encoderBudget({...performanceDefaults,mode:'full'},unavailable);assert.equal(full.width,0);assert.equal(full.fps,0);
+ assert.equal(encodingSignature(quiet),encodingSignature({...quiet,adaptive_ai:true}));
+ assert.notEqual(encodingSignature(quiet),encodingSignature(full));
+ for(const value of [{...performanceDefaults,mode:'unknown'},{...performanceDefaults,encoder:'shell'},{...performanceDefaults,monitoring_enabled:'yes'},{...performanceDefaults,extra:true}])assert(!validPerformance(value));
+});
+test('H264 stays copy; HEVC shares one H264 encoder without changing original recording codec',()=>{
+ const paths=resolvePaths(81),budget=encoderBudget({...performanceDefaults,mode:'quiet'},unavailable);
+ const args=buildArgs('rtsp://fixture',true,paths,'h265',false,budget);
+ assert.equal(args.filter(s=>s==='libx264').length,1);assert(args.includes('tee'));assert(args.includes('copy'));
+ const h264=buildArgs('rtsp://fixture',true,paths,'h264',false,budget);assert(!h264.includes('libx264'));assert(!h264.includes('-vf'));
+ const unsafe={...paths,liveDir:paths.liveDir+"'bracket"};assert(!buildArgs('rtsp://fixture',true,unsafe,'h265',false,budget).includes('tee'));
+});
+test('real FFmpeg creates shared Live/archive H264 and a copied HEVC recording',{skip:spawnSync('ffmpeg',['-version']).status!==0},()=>{
+ const input=path.join(root,'source-hevc.mkv');
+ const made=spawnSync('ffmpeg',['-hide_banner','-loglevel','error','-f','lavfi','-i','testsrc2=size=256x144:rate=12','-t','4','-c:v','libx265','-threads','2','-x265-params','log-level=error:pools=2',input],{timeout:20000,maxBuffer:200000});
+ if(made.status!==0&&/Unknown encoder/.test(String(made.stderr)))return;
+ assert.equal(made.status,0,String(made.stderr));
+ const paths=resolvePaths(82);fs.mkdirSync(paths.liveDir,{recursive:true});
+ const args=buildArgs(input,true,paths,'h265',false,encoderBudget({...performanceDefaults,mode:'quiet'},unavailable));
+ const start=args.indexOf('-rtsp_transport');args.splice(start,4);
+ const run=spawnSync('ffmpeg',args,{timeout:20000,maxBuffer:2000000,env:{...process.env,TZ:'UTC'}});
+ assert.equal(run.status,0,String(run.stderr));
+ const recursive=rootDir=>fs.readdirSync(rootDir,{recursive:true}).filter(n=>String(n).endsWith('.ts')).map(n=>path.join(rootDir,String(n)));
+ const probe=file=>{const r=spawnSync('ffprobe',['-v','error','-show_entries','stream=codec_type,codec_name,width,height,avg_frame_rate','-of','json',file],{timeout:10000});assert.equal(r.status,0,String(r.stderr));return JSON.parse(String(r.stdout)).streams.find(s=>s.codec_type==='video');};
+ const live=probe(recursive(paths.liveDir)[0]),archive=probe(recursive(paths.playbackDir)[0]),original=probe(recursive(paths.recDir)[0]);
+ assert.equal(live.codec_name,'h264');assert.equal(archive.codec_name,'h264');assert.equal(original.codec_name,'hevc');
+ assert.equal(original.width,256);assert(live.width<=1280&&live.height<=720);
+ assert(fs.readFileSync(paths.liveIndex,'utf8').includes('#EXT-X-PROGRAM-DATE-TIME:'));
+ assert(args.includes('tee'));assert.equal(args.filter(s=>s==='libx264').length,1);
+});

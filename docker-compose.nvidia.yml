@@ -1,0 +1,9 @@
+# Optional: only with a working NVIDIA Container Toolkit / Docker Desktop GPU setup.
+services:
+  backend:
+    build:
+      dockerfile: Dockerfile.gpu
+    gpus: all
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: video,compute,utility

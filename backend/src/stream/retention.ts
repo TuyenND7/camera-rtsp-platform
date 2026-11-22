@@ -76,6 +76,9 @@ interface DiskUsage {
 let cachedSummary: RecordingSummary | null = null;
 let scanInFlight: Promise<RecordingDay[]> | null = null;
 let cleanupRunning = false;
+type RetentionGuard = (cameraId:number,day:string,remove:()=>Promise<void>)=>Promise<boolean>;
+let retentionGuard:RetentionGuard=async(_id,_day,remove)=>{await remove();return true;};
+export function configureRetentionGuard(guard:RetentionGuard):void { retentionGuard=guard; }
 
 /**
  * Dọn recording theo hai chính sách an toàn:
@@ -152,7 +155,7 @@ export async function cleanup(): Promise<void> {
     const kept: RecordingDay[] = [];
     for (const day of days) {
       if (completed(day) && day.newestMtimeMs < cutoff) {
-        await removeDay(day, 'retention');
+        if(!await removeDay(day, 'retention')){kept.push(day);continue;}
         record(day, 'retention', null);
         removed++;
         removedBytes += day.bytes;
@@ -175,7 +178,7 @@ export async function cleanup(): Promise<void> {
     );
     for (const day of candidates) {
       if (quotaFreed >= bytesToFree) break;
-      await removeDay(day, 'storage quota');
+      if(!await removeDay(day, 'storage quota'))continue;
       record(day, 'storage quota', disk.usedPercent);
       removedDays.add(day);
       removed++;
@@ -296,8 +299,9 @@ async function directoryStats(dir: string, recursive: boolean): Promise<{ bytes:
   return { bytes, newestMtimeMs };
 }
 
-async function removeDay(day: RecordingDay, reason: string): Promise<void> {
+async function removeDay(day: RecordingDay, reason: string): Promise<boolean> {
   const cameraId = path.basename(path.dirname(day.path));
+  return retentionGuard(Number(cameraId),day.day,async()=>{
   // Remove only events whose images belong to this completed snapshot day.
   await pool.query('DELETE FROM detection_events WHERE camera_id = $1 AND snapshot_path LIKE $2', [Number(cameraId), `events/${cameraId}/${day.day}/%`]);
   await fs.promises.rm(day.path, { recursive: true, force: true });
@@ -308,6 +312,7 @@ async function removeDay(day: RecordingDay, reason: string): Promise<void> {
   await fs.promises.rm(path.join(config.storageRoot, 'playback', 'prepared', cameraId, day.day), { recursive: true, force: true });
   await fs.promises.rm(path.join(config.storageRoot, 'thumbs', cameraId, day.day), { recursive: true, force: true });
   console.log(`[retention] removed ${day.path} (${formatBytes(day.bytes)}, ${reason})`);
+  });
 }
 
 function currentRecordDay(): string {

@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import Login from './pages/Login';
 import Cameras from './pages/Cameras';
 import Playback from './pages/Playback';
+import SyncPlayback from './pages/SyncPlayback';
+import Clips from './pages/Clips';
 import Grid from './pages/Grid';
 import Events from './pages/Events';
 import Storage from './pages/Storage';
@@ -48,7 +50,7 @@ function Layout({ children, user: sessionUser }: { children: React.ReactNode; us
   const user = sessionUser.username;
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState('');
-  const page = location.pathname.startsWith('/playback') ? 'Playback' : location.pathname === '/cameras' ? 'Thiết bị' : location.pathname === '/events' ? 'Sự kiện' : location.pathname === '/notifications' ? 'Thông báo' : location.pathname === '/settings' ? 'Cài đặt' : 'Live view';
+  const page = location.pathname.startsWith('/playback') ? 'Playback' : location.pathname === '/clips' ? 'Clip đã giữ' : location.pathname === '/cameras' ? 'Thiết bị' : location.pathname === '/events' ? 'Sự kiện' : location.pathname === '/notifications' ? 'Thông báo' : location.pathname === '/settings' ? 'Cài đặt' : 'Live view';
   useEffect(() => {
     let cancelled = false;
     const ping = () => api.health().then((value) => { if (!cancelled) setConnected(value.ok); }).catch(() => { if (!cancelled) setConnected(false); });
@@ -97,8 +99,9 @@ export default function App() {
   return <BrowserRouter><Routes>
     <Route path="/login" element={<Login />} /><Route path="/" element={<Navigate to="/live" replace />} />
     <Route path="/cameras" element={<Protected><Cameras /></Protected>} /><Route path="/live" element={<Protected><Grid /></Protected>} /><Route path="/live/:id" element={<Navigate to="/live" replace />} />
-    <Route path="/playback" element={<Protected><Storage /></Protected>} /><Route path="/playback/:id" element={<Protected><Playback /></Protected>} /><Route path="/events" element={<Protected><Events /></Protected>} />
+    <Route path="/playback" element={<Protected><Storage /></Protected>} /><Route path="/playback/sync" element={<Protected><SyncPlayback /></Protected>} /><Route path="/playback/:id" element={<Protected><Playback /></Protected>} /><Route path="/events" element={<Protected><Events /></Protected>} />
     <Route path="/notifications" element={<Protected><Notifications /></Protected>} />
+    <Route path="/clips" element={<Protected><Clips /></Protected>} />
     <Route path="/settings" element={<Protected><Settings /></Protected>} />
     <Route path="/grid" element={<Navigate to="/live" replace />} /><Route path="/storage" element={<Navigate to="/playback" replace />} /><Route path="*" element={<Navigate to="/live" replace />} />
   </Routes></BrowserRouter>;

@@ -3,6 +3,7 @@ import path from 'path';
 import { config } from '../config';
 import { faceIdentity, FaceIdentity } from '../identities';
 import { surveillanceConfig, SurveillanceZone, insideSurveillanceZone } from './surveillance';
+import { encoderBudget } from '../system/performance';
 
 export type Detection = { label: string; confidence: number; box: [number, number, number, number]; track_id?: string; track_number?: number; identity?: FaceIdentity };
 export type DetectionFrame = { at: number; width: number; height: number; detections: Detection[] };
@@ -58,7 +59,8 @@ export function sanitizeLiveDetections(raw: unknown, cameraId: number, fps: numb
 export async function readLiveDetections(camera: { id: number; status: string; ai_enabled: boolean; enabled: boolean; ai_fps: number; ai_identity_enabled?: boolean; ai_surveillance?: unknown } & OverlaySettings, people = new Map<string, string>()): Promise<LiveDetections> {
   const rules = surveillanceConfig(camera.ai_surveillance);
   const settings = { manual_pin_enabled: rules.manual_pin_enabled, zones: rules.zones_enabled ? rules.zones : [] };
-  const empty = { ...sanitizeLiveDetections(null, camera.id, camera.ai_fps), ...settings };
+  const fps=Math.min(camera.ai_fps,encoderBudget().ai_max_fps);
+  const empty = { ...sanitizeLiveDetections(null, camera.id, fps), ...settings };
   if (!camera.enabled || !camera.ai_enabled) return { ...empty, state: 'disabled' };
   if (camera.status !== 'online') return { ...empty, state: 'offline' };
   if (camera.ai_overlay_enabled === false || camera.ai_overlay_labels?.length === 0) return filterLiveOverlay(empty, camera);
@@ -66,7 +68,7 @@ export async function readLiveDetections(camera: { id: number; status: string; a
     const file = path.join(config.storageRoot, '.detections', `${camera.id}.json`);
     const stat = await fs.lstat(file);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 2 * 1024 * 1024) return empty;
-    const value = sanitizeLiveDetections(JSON.parse(await fs.readFile(file, 'utf8')), camera.id, camera.ai_fps, Date.now(), people);
+    const value = sanitizeLiveDetections(JSON.parse(await fs.readFile(file, 'utf8')), camera.id, fps, Date.now(), people);
     for (const frame of value.frames) for (const detection of frame.detections) {
       if (!camera.ai_identity_enabled) delete detection.identity;
       else if (detection.label === 'person' && !detection.identity) detection.identity = { state: 'pending' };

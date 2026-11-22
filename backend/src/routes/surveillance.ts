@@ -9,7 +9,7 @@ import { eventThumbnails, EventImageMissing, EventThumbnailBusy } from '../detec
 
 const positive = (v: unknown): v is string => typeof v === 'string' && /^[1-9]\d{0,15}$/.test(v) && Number.isSafeInteger(Number(v));
 const cameraId = (v: unknown) => positive(v) && Number(v) <= 2147483647 ? Number(v) : null;
-const kindSet = new Set(['intrusion','loitering','pacing','unfamiliar']);
+const kindSet = new Set(['intrusion','loitering','pacing','unfamiliar','camera_offline','video_stalled','recording_stopped','storage_error','resource_overload']);
 export const cameraSurveillanceRouter = Router({ mergeParams: true });
 cameraSurveillanceRouter.use(requireAuth, requireAdmin);
 cameraSurveillanceRouter.get('/', async (req: AuthedRequest, res) => {

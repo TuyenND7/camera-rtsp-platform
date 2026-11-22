@@ -6,6 +6,7 @@ import { lockBodyScroll } from './bodyScroll';
 import Icon from './Icon';
 import IdentityEnrollDialog from './IdentityEnrollDialog';
 import { SessionContext } from './ui';
+import ReviewActions from './ReviewActions';
 
 function eventFrame(event: DetectionEvent): DetectionFrame | null {
   const data = event.metadata;
@@ -49,6 +50,6 @@ export function EventImageDialog({ event, playbackUrl, onClose }: { event: Detec
       {!loaded && <div className="event-original-loading" role="status">{error ? <button type="button" onClick={() => { setError(false); setAttempt(value => value + 1); }}>Tải lại ảnh gốc</button> : 'Đang tải ảnh gốc…'}</div>}
     </div>
     {user?.role === 'admin' && enrolling && <IdentityEnrollDialog event={event} onClose={() => setEnrolling(false)} onSuccess={() => setEnrolling(false)} />}
-    <footer className="dialog-footer">{user?.role === 'admin' && <button type="button" onClick={() => setEnrolling(true)}><Icon name="user" size={16} />Gán tên khuôn mặt</button>}<Link className="button" to={playbackUrl} onClick={onClose}><Icon name="clock" size={16} />Xem lại thời điểm này</Link><a className="button" href={event.snapshot_url ?? undefined} download>Tải ảnh gốc</a></footer>
+    <footer className="dialog-footer"><ReviewActions type="event" id={String(event.id)} cameraId={event.camera_id} cameraName={event.camera_name} at={event.detected_at}/>{user?.role === 'admin' && <button type="button" onClick={() => setEnrolling(true)}><Icon name="user" size={16} />Gán tên khuôn mặt</button>}<Link className="button" to={playbackUrl} onClick={onClose}><Icon name="clock" size={16} />Xem lại thời điểm này</Link><a className="button" href={event.snapshot_url ?? undefined} download>Tải ảnh gốc</a></footer>
   </dialog>;
 }

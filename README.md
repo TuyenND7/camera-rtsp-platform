@@ -568,12 +568,106 @@ Get-Content "$env:USERPROFILE\Documents\CameraRTSP\storage\.stream-diagnostics\s
 - Bật từng quy tắc riêng: **Xâm nhập vùng** sau 2/3/5/10 giây hiện diện; **Lảng vảng kéo dài** sau 15/30/60/120/300 giây; **Đi qua lại nhiều lần** sau 3/4/5 lần đổi hướng đáng kể trong 30/60/120 giây. Các quy tắc này theo dõi người. Khi chưa bật giới hạn vùng, chúng áp dụng toàn khung hình. Mặc định các cảnh báo tự động tắt để người quản trị chọn camera/vùng phù hợp.
 - **Khuôn mặt chưa đăng ký** chỉ tạo thông báo khi định danh đang bật, đã có người đăng ký, và có nhiều lần thấy khuôn mặt đủ rõ nhưng không khớp. Chưa rõ mặt, model chưa sẵn sàng hoặc thư viện người rỗng không được xem là bằng chứng người lạ.
 - Có công tắc riêng cho **ghim thủ công**, **tự ghim đối tượng có cảnh báo**, và **popup mới**. Trên Live, nhấn nhãn khung để ghim; danh sách ghim mở cửa sổ theo dõi trực tiếp, chọn camera, xem lại recording và bỏ ghim. ID chỉ gắn với một lần theo dõi liên tục trong từng camera; chưa có tái định danh người lạ giữa nhiều camera. Không thấy lại đối tượng/luồng gián đoạn sẽ hiển thị trạng thái chờ, không gán ID đó cho đối tượng khác.
-- Tab **Thông báo** có ảnh xem trước nhẹ, bộ lọc, phân trang và trạng thái đã đọc riêng cho từng tài khoản. Popup trong web chỉ hiện thông báo mới, đợi đóng hộp thoại đang thao tác; không tự phát âm thanh. Nút **Báo động…** mở điều khiển và vẫn yêu cầu xác nhận trước khi bật còi. Không có đường tự động từ AI tới lệnh bật còi. Thông báo hiện trong web khi web đang mở; đây chưa phải push khi đã đóng trình duyệt.
+- Tab **Thông báo** có ảnh xem trước nhẹ, bộ lọc, phân trang và trạng thái đã đọc riêng cho từng tài khoản. Popup trong web chỉ hiện thông báo mới, đợi đóng hộp thoại đang thao tác; không tự phát âm thanh. Nút **Báo động…** mở điều khiển và vẫn yêu cầu xác nhận trước khi bật còi. Không có đường tự động từ AI tới lệnh bật còi. Để nhận khi đã đóng tab, bật Web Push trong Cài đặt như hướng dẫn bên dưới.
 - Cảnh báo dựa trên vị trí/thời gian/chuyển động quan sát được, không kết luận ý định trộm cắp. Mỗi ID/vùng/quy tắc chỉ tạo một thông báo; cùng ID/quy tắc có khoảng chờ 30 giây khi mất rồi thấy lại ngắn hạn, không chặn thông báo của người thứ hai. Giữ tối đa 2.000 thông báo/camera hoặc 30 ngày, dọn mỗi 10 phút; tối đa 64 ghim đang giữ. Cấu hình được tải lại nóng, không khởi động lại luồng RTSP.
 - Trên điện thoại, các trang và hộp thoại co theo chiều rộng nội dung: Playback có ngày/tốc độ xuống hàng, danh sách thiết bị chuyển thành card và hàng cài đặt gọn; cỡ chữ lớn xuống hàng để đọc được. Các nút chạm chính tối thiểu 44 px.
 
+## Giám sát, clip và xem lại nhiều camera
+
+Các phần dưới đây dùng cùng web trên PC, điện thoại và tablet. Trong **Cài đặt**, chạm tiêu đề từng khối để mở; không cần cài thêm app để cấu hình. Các cấu hình mới dành cho quản trị viên, giữ nguyên phân quyền hiện có.
+
+### Kiểm tra máy chủ và recording thực tế
+
+Mở **Cài đặt → Máy chủ, ghi hình và độ ồn** (`/settings#health`). Xem CPU, RAM, dung lượng trống, khả năng ghi ổ, trạng thái Live và đoạn recording đã hoàn tất của từng camera. Nút **Làm mới** đọc lại trạng thái. Nhiệt độ chỉ hiện khi hệ điều hành/container cung cấp cảm biến; CPU/RAM phản ánh môi trường máy chủ/container đang chạy, không phải cảm biến camera.
+
+Bộ giám sát chạy mỗi 5 giây, phân biệt mất kết nối, playlist Live không cập nhật, ngừng hoàn tất recording, lỗi đọc/ghi ổ và quá tải kéo dài. Các lỗi này vào tab **Thông báo**, liên kết về kiểm tra máy chủ; chỉ tạo một thông báo cho mỗi đợt lỗi và đánh dấu phục hồi khi tốt lại. Có thể tắt giám sát trong cùng khối. Thời gian chờ khởi động tránh báo nhầm trong lúc probe/kết nối; recording chờ tối thiểu hai đoạn cộng 30 giây (mặc định 150 giây) trước khi xét thiếu đoạn đầu. Camera retry liên tục không đặt lại thời gian chờ này.
+
+Khoảng thiếu giữa những đoạn recording đã hoàn tất được lưu lại và có link xem Playback. Đây là kiểm tra đoạn/file và tiến trình video, chưa phải nhận biết mọi ảnh bị đứng yên từ chính cảm biến. Máy chủ tắt hoàn toàn sẽ không tự gửi cảnh báo; muốn phát hiện trường hợp đó cần một bộ theo dõi bên ngoài máy chủ.
+
+### Thông báo trên điện thoại khi đóng tab
+
+1. Mở web bằng **HTTPS**, đăng nhập, vào **Cài đặt → Thông báo trên điện thoại** (`/settings#push`).
+2. Nhấn bật đăng ký trên chính thiết bị đang dùng rồi chấp nhận quyền thông báo của trình duyệt. Có thể xem/xóa các thiết bị đã đăng ký và gửi thông báo thử bằng nút riêng.
+3. Chọn giờ yên lặng theo múi giờ và thời gian tạm hoãn khi cần. Chế độ giám sát cũng có thể tạm dừng thông báo. Thông báo trong các khoảng bị tắt không được phát bù hàng loạt.
+
+Android nên dùng Chrome/PWA. Trên iPhone/iPad, thêm web vào màn hình chính rồi mở từ biểu tượng đó để bật Web Push; Android WebView trong app bọc web có thể không hỗ trợ Push API. Khi trình duyệt không hỗ trợ, giao diện sẽ báo rõ. Đóng tab vẫn có thể nhận qua dịch vụ push của trình duyệt; việc hệ điều hành chặn thông báo, buộc dừng trình duyệt hoặc hạn chế pin có thể ảnh hưởng nhận tin. Xem [hướng dẫn nền tảng iOS/iPadOS](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/) và [PushManager](https://developer.mozilla.org/en-US/docs/Web/API/PushManager/subscribe).
+
+Đăng ký gắn với phiên đăng nhập: đăng xuất/hết phiên sẽ ngừng gửi tới đăng ký đó; sau khi đăng nhập lại, vào khối này để đăng ký lại. Máy chủ cần Internet để gửi tới dịch vụ push; nội dung gửi gồm loại thông báo, tên camera và link về web, không kèm ảnh/video. Có hàng đợi bền vững, chống gửi trùng theo thông báo/đăng ký, tối đa 3 lần thử và giới hạn backlog 10 phút. Trình duyệt còn kiểm tra phiên trước khi hiện thông báo đã xếp hàng.
+
+Đặt `WEB_PUSH_SUBJECT=mailto:<email-liên-hệ>` trong `.env` rồi tạo lại backend. Khóa VAPID tự sinh dưới `storage/.push/vapid.json` với quyền `0600`, thư mục `0700`; sao lưu cùng DB, không đưa lên Git. Không xóa khóa khi cập nhật vì các trình duyệt đã đăng ký dùng khóa đó. Phần vận chuyển push đã được kiểm thử bằng mock; cần thử nhận thật trên thiết bị sau triển khai.
+
+### Chế độ Ở nhà, Đi vắng và Ban đêm
+
+Mở **Cài đặt → Chế độ và lịch giám sát** (`/settings#profiles`). Chọn **Thủ công / Ở nhà / Đi vắng / Ban đêm**, đặt bật/tắt từng quy tắc và popup theo camera cho từng chế độ. **Thủ công** dùng cấu hình gốc của từng camera. Đặt lịch theo ngày trong tuần, giờ bắt đầu/kết thúc và múi giờ; hỗ trợ lịch qua đêm, từ chối lịch chồng nhau. Thay đổi được lưu ngay; nếu cấu hình đã đổi từ thiết bị khác, đọc lại trước khi tiếp tục.
+
+Chế độ chỉ thay chính sách phát hiện và thông báo. Recording, RTSP, vùng đã vẽ và các nút điều khiển camera vẫn dùng cấu hình riêng; lịch không tự bật còi.
+
+### Tạo và giữ clip MP4
+
+Trong **Playback**, mở camera/ngày, nhấn tạo clip và chọn mốc bắt đầu/kết thúc (tối đa 30 phút, có thể qua nửa đêm). Máy chủ tạo MP4 bằng nguồn recording trên ổ, thông báo các khoảng thiếu thay vì hứa có hình ở thời điểm không được ghi. Công việc chạy nền; mở **Playback → Clip đã giữ** (`/clips`) để xem tiến độ, tải xuống, hủy hoặc xóa có xác nhận.
+
+Clip được sao chép nguồn trước khi mã hóa; retention không được xóa ngày nguồn đang được công việc sử dụng. Sau khi tạo xong, MP4 nằm riêng trong `storage/protected-clips/`, chỉ tải qua API có đăng nhập, hỗ trợ tải tiếp theo byte range. Retention đạt 90% tiếp tục dọn recording cũ tới 85%, giữ nguyên clip đã lưu. Đánh dấu sự kiện **Quan trọng** chỉ là nhãn; dùng đề nghị **Giữ clip** để tạo bản sao được giữ riêng.
+
+Hạn mức clip mặc định 10 GiB, cần còn ít nhất 512 MiB để bắt đầu; khi không đủ, công việc báo lỗi và không tự xóa clip đã giữ. Có một encoder clip/preview tại một thời điểm để giới hạn CPU. Có thể đặt `EVIDENCE_MAX_BYTES`, `EVIDENCE_MIN_FREE_BYTES`, `EVIDENCE_ENCODER_THREADS`, `EVIDENCE_TRANSCODE_PRESET` trong `.env`. Cần sao lưu DB và `protected-clips` cùng nhau.
+
+### Playback đồng bộ và duyệt sự kiện
+
+Mở **Playback → Xem đồng bộ** (`/playback/sync`), chọn 1–4 camera, ngày và thời điểm. Các ô dùng chung đồng hồ; có lưới hoặc danh sách cho điện thoại. Play/Pause, seek và tốc độ áp dụng cùng thời gian. Camera không có recording hiện khoảng trống, không kéo camera khác nhảy sang mốc có dữ liệu. Khi đang chuẩn bị/buffering, nhóm giữ đồng hồ để tránh lệch. Bản H.265 chưa có archive tương thích sẽ được chuẩn bị từ segment local; tốc độ mở đầu phụ thuộc CPU và cache. Chế độ này tắt âm thanh để tránh tiếng chồng.
+
+**Sự kiện / Thông báo** có xem ảnh nhẹ, preview video 8 giây tắt tiếng, nhóm gần nhau theo camera/thời gian, đánh dấu **Đã xem / Quan trọng / Báo nhầm** và ghi chú. Preview tạo khi người dùng yêu cầu, tối đa 1280×720/12 FPS, không phóng lớn nguồn nhỏ; cache ngắn 5 phút. Clip MP4 được giữ riêng vẫn giữ độ phân giải nguồn. Nhóm sự kiện không có nghĩa đã xác nhận cùng một người giữa nhiều camera.
+
+### Giảm tải và tùy chọn GPU
+
+Trong **Máy chủ, ghi hình và độ ồn**, chọn chế độ tài nguyên:
+
+| Chế độ | Video cần transcode | Ngân sách AI tối đa |
+|---|---|---|
+| Ít ồn | 2 luồng CPU, tối đa 1280×720/10 FPS, `ultrafast` | 1 FPS/camera |
+| Cân bằng | 4 luồng CPU, tối đa 1920×1080/15 FPS, `veryfast` | 2 FPS/camera |
+| Đầy đủ | Dùng preset môi trường, không giới hạn mới về kích thước/FPS | 10 FPS/camera |
+
+Giới hạn không tăng FPS camera đã đặt thấp hơn, không phóng lớn hình nhỏ. H.264 tiếp tục copy; recording gốc luôn copy video. Với H.265, Live và archive H.264 dùng chung một encoder khi cấu hình đầu ra tương thích, giảm công việc trùng. Bật **AI thích ứng** để giảm lượt suy luận ở cảnh vắng; khi có chuyển động/đối tượng đang theo dõi sẽ trở lại tốc độ bình thường, vẫn có lượt kiểm tra định kỳ. Đây không phải tắt ghi hình.
+
+Lưu chế độ áp dụng ngay cho công việc mới/AI. Nếu các luồng đang chạy cần đổi encoder, giao diện hiện nút áp dụng riêng có xác nhận vì kết nối lại có thể tạo khoảng ghi ngắn bị thiếu. Không thực hiện lúc camera đang đàm thoại hoặc bật còi.
+
+Mặc định dùng CPU. Chỉ chọn NVIDIA/VAAPI sau khi container được cấp thiết bị và **Kiểm tra GPU** mã hóa thành công một frame thử. Với NVIDIA đã cài driver/runtime tương thích, có thể build bằng overlay sau; VAAPI dùng overlay riêng trên máy chủ Linux có `/dev/dri`:
+
+```powershell
+# NVIDIA: Docker Desktop/WSL hoặc Linux phải hỗ trợ GPU của máy thực tế.
+docker compose -f docker-compose.yml -f docker-compose.nvidia.yml up -d --build backend
+```
+
+```sh
+# VAAPI: máy chủ Linux; không dùng trực tiếp cho Windows/macOS.
+docker compose -f docker-compose.yml -f docker-compose.vaapi.yml up -d --build backend
+```
+
+Overlay dùng runtime Debian có FFmpeg; cần giữ cùng bộ `-f` khi cập nhật. GPU chưa sẵn sàng hoặc gặp lỗi phần cứng được xác nhận sẽ quay về CPU. Lỗi Wi-Fi/RTSP/ổ đĩa không tự coi là GPU hỏng. Chưa xác nhận GPU trên máy CAMERA; không chọn encoder dựa chỉ vào danh sách codec FFmpeg.
+
+### Cập nhật và kiểm thử bản mở rộng
+
+Khi máy chủ đã bật, backup DB/storage rồi cập nhật code và chạy `docker compose up -d --build backend web ai`; sau đó `docker compose exec -T nginx nginx -t` và `docker compose exec -T nginx nginx -s reload`. Backend tự chạy các schema mở rộng idempotent khi khởi động, giữ camera/recording hiện có. Không dùng `down -v`. Bản mở rộng được làm và kiểm thử trên Mac trước; cần triển khai rồi xác nhận camera, push thật và GPU trên máy chủ.
+
+```sh
+npm ci --prefix backend
+npm ci --prefix web
+npm run build --prefix backend
+npm run build --prefix web
+node --test backend/test/*.test.cjs
+node --test web/test/*.test.cjs
+python3 -m unittest discover -s ai/tests
+```
+
+Các kiểm thử PostgreSQL bổ sung mặc định bỏ qua nếu chưa có biến môi trường test. Chỉ trỏ `SYSTEM_TEST_DATABASE_ENV` và `EVIDENCE_TEST_DATABASE_ENV` tới file `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` của PostgreSQL **test local cổng 55432**, hoặc đặt `OPERATIONS_TEST_DATABASE_URL` tới DB test. Mỗi bộ tạo/xóa schema riêng; không dùng DB production. Kiểm thử FFmpeg dùng video tổng hợp trên ổ; các lệnh còi, mic, PTZ, đèn và gửi push thật không nằm trong vòng kiểm thử này.
+
 ## API
 
+- `/api/system/health`, `POST /api/system/health/refresh`, `/api/system/health/incidents`, `/api/system/recording-gaps`: sức khỏe và recording thực tế, chỉ admin.
+- `GET/PUT /api/system/performance`, `POST /api/system/performance/probe|apply`: ngân sách tài nguyên, probe và áp dụng luồng có xác nhận.
+- `GET/PUT /api/operations/profiles`, `POST /api/operations/profiles/mode`: chế độ/lịch giám sát, chỉ admin; cập nhật kèm revision.
+- `GET /api/operations/push`, `POST /api/operations/push/subscriptions`, `DELETE /api/operations/push/devices/:id`, `PUT /api/operations/push/preferences`, `POST /api/operations/push/snooze|test`: đăng ký/thông báo riêng cho phiên, cần HTTPS.
+- `GET/POST /api/evidence/clips`, `GET /api/evidence/clips/:id`, `POST /api/evidence/clips/:id/cancel`, `DELETE /api/evidence/clips/:id` với `{confirm:true}`, `GET/HEAD /api/evidence/clips/:id/download`: tác vụ và tải clip; tạo/hủy/xóa chỉ admin.
+- `POST /api/evidence/preview`, `GET /api/evidence/activities`, `GET /api/evidence/reviews`, `PUT /api/evidence/reviews/:type/:id`: xem nhanh, nhóm hoạt động và đánh giá; ghi đánh giá chỉ admin. Tất cả cần đăng nhập, request ghi từ web cần CSRF.
 - `GET/PUT /api/cameras/:id/surveillance`: đọc/lưu vùng và tùy chọn theo dõi, quản trị viên.
 - `GET /api/surveillance/notifications`: `limit=1..100`, `before` hoặc `after`, `kind`, `unread=true`; trả `items`, `unread_count`, `latest_id`. Lượt `after` trả theo ID tăng dần để không bỏ sót khi có nhiều thông báo.
 - `POST /api/surveillance/notifications/read`: `{ids:["..."]}` hoặc `{all:true}`, chỉ đánh dấu cho tài khoản hiện tại.

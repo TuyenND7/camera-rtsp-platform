@@ -33,10 +33,11 @@ export const defaultSurveillanceConfig: SurveillanceConfig = {
   intrusion_seconds: 2, loitering_seconds: 30, pacing_reversals: 3, pacing_window_seconds: 60,
 };
 export interface SurveillanceNotice {
-  id: string; camera_id: number; camera_name: string; kind: 'intrusion' | 'loitering' | 'pacing' | 'unfamiliar';
+  id: string; camera_id: number; camera_name: string; kind: 'intrusion' | 'loitering' | 'pacing' | 'unfamiliar' | 'camera_offline' | 'video_stalled' | 'recording_stopped' | 'storage_error' | 'resource_overload';
   zone_name: string | null; track_id: string; track_number: number | null; label: string; detected_at: string;
   metrics: Record<string, number>; identity?: FaceIdentity; snapshot_url: string | null; thumbnail_url: string | null;
   event_id: string | null; read: boolean; popup_enabled: boolean;
+  message?: string;
 }
 export interface SurveillancePin {
   id: string; camera_id: number; camera_name: string; track_id: string; track_number: number; label: string;
@@ -259,6 +260,22 @@ async function read<T>(path: string, signal?: AbortSignal, parse: (res: Response
   finally { window.clearTimeout(timer); signal?.removeEventListener('abort', abort); }
 }
 
+/** Feature modules share the current session/CSRF and API base without storing tokens. */
+export async function featureRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  if (!path.startsWith('/') || path.startsWith('//')) throw new Error('Đường dẫn API không hợp lệ.');
+  const controller = new AbortController(), signal = init.signal;
+  const abort = () => controller.abort();
+  signal?.addEventListener('abort', abort, { once: true });
+  if (signal?.aborted) abort();
+  const timer = window.setTimeout(abort, 15000);
+  try {
+    const headers = new Headers(init.headers);
+    if (typeof init.body === 'string' && !headers.has('Content-Type')) headers.set('Content-Type','application/json');
+    for (const [key,value] of Object.entries(authHeaders())) headers.set(key,value);
+    return await handle<T>(await fetch(`${API_BASE}${path}`, { ...init, headers, signal: controller.signal, cache:'no-store' }));
+  } finally { window.clearTimeout(timer); signal?.removeEventListener('abort',abort); }
+}
+
 export const api = {
   surveillanceSettings(id: number) { return read<SurveillanceConfig>(`/cameras/${id}/surveillance`); },
   async updateSurveillanceSettings(id: number, value: SurveillanceConfig) {
@@ -424,16 +441,16 @@ export const api = {
     return handle<void>(res);
   },
 
-  async recordingDays(cameraId: number) {
+  async recordingDays(cameraId: number, signal?: AbortSignal) {
     const res = await fetch(`${API_BASE}/recordings/${cameraId}/days`, {
-      headers: authHeaders(),
+      headers: authHeaders(), signal,
     });
     return handle<string[]>(res);
   },
 
-  async recordingDay(cameraId: number, day: string) {
+  async recordingDay(cameraId: number, day: string, signal?: AbortSignal) {
     const res = await fetch(`${API_BASE}/recordings/${cameraId}/${day}`, {
-      headers: authHeaders(),
+      headers: authHeaders(), signal,
     });
     return handle<RecordingDay>(res);
   },
@@ -447,11 +464,12 @@ export const api = {
     return `${API_BASE}/recordings/${cameraId}/${day}/playlist${query}`;
   },
 
-  async prepareBrowserPlayback(cameraId: number, day: string, from?: string) {
+  async prepareBrowserPlayback(cameraId: number, day: string, from?: string, signal?: AbortSignal) {
     const res = await fetch(`${API_BASE}/recordings/${cameraId}/${day}/browser-playback`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(from ? { from } : {}),
+      signal,
     });
     return handle<BrowserPlaybackState>(res);
   },
@@ -515,8 +533,8 @@ export const api = {
     return handle<DetectionEvent[]>(res);
   },
 
-  async getSettings() {
-    return handle<SettingsInfo>(await fetch(`${API_BASE}/settings`, { headers: authHeaders() }));
+  async getSettings(signal?: AbortSignal) {
+    return read<SettingsInfo>('/settings', signal);
   },
 
   async saveSettings(settings: ServerSettings) {

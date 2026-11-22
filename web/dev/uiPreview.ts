@@ -1,8 +1,12 @@
 import fs from 'node:fs';
+import { evidencePreview } from './evidencePreview';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
 import type { Camera, DetectionEvent, DiscoveryState, RecordingDay, IdentityPerson, SurveillanceConfig, SurveillanceNotice, SurveillancePin } from '../src/api';
+import { syncPreviewDay, syncPreviewPrepared } from './syncPlaybackPreview';
+import { createOperationsPreview } from './operationsPreview';
+import { createSystemPreview } from './systemPreview';
 
 const MEDIA = '/__ui-preview__/sample.mp4';
 const SAMPLE_DURATION = 120;
@@ -55,6 +59,7 @@ async function body(req: IncomingMessage): Promise<Record<string, any>> {
 
 /** Installed only by `vite --mode ui-preview`; it has no database or network client. */
 export function uiPreviewPlugin(): Plugin {
+  const operationsPreview=createOperationsPreview(),systemPreview=createSystemPreview();
   let settings = { public_base_url: '', storage_label: 'Ổ lưu trữ mẫu', record_retention_hours: 0,
     cleanup_threshold_percent: 90, cleanup_target_percent: 85, cleanup_interval_minutes: 10, alarm_duration_seconds: 30 };
   let cameras = [
@@ -65,6 +70,7 @@ export function uiPreviewPlugin(): Plugin {
     camera(5, 'Kho · mẫu', { onvif_url: null, enabled: false, status: 'stopped', record: false, ai_enabled: false }),
     camera(6, 'Cửa hàng · ONVIF cố định', { ai_enabled: false }),
   ];
+  const evidence = evidencePreview(() => cameras);
   let nextId = 7;
   let people: IdentityPerson[] = [];
   let pins: SurveillancePin[] = [
@@ -131,6 +137,8 @@ export function uiPreviewPlugin(): Plugin {
         }
         if (pathname !== '/api' && !pathname.startsWith('/api/')) { next(); return; }
         try {
+          if(await operationsPreview(req,res,pathname,method)||await systemPreview(req,res,pathname,method))return;
+          if (await evidence(req,res,url)) return;
           if (pathname === '/api/auth/session' || pathname === '/api/auth/login') {
             req.resume(); json(res, { user, csrf: 'ui-preview-only' }); return;
           }
@@ -281,8 +289,8 @@ export function uiPreviewPlugin(): Plugin {
           const recordings = pathname.match(/^\/api\/recordings\/(\d+)\/(days|\d{8})(?:\/(.*))?$/);
           if (recordings) {
             if (recordings[2] === 'days') { json(res, days()); return; }
-            if (recordings[3] === 'browser-playback') { req.resume(); json(res, { status: 'ready', playlist: MEDIA, error: null, start_position: 0 }); return; }
-            json(res, dayData(recordings[2])); return;
+            if (recordings[3] === 'browser-playback') { const data = await body(req); json(res, syncPreviewPrepared(Number(recordings[1]), recordings[2], String(data.from ?? ''))); return; }
+            json(res, syncPreviewDay(Number(recordings[1]), dayData(recordings[2]))); return;
           }
           if (pathname === '/api/events') {
             const day = days()[0]; const start = Date.parse(`${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}T10:00:00+07:00`);

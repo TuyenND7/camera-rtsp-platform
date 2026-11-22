@@ -1,4 +1,5 @@
 import { faceIdentity } from '../identities';
+import { effectiveProfilePolicy,profileNotificationsAllowed } from '../operations/profiles';
 
 export type Point = [number, number];
 export type SurveillanceZone = { id: string; name: string; points: Point[] };
@@ -59,18 +60,20 @@ export function validSurveillanceConfig(value: unknown): value is SurveillanceCo
 }
 
 export function publicNotice(row: any, people: Map<string, string>) {
+  const policy=effectiveProfilePolicy(row.camera_id,surveillanceConfig(row.ai_surveillance));
   const metrics: Record<string,number> = {};
   for (const key of ['visible_seconds','reversals','window_seconds']) {
     const value = row.metrics?.[key];
     if (typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 86400) metrics[key] = value;
   }
-  return { id: String(row.id), camera_id: row.camera_id, camera_name: row.camera_name, kind: row.kind,
+  return { id: String(row.id), camera_id: row.camera_id, camera_name: row.kind==='resource_overload'?'Máy chủ':row.camera_name, kind: row.kind,
     zone_name: row.zone_name, track_id: row.track_id, track_number: row.track_number, label: row.label,
     detected_at: row.detected_at, metrics, identity: faceIdentity(row.identity, people),
     snapshot_url: row.snapshot_path ? `/${row.snapshot_path}` : null,
     thumbnail_url: row.snapshot_path ? `/api/surveillance/notifications/${row.id}/thumbnail` : null,
     event_id: row.event_id === null || row.event_id === undefined ? null : String(row.event_id), read: !!row.read,
-    popup_enabled: surveillanceConfig(row.ai_surveillance).popup_enabled };
+    message:typeof row.message==='string'?row.message.slice(0,500):undefined,
+    popup_enabled: policy.popup_enabled&&profileNotificationsAllowed() };
 }
 
 export function publicPin(row: any, people: Map<string, string>, now = Date.now()) {

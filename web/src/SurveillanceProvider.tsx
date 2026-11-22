@@ -5,7 +5,7 @@ import { api, type SurveillanceNotice, type SurveillancePin } from './api';
 import Icon from './Icon';
 import { SessionContext } from './ui';
 import { SurveillanceContext, type PinSelection, type WatchTarget } from './surveillanceContext';
-import { appendPopupNotices, consumeNoticeBatch, surveillanceDetail, surveillanceKinds } from './surveillanceLabels';
+import { appendPopupNotices, consumeNoticeBatch, surveillanceDetail, surveillanceKinds, isHealthNotice } from './surveillanceLabels';
 import WatchDialog from './WatchDialog';
 import './surveillance-ui.css';
 
@@ -98,7 +98,7 @@ export default function SurveillanceProvider({ children }: { children: React.Rea
     {children}
     {createPortal(<>
       {notice && !modalOpen && !target && <aside className="surveillance-toast" role="status" aria-live="polite">
-        <Icon name="shield" size={22} /><div><strong>{surveillanceKinds[notice.kind]}</strong><span>{notice.camera_name} · {notice.track_number ? `ID #${notice.track_number}` : 'Đối tượng'}</span><small>{surveillanceDetail(notice)}</small><div className="surveillance-toast-actions"><button type="button" onClick={() => { setQueue(value => value.filter(item => item.id !== notice.id)); setTarget({ cameraId: notice.camera_id, trackId: notice.track_id, notice }); }}>Theo dõi</button><Link to="/notifications" onClick={() => setQueue([])}>Thông báo{queue.length > 1 ? ` (${queue.length})` : ''}</Link></div></div>
+        <Icon name={isHealthNotice(notice)?'server':'shield'} size={22} /><div><strong>{surveillanceKinds[notice.kind]}</strong><span>{notice.camera_name}{!isHealthNotice(notice)&&` · ${notice.track_number ? `ID #${notice.track_number}` : 'Đối tượng'}`}</span><small>{surveillanceDetail(notice)}</small><div className="surveillance-toast-actions">{isHealthNotice(notice)?<Link to="/settings#health" onClick={()=>setQueue(value=>value.filter(item=>item.id!==notice.id))}>Kiểm tra máy chủ</Link>:<button type="button" onClick={() => { setQueue(value => value.filter(item => item.id !== notice.id)); setTarget({ cameraId: notice.camera_id, trackId: notice.track_id, notice }); }}>Theo dõi</button>}<Link to="/notifications" onClick={() => setQueue([])}>Thông báo{queue.length > 1 ? ` (${queue.length})` : ''}</Link></div></div>
         <button type="button" className="icon-button" aria-label="Ẩn thông báo mới" onClick={() => setQueue(value => value.filter(item => item.id !== notice.id))}><Icon name="close" size={18} /></button>
       </aside>}
       {target && <WatchDialog target={target} onClose={() => setTarget(null)} />}

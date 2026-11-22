@@ -29,6 +29,7 @@ from .live import FrameHistory, playlist_segments
 from .tracking import ObjectTracker
 from .identities import IdentityService
 from .surveillance import SurveillanceRules, policy, zones_for
+from .resource_policy import MotionGate,capped_fps
 
 
 logging.basicConfig(
@@ -55,6 +56,7 @@ class CameraConfig:
     ai_labels: tuple[str, ...]
     ai_identity_enabled: bool = False
     ai_surveillance: dict | None = None
+    performance: dict | None = None
 
     @property
     def source_url(self) -> str:
@@ -102,6 +104,7 @@ class CameraWorker:
         self.surveillance = SurveillanceRules()
         self.last_pin_update = -float('inf')
         self.last_surveillance_failure = -float('inf')
+        self.motion_gate = MotionGate()
         self.history = FrameHistory(STORAGE_ROOT, camera.id, synchronized=not bool(camera.ai_rtsp_url))
 
     def start(self) -> None:
@@ -212,8 +215,15 @@ class CameraWorker:
 
     def process_frame(self, frame: Any, captured_at: float | None = None) -> None:
         camera = self.camera
+        if self.stop_event.is_set():return
         settings = policy(camera.ai_surveillance)
         height, width = frame.shape[:2]
+        captured_at = captured_at if captured_at is not None else time.time()
+        active_tracks=any(0<=captured_at-t.seen_at<=3 for t in self.tracker.tracks.values())
+        if not self.motion_gate.should_infer(frame,captured_at,active_tracks,camera.performance):
+            if self.history.synchronized:self.history.add(captured_at,width,height,[])
+            else:self.history.write()
+            return
         wanted = set(self.camera.ai_labels)
         # Detect complete objects before filtering ROI. Cropping first can cut a
         # person's legs at the region boundary and invent an in-region footpoint.
@@ -221,7 +231,6 @@ class CameraWorker:
                       if item['label'] in wanted and zones_for(item,width,height,settings)]
         if self.stop_event.is_set():
             return
-        captured_at = captured_at if captured_at is not None else time.time()
         detections = self.tracker.update(detections, captured_at, width, height)
         if self.camera.ai_identity_enabled and hasattr(self.detector, 'identities'):
             self.detector.identities.annotate(frame, detections, captured_at)
@@ -375,16 +384,21 @@ class Runtime:
                 ORDER BY id
                 """
             ).fetchall()
+            profile=conn.execute('SELECT camera_overrides FROM operating_profile_runtime WHERE id=1').fetchone()
+            overrides=profile[0] if profile and isinstance(profile[0],dict) else {}
+            performance=conn.execute('SELECT value FROM system_runtime WHERE id=1').fetchone()
+            budget=performance[0] if performance and isinstance(performance[0],dict) else {}
         return [
             CameraConfig(
                 id=row[0],
                 name=row[1],
                 ai_rtsp_url=row[2],
-                ai_fps=float(row[3]),
+                ai_fps=capped_fps(float(row[3]),budget),
                 ai_confidence=float(row[4]),
                 ai_labels=tuple(row[5] or []),
                 ai_identity_enabled=bool(row[6]),
-                ai_surveillance=row[7] or {},
+                ai_surveillance={**(row[7] or {}),**{k:v for k,v in overrides.get(str(row[0]),{}).items() if k in ['intrusion_enabled','loitering_enabled','pacing_enabled','unfamiliar_enabled','popup_enabled'] and isinstance(v,bool)}},
+                performance=budget,
             )
             for row in rows
         ]
@@ -393,7 +407,7 @@ class Runtime:
         desired = {camera.id: camera for camera in self.fetch_cameras()}
         for camera_id, worker in list(self.workers.items()):
             camera = desired.get(camera_id)
-            if camera and replace(worker.camera, ai_identity_enabled=camera.ai_identity_enabled, ai_surveillance=camera.ai_surveillance) == camera:
+            if camera and replace(worker.camera, ai_identity_enabled=camera.ai_identity_enabled, ai_surveillance=camera.ai_surveillance, performance=camera.performance, ai_fps=camera.ai_fps) == camera:
                 worker.camera = camera
             if camera_id not in desired or desired[camera_id] != worker.camera or not worker.is_alive():
                 worker.stop()

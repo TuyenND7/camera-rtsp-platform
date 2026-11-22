@@ -1,0 +1,23 @@
+FROM node:20-bookworm-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build
+
+# Optional Debian runtime for host-supplied NVIDIA/VAAPI driver libraries.
+FROM node:20-bookworm-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+ENV NODE_ENV=production
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/src/schema.sql ./dist/schema.sql
+COPY --from=build /app/src/system/schema.sql ./dist/system/schema.sql
+COPY --from=build /app/src/operations/schema.sql ./dist/operations/schema.sql
+COPY --from=build /app/src/evidence/schema.sql ./dist/evidence/schema.sql
+EXPOSE 4000
+CMD ["node", "dist/index.js"]

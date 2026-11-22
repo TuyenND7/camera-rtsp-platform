@@ -2,9 +2,15 @@ import type { SurveillanceNotice } from './api';
 
 export const surveillanceKinds: Record<SurveillanceNotice['kind'], string> = {
   intrusion: 'Xâm nhập vùng', loitering: 'Lảng vảng', pacing: 'Đi qua lại', unfamiliar: 'Khuôn mặt chưa đăng ký',
+  camera_offline: 'Camera mất kết nối', video_stalled: 'Luồng hình bị dừng', recording_stopped: 'Ghi hình gián đoạn',
+  storage_error: 'Lỗi lưu trữ', resource_overload: 'Máy chủ quá tải',
 };
+export function isHealthNotice(notice: Pick<SurveillanceNotice,'kind'>): boolean {
+  return ['camera_offline','video_stalled','recording_stopped','storage_error','resource_overload'].includes(notice.kind);
+}
 export function surveillanceDetail(notice: SurveillanceNotice): string {
-  const seconds = notice.metrics.dwell_seconds ?? notice.metrics.seconds;
+  if (notice.message) return notice.message;
+  const seconds = notice.metrics.visible_seconds ?? notice.metrics.dwell_seconds ?? notice.metrics.seconds;
   const suffix = notice.zone_name ? ` · ${notice.zone_name}` : '';
   if (notice.kind === 'loitering') return `${typeof seconds === 'number' ? `Ở trong vùng ${Math.round(seconds)} giây` : 'Ở lại trong vùng quá thời gian đã đặt'}${suffix}`;
   if (notice.kind === 'pacing') return `${typeof notice.metrics.reversals === 'number' ? `Đổi hướng ${notice.metrics.reversals} lần` : 'Đối tượng đổi hướng nhiều lần'}${suffix}`;

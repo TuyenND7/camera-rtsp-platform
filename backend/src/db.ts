@@ -21,6 +21,12 @@ export async function initDb(): Promise<void> {
   }
   const schema = fs.readFileSync(schemaPath, 'utf8');
   await pool.query(schema);
+  for (const feature of ['system', 'operations', 'evidence']) {
+    const candidates = [path.join(__dirname,feature,'schema.sql'),path.join(__dirname,'..','src',feature,'schema.sql')];
+    const file = candidates.find(candidate => fs.existsSync(candidate));
+    if (!file) throw new Error(`Missing ${feature} database migration`);
+    await pool.query(fs.readFileSync(file,'utf8'));
+  }
 
   const { rows } = await pool.query(
     'SELECT id FROM users WHERE username = $1',

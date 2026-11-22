@@ -4,6 +4,8 @@ import path from 'path';
 import { Readable } from 'stream';
 import { StringDecoder } from 'string_decoder';
 import { config } from '../config';
+import { encoderBudget, EncoderBudget } from '../system/performance';
+import { buildStreamArgs } from './encoding';
 
 export type CodecMode = 'auto' | 'h264' | 'h265';
 
@@ -75,114 +77,10 @@ export function probeMedia(rtspUrl: string, onResult?: (details: Record<string, 
 export async function probeCodec(rtspUrl: string) { return (await probeMedia(rtspUrl)).video; }
 
 export function buildArgs(
-  rtspUrl: string,
-  record: boolean,
-  paths: FfmpegPaths,
-  liveCodec: 'h264' | 'h265',
-  audio = false
+  rtspUrl: string, record: boolean, paths: FfmpegPaths, liveCodec: 'h264' | 'h265',
+  audio = false, budget: EncoderBudget = encoderBudget()
 ): string[] {
-  const args: string[] = [
-    '-hide_banner',
-    '-loglevel', 'warning',
-    // Với loglevel warning, FFmpeg ẩn dòng "frame=" (mức info). Ghi tiến trình
-    // key=value ra stdout mỗi 5s để backend biết đã nhận frame và báo online.
-    '-nostats',
-    '-progress', 'pipe:1',
-    '-stats_period', '5',
-    // Ưu tiên TCP cho RTSP qua internet (ổn định hơn UDP khi qua NAT)
-    '-rtsp_transport', 'tcp',
-    '-timeout', '10000000', // 10s (micro giây) chờ kết nối
-    '-i', rtspUrl,
-  ];
-
-  // ---- Output 1: HLS live (cuốn chiếu, low retention) ----
-  args.push('-map', '0:v:0', ...audioOutputArgs());
-  if (liveCodec === 'h265') {
-    // Transcode HEVC -> H.264 để trình duyệt phát được
-    args.push(
-      '-c:v', 'libx264',
-      '-preset', config.transcodePreset,
-      '-tune', 'zerolatency',
-      '-b:v', config.transcodeBitrate,
-      '-pix_fmt', 'yuv420p',
-      // Keyframe đúng mỗi HLS_SEGMENT_SECONDS để segment live dài đúng cấu hình
-      // (trước là -g 48 = 2,4s ở 20fps), giảm độ trễ khi xem/điều khiển PTZ.
-      '-force_key_frames', `expr:gte(t,n_forced*${config.hlsSegmentSeconds})`,
-      '-g', '48'
-    );
-  } else {
-    // H.264: copy, nhẹ CPU
-    args.push('-c:v', 'copy');
-  }
-  args.push(
-    '-f', 'hls',
-    '-hls_time', String(config.hlsSegmentSeconds),
-    '-hls_list_size', String(config.hlsListSize),
-    '-hls_flags', 'delete_segments+append_list+omit_endlist+program_date_time',
-    '-hls_segment_filename', path.join(paths.liveDir, 'seg_%06d.ts'),
-    paths.liveIndex
-  );
-
-  // ---- Output 2: recording liên tục (LUÔN copy codec gốc) ----
-  if (record) {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: config.recordTimezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).formatToParts(new Date());
-    const value = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
-    const day = `${value('year')}${value('month')}${value('day')}`;
-    const dayDir = path.join(paths.recDir, day);
-    fs.mkdirSync(dayDir, { recursive: true });
-    args.push(
-      '-map', '0:v:0',
-      '-c:v', 'copy',
-      ...audioOutputArgs(),
-      '-f', 'hls',
-      '-hls_time', String(config.recordSegmentSeconds),
-      '-hls_list_size', '0', // giữ tất cả segment trong playlist
-      '-hls_flags', 'append_list',
-      '-strftime', '1',
-      '-hls_segment_filename', path.join(dayDir, 'rec_%Y%m%d_%H%M%S.ts'),
-      path.join(dayDir, 'index.m3u8')
-    );
-
-    // Recording gốc HEVC giữ nguyên ở /rec. Browser không hỗ trợ HLS/HEVC ổn
-    // định, nên tạo archive H.264 tách riêng cho web playback. H.264 nguồn thì
-    // dùng luôn recording gốc, không tạo bản sao và không tốn thêm CPU/dung lượng.
-    if (liveCodec === 'h265' && config.browserPlaybackArchive) {
-      const playbackDayDir = path.join(paths.playbackDir, day);
-      fs.mkdirSync(playbackDayDir, { recursive: true });
-      args.push(
-        '-map', '0:v:0',
-        ...audioOutputArgs(),
-        '-c:v', 'libx264',
-        '-preset', config.browserPlaybackPreset,
-        '-b:v', config.browserPlaybackBitrate,
-        '-pix_fmt', 'yuv420p',
-        '-g', '48',
-        '-force_key_frames', `expr:gte(t,n_forced*${config.browserPlaybackSegmentSeconds})`,
-        '-f', 'hls',
-        '-hls_time', String(config.browserPlaybackSegmentSeconds),
-        '-hls_list_size', '0',
-        '-hls_flags', 'append_list+independent_segments',
-        // Tên theo giờ UTC (spawn TZ=UTC) để API ghép chính xác mốc thời gian
-        // giữa recording gốc và archive, kể cả khi camera mất kết nối nhiều lần.
-        '-strftime', '1',
-        '-hls_segment_filename', path.join(playbackDayDir, 'play_%Y%m%d_%H%M%S.ts'),
-        path.join(playbackDayDir, 'index.m3u8')
-      );
-    }
-  }
-
-  if (audio) args.push('-map', '0:a:0', '-vn', '-ac', '1', '-ar', '8000', '-c:a', 'pcm_s16le', '-flush_packets', '1', '-f', 's16le', 'pipe:3');
-  return args;
-}
-
-/** G.711 from cameras is not browser-compatible; AAC also works in HLS recordings. */
-function audioOutputArgs(): string[] {
-  return ['-map', '0:a:0?', '-c:a', 'aac', '-b:a', '64k', '-ar', '16000', '-ac', '1'];
+  return buildStreamArgs(rtspUrl, record, paths, liveCodec, audio, budget);
 }
 
 export interface FfmpegHandle {
@@ -232,7 +130,8 @@ export async function startFfmpeg(
   onDiagnostic?.('probe_start', { timeout_ms: 15000 });
   const media = await probeMedia(rtspUrl, details => onDiagnostic?.('probe_result', details));
   const liveCodec = codec === 'auto' ? media.video ?? 'h264' : codec;
-  const args = buildArgs(rtspUrl, record, paths, liveCodec, media.audio && !!onAudio);
+  const budget = encoderBudget();
+  const args = buildArgs(rtspUrl, record, paths, liveCodec, media.audio && !!onAudio, budget);
   // Tên file recording (-strftime) luôn theo UTC để API đổi ra giờ chính xác;
   // thư mục ngày vẫn theo RECORD_TIMEZONE (tính ở buildArgs).
   const proc = spawn('ffmpeg', args, {
@@ -250,7 +149,8 @@ export async function startFfmpeg(
     onExit(code, signal);
   });
   onDiagnostic?.('process_spawned', { pid: proc.pid ?? null, live_codec: liveCodec,
-    record, has_audio: media.audio, x264_encoders: args.filter(arg => arg === 'libx264').length });
+    record, has_audio: media.audio, encoder: budget.encoder, encoder_threads: budget.threads,
+    shared_encoder: args.includes('tee'), budget, x264_encoders: args.filter(arg => arg === 'libx264').length });
 
   return { proc, paths, liveCodec, hasAudio: media.audio };
 }

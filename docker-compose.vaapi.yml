@@ -1,0 +1,7 @@
+# Optional: Linux hosts that expose an Intel/AMD render node to Docker.
+services:
+  backend:
+    build:
+      dockerfile: Dockerfile.gpu
+    devices:
+      - /dev/dri:/dev/dri

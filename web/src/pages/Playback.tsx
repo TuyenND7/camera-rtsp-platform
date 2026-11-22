@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, Camera, RecordingDay } from '../api';
 import HlsPlayer, { HlsPlayerHandle } from '../HlsPlayer';
 import Icon from '../Icon';
 import PlaybackTimeline from '../PlaybackTimeline';
 import { dayStartMs, formatClock, formatShortClock, segmentAt, toTimedSegments } from '../playbackTime';
-import { PageHeader } from '../ui';
+import { PageHeader, SessionContext } from '../ui';
+import ClipExportDialog from '../ClipExportDialog';
 
 type OffsetKey = 'offset_s' | 'archive_offset_s';
 
@@ -22,6 +23,7 @@ const SPEEDS = [1, 2, 4, 8];
 const DEFAULT_THUMB = { width: 160, height: 90, interval_s: 10 };
 
 export default function Playback() {
+  const sessionUser = useContext(SessionContext), [exporting,setExporting] = useState(false);
   const navigate = useNavigate();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -270,7 +272,8 @@ export default function Playback() {
 
   return (
     <section className="page-card playback-page">
-      <PageHeader title="Playback" actions={<Link to="/playback" className="button"><Icon name="folder" size={16} />Chọn camera</Link>} />
+      <PageHeader title="Playback" actions={<>{sessionUser?.role==='admin'&&<button type="button" disabled={positionMs===null} onClick={()=>setExporting(true)}><Icon name="shield" size={16}/>Giữ clip</button>}<Link to="/playback" className="button"><Icon name="folder" size={16} />Chọn camera</Link></>} />
+      {exporting&&positionMs!==null&&<ClipExportDialog cameraId={cameraId} cameraName={cam?.name} at={positionMs} onClose={()=>setExporting(false)}/>}
       <div className={`playback-shell ${cameras.length <= 1 ? 'single-camera' : ''}`}>
         {cameras.length > 1 && <aside className="playback-camera-rail" aria-label="Chọn camera playback">
           <label className="playback-camera-dropdown"><Icon name="video" size={19} /><select aria-label="Chọn camera playback" value={cameraId} onChange={(event) => navigate(`/playback/${event.target.value}`)}>{cameras.map((camera) => <option key={camera.id} value={camera.id}>{camera.name}</option>)}</select></label>

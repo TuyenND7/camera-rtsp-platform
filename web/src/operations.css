@@ -1,0 +1,44 @@
+.operations-settings { min-width: 0; scroll-margin-top: 65px; }
+.operations-settings .settings-heading { gap: 8px; }
+.operations-settings .settings-heading > div { min-width: 0; flex: 1; }
+.operations-settings .settings-heading h2 { overflow-wrap: anywhere; }
+.operations-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-width: 0; min-height: 48px; padding: 7px 0; }
+.operations-row > span { flex: 1; min-width: 0; font-size: calc(12px * var(--text-scale, 1)); overflow-wrap: anywhere; }
+.operations-row > select { flex: 0 1 55%; width: 55%; min-width: 0; min-height: 44px; margin: 0; padding: 7px 9px; }
+.operations-row input[type=checkbox] { appearance: none; -webkit-appearance: none; position: relative; width: 40px; height: 24px; flex: 0 0 40px; margin: 0; border: 1px solid var(--line); border-radius: 20px; background: var(--surface-soft, #dbe3ef); cursor: pointer; }
+.operations-row input[type=checkbox]::after { content: ''; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-muted, #879ab0); }
+.operations-row input[type=checkbox]:checked { background: var(--blue); border-color: var(--blue); }
+.operations-row input[type=checkbox]:checked::after { transform: translateX(16px); background: #fff; }
+.operations-row input[type=checkbox]:disabled { opacity: .5; cursor: default; }
+.operations-row input[type=checkbox]:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.operations-note { margin: 8px 0 0; color: var(--text-muted, #7186a0); font-size: calc(11px * var(--text-scale, 1)); overflow-wrap: anywhere; }
+.operations-actions { display: flex; flex-wrap: wrap; gap: 7px; margin: 8px 0; }
+.operations-actions button, .operations-settings > button { min-height: 44px; padding: 7px 10px; }
+.operations-time-pair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin: 7px 0; }
+.operations-time-pair > label { min-width: 0; }
+.operations-time-pair select { min-width: 0; width: 100%; min-height: 44px; padding: 7px 9px; }
+.operations-device-list, .operations-schedules { min-width: 0; margin-top: 8px; }
+.operations-device, .operations-schedules article { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 9px 0; border-top: 1px solid var(--line); }
+.operations-device > div, .operations-schedules article > div { flex: 1; min-width: 0; }
+.operations-device strong, .operations-device small, .operations-schedules strong, .operations-schedules small { display: block; overflow-wrap: anywhere; }
+.operations-device strong, .operations-schedules strong { font-size: calc(12px * var(--text-scale, 1)); }
+.operations-device small, .operations-schedules small { font-size: calc(10px * var(--text-scale, 1)); color: var(--text-muted); }
+.operations-settings .icon-button { flex: 0 0 44px; width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+.operations-details { margin: 8px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.operations-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; cursor: pointer; font-size: calc(12px * var(--text-scale, 1)); font-weight: 700; }
+.operations-details > summary::marker { content: ''; }
+.operations-schedule-editor { margin: 12px 0; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+.operations-days { display: grid; grid-template-columns: repeat(7,minmax(44px,1fr)); gap: 5px; }
+.operations-days button { min-width: 44px; min-height: 44px; padding: 7px; font-size: calc(11px * var(--text-scale, 1)); }
+.operations-days button[aria-pressed=true] { color: var(--blue); border-color: var(--blue); background: var(--blue-light); }
+.operating-mode-selector { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.operating-mode-selector select { flex: 1 1 auto; width: auto; max-width: 100%; min-width: 0; min-height: 36px; margin: 0; padding: 5px 8px; font-size: calc(12px * var(--text-scale, 1)); }
+.operating-mode-selector .form-error { max-width: 180px; font-size: 11px; }
+@media(max-width:760px) {
+  .operations-settings { padding: 12px; }
+  .operations-settings .settings-heading h2 { font-size: calc(17px * var(--text-scale, 1)); }
+  .operations-actions > button { flex: 1 1 120px; min-width: 0; }
+  .operations-row { gap: 8px; }
+  .operations-row > select { max-width: 57%; flex-basis: 57%; }
+  .operations-days { grid-template-columns: repeat(4,minmax(44px,1fr)); }
+}

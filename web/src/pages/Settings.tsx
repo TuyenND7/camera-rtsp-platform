@@ -8,6 +8,10 @@ import { alarmDurations, alarmDurationLabel } from '../alarm';
 import ViewingDeviceSettings from '../ViewingDeviceSettings';
 import TendaAccountSettings from '../TendaAccountSettings';
 import IdentitySettings from '../IdentitySettings';
+import DeferredSettings from '../DeferredSettings';
+import OperatingProfilesSettings from '../OperatingProfilesSettings';
+import PushSettings from '../PushSettings';
+import SystemHealthSettings from '../SystemHealthSettings';
 
 function numericOptions(current: number, values: number[], label: (value: number) => string) {
   return [...new Set([...values, current])].sort((a, b) => a - b).map(value => ({ value: String(value), label: label(value) }));
@@ -160,6 +164,7 @@ export default function Settings() {
     </section>
 
     <ViewingDeviceSettings />
+    {admin&&<><DeferredSettings title="Chế độ và lịch giám sát" anchor="profiles" icon="clock"><OperatingProfilesSettings/></DeferredSettings><DeferredSettings title="Thông báo trên điện thoại" anchor="push" icon="bell"><PushSettings/></DeferredSettings><DeferredSettings title="Máy chủ, ghi hình và độ ồn" anchor="health" icon="server"><SystemHealthSettings/></DeferredSettings></>}
     <form onSubmit={event => { event.preventDefault(); if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); }} className="settings-form">
       <section className="panel settings-section">
         <header className="settings-heading"><Icon name="server" size={22} /><div><h2>Máy chủ</h2></div><span className={`status-badge ${connection === true ? 'online' : connection === false ? 'error' : 'connecting'}`}><i className={`status-dot ${connection === true ? 'online' : connection === false ? 'error' : 'connecting'}`} />{connection === null ? 'Đang kiểm tra' : connection ? 'Trực tuyến' : 'Mất kết nối'}</span></header>

@@ -1,0 +1,45 @@
+.deferred-settings {padding:0;margin-bottom:12px;scroll-margin-top:16px;min-width:0;}
+.deferred-settings>summary {display:flex;align-items:center;gap:10px;min-height:52px;padding:12px 16px;cursor:pointer;list-style:none;}
+.deferred-settings>summary::-webkit-details-marker {display:none;}
+.deferred-settings>summary>strong {flex:1;min-width:0;font-size:calc(14px * var(--text-scale,1));overflow-wrap:anywhere;}
+.deferred-settings[open]>summary>.app-icon:last-child {transform:rotate(180deg);}
+.deferred-settings-body {padding:0 16px 16px;min-width:0;}
+.deferred-settings-body>.panel {border:0;padding:0;margin:0;box-shadow:none;}
+.system-settings-content {min-width:0;}
+.system-section-heading {display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.system-section-heading h3,.system-performance-title {font-size:calc(14px * var(--text-scale,1));}
+.system-section-heading button {min-width:44px;min-height:44px;padding:8px;}
+.system-metrics {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0;}
+.system-metrics>div {padding:8px;border:1px solid var(--line);border-radius:8px;min-width:0;}
+.system-metrics span,.system-metrics strong {display:block;overflow-wrap:anywhere;}
+.system-metrics span {font-size:calc(10px * var(--text-scale,1));color:var(--text-muted);}
+.system-metrics strong {font-size:calc(15px * var(--text-scale,1));}
+.system-small-note {margin:8px 0;color:var(--text-muted);font-size:calc(11px * var(--text-scale,1));overflow-wrap:anywhere;}
+.system-camera-row {border-bottom:1px solid var(--line);min-width:0;}
+.system-camera-row>summary {display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-height:48px;padding:8px 0;cursor:pointer;list-style:none;}
+.system-camera-row>summary::-webkit-details-marker {display:none;}
+.system-camera-row>summary strong {flex:1 1 140px;min-width:0;overflow-wrap:anywhere;font-size:calc(12px * var(--text-scale,1));}
+.system-camera-row>summary span {font-size:calc(10px * var(--text-scale,1));}
+.system-camera-row>div {padding:0 0 12px;font-size:calc(11px * var(--text-scale,1));overflow-wrap:anywhere;}
+.system-gap-list {display:grid;gap:8px;padding:0;list-style:none;max-height:240px;overflow-y:auto;}
+.system-gap-list li {display:flex;align-items:center;gap:8px;justify-content:space-between;}
+.system-gap-list a {flex-shrink:0;padding:10px 0;min-width:44px;min-height:44px;text-align:right;}
+.system-camera-row a.button {display:inline-flex;align-items:center;min-height:44px;}
+.system-incidents {margin-top:10px;padding:10px;border:1px solid var(--danger-text,#d33750);border-radius:8px;font-size:calc(12px * var(--text-scale,1));}
+.system-performance-title {margin:18px 0 6px;}
+.system-setting-row {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);align-items:center;gap:10px;min-height:52px;padding:6px 0;border-bottom:1px solid var(--line);}
+.system-setting-row>span {min-width:0;overflow-wrap:anywhere;font-size:calc(12px * var(--text-scale,1));}
+.system-setting-row select {margin:0;min-height:44px;font-size:calc(12px * var(--text-scale,1));}
+.system-setting-row input[type=checkbox] {justify-self:end;width:38px;height:24px;accent-color:var(--blue);}
+.system-setting-row.system-setting-toggle {grid-template-columns:minmax(0,1fr) auto;}
+.system-performance-actions {display:flex;flex-wrap:wrap;gap:8px;}
+.system-performance-actions button {min-height:44px;}
+@media(max-width:760px){
+  .deferred-settings>summary{padding:10px 12px;}
+  .deferred-settings-body{padding:0 12px 12px;}
+  .system-metrics{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .system-setting-row:not(.system-setting-toggle){grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);}
+  :root:is([data-text-size="125"],[data-text-size="150"],[data-text-size="200"]) .system-setting-row:not(.system-setting-toggle){grid-template-columns:minmax(0,1fr);}
+  :root:is([data-text-size="125"],[data-text-size="150"],[data-text-size="200"]) .system-camera-row>summary strong{flex-basis:100%;}
+}
+@media(max-width:380px){.system-camera-row>summary strong{flex-basis:100%;}}

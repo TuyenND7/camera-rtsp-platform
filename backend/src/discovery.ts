@@ -60,7 +60,7 @@ export async function rememberSerial(cameraId: number): Promise<void> {
   }
   const serial = await readSerial(rtsp.hostname, onvifPort(cam), credentials(rtsp));
   if (!serial) return;
-  await pool.query('UPDATE cameras SET device_serial = $1 WHERE id = $2 AND device_serial IS NULL', [serial, cameraId]);
+  await pool.query('UPDATE cameras SET device_serial = $1 WHERE id = $2 AND device_serial IS NULL AND rtsp_url = $3', [serial, cameraId, cam.rtsp_url]);
   console.log(`[discovery] camera ${cameraId} serial ${serial}`);
 }
 
@@ -105,14 +105,14 @@ async function scan(cameraId: number): Promise<RediscoveryResult | null> {
   for (const host of open) {
     const serial = await readSerial(host, onvifPort(cam), creds);
     if (serial !== cam.device_serial) continue;
-    await moveCamera(cam, oldHost, host);
+    if (!await moveCamera(cam, oldHost, host)) return null;
     console.log(`[discovery] camera ${cameraId} moved ${oldHost} -> ${host} (serial ${serial})`);
     return { from: oldHost, to: host };
   }
   return null;
 }
 
-async function moveCamera(cam: CameraNetRow, oldHost: string, newHost: string): Promise<void> {
+async function moveCamera(cam: CameraNetRow, oldHost: string, newHost: string): Promise<boolean> {
   const swap = (value: string | null) => {
     if (!value) return value;
     try {
@@ -124,10 +124,14 @@ async function moveCamera(cam: CameraNetRow, oldHost: string, newHost: string): 
       return value;
     }
   };
-  await pool.query(
-    'UPDATE cameras SET rtsp_url = $1, ai_rtsp_url = $2, onvif_url = $3, updated_at = now() WHERE id = $4',
-    [swap(cam.rtsp_url), swap(cam.ai_rtsp_url), swap(cam.onvif_url), cam.id]
+  const changed = await pool.query(
+    `UPDATE cameras SET rtsp_url = $1, ai_rtsp_url = $2, onvif_url = $3, updated_at = now() WHERE id = $4
+      AND rtsp_url = $5 AND ai_rtsp_url IS NOT DISTINCT FROM $6 AND onvif_url IS NOT DISTINCT FROM $7
+      AND device_serial IS NOT DISTINCT FROM $8`,
+    [swap(cam.rtsp_url), swap(cam.ai_rtsp_url), swap(cam.onvif_url), cam.id, cam.rtsp_url, cam.ai_rtsp_url, cam.onvif_url, cam.device_serial]
   );
+  // A scan can take seconds: never overwrite edits saved while it was running.
+  if (!changed.rowCount) return false;
   invalidatePtz(cam.id);
   const moved = await loadCamera(cam.id);
   if (moved) await synchronizeBindingAddress(moved, async () => {
@@ -136,6 +140,7 @@ async function moveCamera(cam: CameraNetRow, oldHost: string, newHost: string): 
     const latest = await loadCamera(moved.id);
     return serial === cam.device_serial && latest?.rtsp_url === moved.rtsp_url;
   });
+  return true;
 }
 
 async function readSerial(host: string, port: number, creds: { username: string; password: string }): Promise<string | null> {

@@ -198,6 +198,13 @@ export class StreamDiagnostics {
     }
   }
 
+  snapshot() {
+    return { run_id:this.runId,pid:this.pid??null,elapsed_ms:Math.round(performance.now()-this.started),
+      last_progress_age_ms:this.lastProgress===undefined?null:Math.round(performance.now()-this.lastProgress),
+      last_frame_change_age_ms:this.lastFrameAt===undefined?null:Math.round(performance.now()-this.lastFrameAt),
+      progress:{...this.progress},last_health:this.latestSample?{...this.latestSample}:null };
+  }
+
   private async sample(): Promise<void> {
     if (this.sampleBusy || this.ended) return;
     this.sampleBusy = true;
