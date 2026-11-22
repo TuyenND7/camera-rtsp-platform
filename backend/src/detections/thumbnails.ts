@@ -11,7 +11,7 @@ type Renderer = (source: string, target: string) => Promise<void>;
 async function renderThumbnail(source: string, target: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     execFile('ffmpeg', ['-nostdin', '-hide_banner', '-loglevel', 'error', '-threads', '1', '-filter_threads', '1', '-i', source,
-      '-vf', 'scale=320:180:force_original_aspect_ratio=decrease', '-frames:v', '1', '-q:v', '7', '-threads', '1', '-y', target],
+      '-vf', 'scale=640:360:force_original_aspect_ratio=decrease:flags=lanczos', '-frames:v', '1', '-q:v', '3', '-threads', '1', '-y', target],
     { timeout: 15000, maxBuffer: 16384 }, error => error ? reject(error) : resolve());
   });
 }
@@ -47,7 +47,8 @@ export class EventThumbnailCache {
       if (error instanceof EventImageMissing || (error as NodeJS.ErrnoException).code === 'ENOENT') throw new EventImageMissing();
       throw error;
     }
-    const target = source.replace(/\.jpe?g$/, '.thumb.jpg');
+    // Version the cache so older, softer 320px previews are rebuilt from originals.
+    const target = source.replace(/\.jpe?g$/, '.thumb-v2.jpg');
     try {
       const cached = await fs.lstat(target);
       if (cached.isFile() && !cached.isSymbolicLink() && cached.size > 0 && cached.size < 512 * 1024 && cached.mtimeMs + 1 >= stat.mtimeMs) return target;

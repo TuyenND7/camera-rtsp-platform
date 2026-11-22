@@ -19,7 +19,7 @@ class LiveTests(unittest.TestCase):
         for fail_thumbnail in (False, True):
             with self.subTest(fail_thumbnail=fail_thumbnail), tempfile.TemporaryDirectory() as directory, patch.object(main, 'STORAGE_ROOT', Path(directory)):
                 sizes = []
-                def resize(frame, size):
+                def resize(frame, size, **_):
                     sizes.append(size)
                     if fail_thumbnail:
                         raise RuntimeError('resize fixture failure')
@@ -27,7 +27,7 @@ class LiveTests(unittest.TestCase):
                 def write(filename, *_):
                     Path(filename).write_bytes(b'fixture-jpeg-payload')
                     return True
-                cv = SimpleNamespace(resize=resize, imwrite=write, IMWRITE_JPEG_QUALITY=1)
+                cv = SimpleNamespace(resize=resize, imwrite=write, IMWRITE_JPEG_QUALITY=1, INTER_AREA=3)
                 worker = main.CameraWorker(main.CameraConfig(1, 'Fixture', None, 2, .5, ('person',)), None)
                 with patch.object(main, 'cv2', cv):
                     if fail_thumbnail:
@@ -37,8 +37,8 @@ class LiveTests(unittest.TestCase):
                         relative = worker.write_snapshot(SimpleNamespace(shape=(1620, 2880, 3)))
                 original = Path(directory) / relative
                 self.assertTrue(original.exists())
-                self.assertEqual(original.with_suffix('.thumb.jpg').exists(), not fail_thumbnail)
-                self.assertEqual(sizes, [(320, 180)])
+                self.assertEqual(original.with_suffix('.thumb-v2.jpg').exists(), not fail_thumbnail)
+                self.assertEqual(sizes, [(640, 360)])
                 self.assertFalse(list(original.parent.glob('*.tmp.jpg')))
 
     def test_playlist_clock_advances_and_rejects_paths_without_time(self):

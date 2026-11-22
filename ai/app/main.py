@@ -238,14 +238,14 @@ class CameraWorker:
         if not cv2.imwrite(str(destination), frame, [cv2.IMWRITE_JPEG_QUALITY, 90]):
             raise RuntimeError("cannot write AI event snapshot")
         # Lists use a small sibling; full-resolution evidence is fetched on demand.
-        temporary = destination.with_suffix('.thumb.tmp.jpg')
+        temporary = destination.with_suffix('.thumb-v2.tmp.jpg')
         try:
             height, width = frame.shape[:2]
-            scale = min(320 / width, 180 / height, 1)
-            thumbnail = cv2.resize(frame, (max(1, round(width * scale)), max(1, round(height * scale))))
-            if not cv2.imwrite(str(temporary), thumbnail, [cv2.IMWRITE_JPEG_QUALITY, 65]):
+            scale = min(640 / width, 360 / height, 1)
+            thumbnail = cv2.resize(frame, (max(1, round(width * scale)), max(1, round(height * scale))), interpolation=cv2.INTER_AREA)
+            if not cv2.imwrite(str(temporary), thumbnail, [cv2.IMWRITE_JPEG_QUALITY, 85]):
                 raise OSError('Thumbnail was not written')
-            os.replace(temporary, destination.with_suffix('.thumb.jpg'))
+            os.replace(temporary, destination.with_suffix('.thumb-v2.jpg'))
         except Exception:
             # The API can generate a missing thumbnail later without losing an event.
             log.warning('camera=%s thumbnail deferred', self.camera.id)

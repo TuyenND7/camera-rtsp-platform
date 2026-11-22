@@ -625,7 +625,7 @@ AI gán ID theo dõi riêng cho từng đối tượng trong mỗi camera. Live 
 
 Trên mobile, header Live dùng hai hàng gọn: tiêu đề và nút chọn ở trên, giờ/ngày và khẩn cấp ở dưới. Chỉ có một tiêu đề Live; menu điều hướng vẫn mở được từ nút cạnh tiêu đề. Danh sách Playback và Thiết bị chuyển thành thẻ, hiển thị thông tin và thao tác ngay trong chiều rộng điện thoại.
 
-Trang Sự kiện có chế độ **Danh sách / 2 cột / 3 cột**, nhớ riêng trên từng trình duyệt. Danh sách chỉ tải thumbnail JPEG tối đa 320×180 và tải lười theo vùng xem; ảnh gốc chỉ tải khi mở ảnh. Worker AI tạo thumbnail cạnh ảnh gốc; ảnh sự kiện cũ được API tạo một lần rồi dùng lại, tối đa hai tiến trình FFmpeg cùng lúc. `GET /api/events/:id/thumbnail` yêu cầu phiên đăng nhập và không cho đọc file ngoài thư mục sự kiện. Thumbnail được dọn cùng ngày snapshot theo retention, ảnh gốc giữ nguyên độ phân giải.
+Trang Sự kiện có chế độ **Danh sách / 2 cột / 3 cột**, nhớ riêng trên từng trình duyệt. Danh sách tải thumbnail JPEG tối đa 640×360 và tải lười theo vùng xem; ảnh gốc chỉ tải khi mở ảnh. Worker AI dùng bộ lọc thu nhỏ AREA và JPEG 85 để ảnh xem trước rõ hơn trên màn hình điện thoại mật độ điểm ảnh cao. Thumbnail dùng tên `.thumb-v2.jpg`; ảnh cũ 320×180 được tạo lại từ ảnh gốc khi mở danh sách, không phóng lớn bản thumbnail cũ. Worker AI tạo thumbnail cạnh ảnh gốc; ảnh sự kiện cũ được API tạo một lần rồi dùng lại, tối đa hai tiến trình FFmpeg cùng lúc. `GET /api/events/:id/thumbnail` yêu cầu phiên đăng nhập và không cho đọc file ngoài thư mục sự kiện. Thumbnail được dọn cùng ngày snapshot theo retention, ảnh gốc giữ nguyên độ phân giải.
 
 ### API nhận dạng Live
 

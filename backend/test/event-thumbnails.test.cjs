@@ -12,7 +12,20 @@ test('repeated requests share one render and reuse its private cache',async()=>{
   await new Promise(resolve=>setTimeout(resolve,30));finish();
   const files=await Promise.all([first,second]);assert.equal(renders,1);assert.equal(files[0],files[1]);
   assert.equal(await cache.get('events/1/20261123/000001_123.jpg'),files[0]);assert.equal(renders,1);
-  assert.deepEqual((await fs.readdir(dir)).sort(),['000001_123.jpg','000001_123.thumb.jpg']);
+  assert.deepEqual((await fs.readdir(dir)).sort(),['000001_123.jpg','000001_123.thumb-v2.jpg']);
+ }finally{await fs.rm(root,{recursive:true,force:true})}
+});
+
+test('older low-resolution cache is replaced by a preview rendered from the original',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'camera-event-upgrade-'));
+ try{
+  const dir=path.join(root,'events/1/20261123');await fs.mkdir(dir,{recursive:true});
+  const original=path.join(dir,'frame.jpg');await fs.writeFile(original,Buffer.alloc(128));
+  await fs.writeFile(path.join(dir,'frame.thumb.jpg'),Buffer.alloc(32));
+  let input;const cache=new EventThumbnailCache(root,async(source,target)=>{input=source;await fs.writeFile(target,Buffer.alloc(64))});
+  const thumbnail=await cache.get('events/1/20261123/frame.jpg');
+  assert.equal(input,await fs.realpath(original));assert.equal(thumbnail,path.join(await fs.realpath(dir),'frame.thumb-v2.jpg'));
+  assert.equal((await fs.stat(original)).size,128);
  }finally{await fs.rm(root,{recursive:true,force:true})}
 });
 
