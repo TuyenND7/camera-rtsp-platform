@@ -21,7 +21,19 @@ function ProfileDialog({ person, onClose, onSuccess }: { person: IdentityPerson;
 export default function IdentitySettings() {
   const [value, setValue] = useState<IdentityList | null>(null), [error, setError] = useState('');
   const [enrolling, setEnrolling] = useState<IdentityPerson | 'new' | null>(null), [editing, setEditing] = useState<IdentityPerson | null>(null);
-  useEffect(() => { if (window.location.hash === '#identities') document.getElementById('identities')?.scrollIntoView({ block: 'start' }); }, []);
+  useEffect(() => {
+    if (window.location.hash !== '#identities') return;
+    const panel = document.getElementById('identities');
+    const reveal = () => panel?.scrollIntoView({ block: 'start' });
+    const observer = new ResizeObserver(reveal);
+    const page = panel?.closest('.settings-page'); if (page) observer.observe(page);
+    const stop = () => observer.disconnect();
+    const timer = window.setTimeout(stop, 10000);
+    const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
+    events.forEach(event => window.addEventListener(event, stop, { once: true, passive: true }));
+    reveal();
+    return () => { stop(); clearTimeout(timer); events.forEach(event => window.removeEventListener(event, stop)); };
+  }, []);
   async function refresh() { try { setValue(await api.identities()); setError(''); } catch (err: any) { setError(err.message); } }
   useEffect(() => { let active = true; const load = () => { if (!document.hidden) void api.identities().then(v => { if (active) { setValue(v); setError(''); } }).catch(e => { if (active) setError(e.message); }); }; load(); const timer = setInterval(load, 10000); return () => { active = false; clearInterval(timer); }; }, []);
   return <section className="panel settings-section identity-settings" id="identities"><header className="settings-heading"><Icon name="user" size={22} /><div><h2>Định danh người</h2></div><button type="button" disabled={value?.status.state !== 'ready'} onClick={() => setEnrolling('new')}><Icon name="plus" size={17} />Thêm người</button></header>
