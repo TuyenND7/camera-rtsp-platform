@@ -4,6 +4,8 @@ import { requireAuth } from '../middleware/auth';
 import { readLiveDetections } from '../detections/live';
 import { eventThumbnails, EventImageMissing, EventThumbnailBusy } from '../detections/thumbnails';
 
+import { identityMetadata, identityPeople } from '../identities';
+
 const router = Router();
 router.use(requireAuth);
 
@@ -14,8 +16,9 @@ router.get('/live', async (req, res) => {
   const ids = raw.split(',').map(Number);
   if (new Set(ids).size !== ids.length || ids.some(id => !Number.isSafeInteger(id) || id < 1 || id > 2147483647)) { res.status(400).json({ error: 'Camera không hợp lệ.' }); return; }
   try {
-    const { rows } = await pool.query('SELECT id, status, enabled, ai_enabled, ai_fps, ai_overlay_enabled, ai_overlay_labels FROM cameras WHERE id = ANY($1::int[]) ORDER BY id', [ids]);
-    res.json(await Promise.all(rows.map(readLiveDetections)));
+    const { rows } = await pool.query('SELECT id, status, enabled, ai_enabled, ai_fps, ai_overlay_enabled, ai_overlay_labels, ai_identity_enabled FROM cameras WHERE id = ANY($1::int[]) ORDER BY id', [ids]);
+    const people = await identityPeople();
+    res.json(await Promise.all(rows.map(camera => readLiveDetections(camera, people))));
   } catch { res.status(503).json({ error: 'Chưa đọc được kết quả nhận dạng.' }); }
 });
 
@@ -75,8 +78,10 @@ router.get('/', async (req, res) => {
      LIMIT $${values.length}`,
     values,
   );
+  const people = await identityPeople();
   res.json(rows.map((row) => ({
     ...row,
+    metadata: identityMetadata(row.metadata, people),
     snapshot_url: row.snapshot_path ? `/${row.snapshot_path}` : null,
     thumbnail_url: row.snapshot_path ? `/api/events/${row.id}/thumbnail` : null,
   })));

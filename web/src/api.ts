@@ -18,7 +18,11 @@ export interface DeviceControls {
   ends_at?: number | null;
   confirmed?: boolean;
 }
-export type DetectionFrame = { at: number; width: number; height: number; detections: Array<{ label: string; confidence: number; box: [number, number, number, number]; track_id?: string; track_number?: number }> };
+export type FaceIdentity = { state: 'known' | 'unmatched' | 'not_visible' | 'pending' | 'unavailable'; person_id?: string; name?: string };
+export interface IdentityPerson { id: string; name: string; sample_count: number; image_url: string | null }
+export interface IdentityJob { id: string; state: 'processing' | 'ready' | 'error'; message?: string; faces?: Array<{ id: string; image_url: string }> }
+export interface IdentityList { people: IdentityPerson[]; status: { state: string; message?: string; model: string } }
+export type DetectionFrame = { at: number; width: number; height: number; detections: Array<{ label: string; confidence: number; box: [number, number, number, number]; track_id?: string; track_number?: number; identity?: FaceIdentity }> };
 export type LiveDetectionState = { camera_id: number; state: string; synchronized: boolean; updated_at: number; server_time: number; frame_ttl_ms: number; frames: DetectionFrame[] };
 export interface TalkCapability { camera_id: number; supported: boolean; reason: string; codec?: string }
 export interface TalkSession { id: string; camera_ids: number[]; listen_camera_ids?: number[]; sample_rate: number; max_seconds: number }
@@ -49,6 +53,7 @@ export interface Camera {
   ai_fps?: number;
   ai_confidence?: number;
   ai_labels?: string[];
+  ai_identity_enabled?: boolean;
   ai_overlay_enabled?: boolean;
   ai_overlay_labels?: string[];
   onvif_url?: string | null;
@@ -86,7 +91,7 @@ export interface DetectionEvent {
   confidence: number;
   snapshot_url: string | null;
   thumbnail_url?: string | null;
-  metadata: { box?: number[]; track_id?: string; track_number?: number; ai_fps?: number; width?: number; height?: number; detections?: DetectionFrame['detections'] };
+  metadata: { identity?: FaceIdentity; box?: number[]; track_id?: string; track_number?: number; ai_fps?: number; width?: number; height?: number; detections?: DetectionFrame['detections'] };
 }
 
 export interface OnvifProfile {
@@ -230,6 +235,16 @@ async function read<T>(path: string, signal?: AbortSignal, parse: (res: Response
 }
 
 export const api = {
+  identities() { return read<IdentityList>('/identities'); },
+  async analyzeIdentityPhoto(input: File | number, signal: AbortSignal) {
+    return handle<IdentityJob>(await fetch(`${API_BASE}/identities/analyze`, { method: 'POST', headers: { ...authHeaders(), 'Content-Type': typeof input === 'number' ? 'application/json' : input.type }, body: typeof input === 'number' ? JSON.stringify({ event_id: input }) : input, signal }));
+  },
+  identityJob(id: string, signal: AbortSignal) { return read<IdentityJob>(`/identities/jobs/${id}`, signal); },
+  async enrollIdentity(body: { job_id: string; face_id: string; name?: string; person_id?: string }) {
+    return handle<{ id: string }>(await fetch(`${API_BASE}/identities/enroll`, { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
+  },
+  async renameIdentity(id: string, name: string) { return handle(await fetch(`${API_BASE}/identities/${id}`, { method: 'PUT', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })); },
+  async deleteIdentity(id: string) { return handle(await fetch(`${API_BASE}/identities/${id}`, { method: 'DELETE', headers: authHeaders() })); },
   async liveDetections(cameraIds: number[], signal: AbortSignal) {
     return handle<LiveDetectionState[]>(await fetch(`${API_BASE}/events/live?camera_ids=${cameraIds.join(',')}`, { headers: authHeaders(), signal, cache: 'no-store' }));
   },

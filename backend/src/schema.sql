@@ -101,3 +101,20 @@ CREATE INDEX IF NOT EXISTS idx_detection_events_camera_time
 CREATE UNIQUE INDEX IF NOT EXISTS idx_detection_events_track
   ON detection_events (camera_id, (metadata->>'track_id'))
   WHERE metadata ? 'track_id';
+
+-- Face identity profiles. No raw photo or embedding is returned by public APIs.
+ALTER TABLE cameras ADD COLUMN IF NOT EXISTS ai_identity_enabled BOOLEAN NOT NULL DEFAULT false;
+CREATE TABLE IF NOT EXISTS identified_people (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 60),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS identity_samples (
+  id UUID PRIMARY KEY,
+  person_id UUID NOT NULL REFERENCES identified_people(id) ON DELETE CASCADE,
+  model TEXT NOT NULL,
+  embedding JSONB NOT NULL CHECK (jsonb_typeof(embedding) = 'array' AND jsonb_array_length(embedding) = 128),
+  enrollment_key TEXT UNIQUE NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_identity_samples_person ON identity_samples(person_id);

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
-import type { Camera, DetectionEvent, DiscoveryState, RecordingDay } from '../src/api';
+import type { Camera, DetectionEvent, DiscoveryState, RecordingDay, IdentityPerson } from '../src/api';
 
 const MEDIA = '/__ui-preview__/sample.mp4';
 const SAMPLE_DURATION = 120;
@@ -66,6 +66,7 @@ export function uiPreviewPlugin(): Plugin {
     camera(6, 'Cửa hàng · ONVIF cố định', { ai_enabled: false }),
   ];
   let nextId = 7;
+  let people: IdentityPerson[] = [];
   let discovery: DiscoveryState = { id: 'ui-preview', subnet: '192.168.50.0/24', status: 'complete',
     scanned_hosts: 254, total_hosts: 254, progress_percent: 100, error: null,
     devices: [{ ip: '192.168.50.20', name: 'Camera ONVIF mẫu', onvif_url: 'http://192.168.50.20/onvif/device_service',
@@ -132,6 +133,20 @@ export function uiPreviewPlugin(): Plugin {
             return;
           }
           if (pathname.startsWith('/api/talk/sessions')) { req.resume(); json(res, { error: 'Bản xem trước không gửi giọng nói tới camera thật.' }, 422); return; }
+          if (pathname === '/api/identities') { json(res, { people, status: { state: 'ready', model: 'ui-preview' } }); return; }
+          if (pathname === '/api/identities/analyze') { req.resume(); json(res, { id: 'preview-face-job', state: 'processing' }, 202); return; }
+          if (pathname.startsWith('/api/identities/jobs/')) { json(res, { id: 'preview-face-job', state: 'ready', faces: [{ id: '0', image_url: '/__ui-preview__/scene.svg' }] }); return; }
+          if (pathname === '/api/identities/enroll') {
+            const data = await body(req); const person = people.find(p => p.id === data.person_id);
+            if (person) person.sample_count++; else people.push({ id: `preview-${Date.now()}`, name: String(data.name), sample_count: 1, image_url: '/__ui-preview__/scene.svg' });
+            json(res, { id: person?.id ?? people[people.length-1].id }, 201); return;
+          }
+          if (pathname.startsWith('/api/identities/')) {
+            const id = pathname.split('/').pop();
+            if (method === 'DELETE') people = people.filter(p => p.id !== id);
+            if (method === 'PUT') { const data = await body(req), person = people.find(p => p.id === id); if (person) person.name = String(data.name); }
+            json(res, { ok: true }); return;
+          }
           if (pathname === '/api/settings') {
             if (method === 'PUT') {
               try { settings = validateSettings(await body(req)); json(res, { settings }); }

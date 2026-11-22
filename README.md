@@ -630,3 +630,23 @@ Trang Sự kiện có chế độ **Danh sách / 2 cột / 3 cột**, nhớ riê
 ### API nhận dạng Live
 
 `GET /api/events/live?camera_ids=1,2,3` yêu cầu đăng nhập, tối đa 16 ID khác nhau. Trả trạng thái và lịch sử tọa độ theo epoch UTC (ms), kích thước hình, độ tin cậy, `track_id`/`track_number` nếu có; không trả URL RTSP, tài khoản hoặc ảnh thô. File IPC giới hạn 2 MB/camera, lịch sử 30 giây, tối đa 32 đối tượng/khung; metadata lỗi/cũ trả trạng thái chờ. Worker ghi file atomically, nguồn hình lỗi không ngăn recording/đàm thoại.
+
+
+### Định danh người bằng khuôn mặt (xử lý trên máy chủ)
+
+Vào **Cài đặt → Định danh người → Thêm người**. Có hai cách: tải ảnh JPEG/PNG (tối đa 4 MB), hoặc chọn một ảnh Sự kiện. Máy chủ tìm các khuôn mặt; chọn đúng mặt và nhập tên, hoặc chọn hồ sơ đã có để thêm ảnh mẫu. Trong ảnh Sự kiện đang mở cũng có nút **Gán tên khuôn mặt**. Mỗi người có tối đa 10 ảnh, toàn hệ thống tối đa 200 người; nên thêm 2–5 ảnh rõ mặt ở các góc và ánh sáng khác nhau. Có thể đổi tên hoặc xóa hồ sơ và ảnh mẫu trong Cài đặt.
+
+Trong **Cài đặt camera → Nhận dạng**, bật AI, chọn đối tượng **Người**, rồi bật **Định danh khuôn mặt** cho camera cần sử dụng. Khi bật: khớp hồ sơ qua hai quan sát độc lập → khung xanh và tên đã đăng ký; chưa khớp, chưa rõ mặt hoặc đang đối chiếu → khung đỏ với trạng thái tương ứng. Khung người vẫn dùng tọa độ và mốc thời gian Live hiện có. Phần trăm phát hiện YOLO không được dùng làm phần trăm chắc chắn danh tính; ở chế độ định danh nhãn Live không hiển thị phần trăm đó. ID theo dõi vẫn có thể đổi khi rời hình/khởi động lại; danh tính được đối chiếu lại từ khuôn mặt, không gán theo quần áo hoặc ID tạm.
+
+Định danh mặc định tắt trên các camera. Bật/tắt chỉ thay cấu hình AI, giữ worker và ID đang theo dõi, không khởi động lại RTSP. Hồ sơ dùng chung cho các camera, không gửi ảnh hoặc vector sang Tenda hay dịch vụ bên ngoài. Không tự gán tên người đang có trên hình; quản trị viên phải đăng ký ảnh mẫu. Không tự bật còi từ kết quả này. Mặt quá nhỏ, bị che, quay lưng, thiếu sáng/IR hoặc hồ sơ quá giống nhau có thể chưa xác định được; khung đỏ không khẳng định người đó là người lạ.
+
+Cài hai model OpenCV Zoo trước khi bật tính năng (tổng khoảng 38 MB):
+
+```powershell
+# Trong C:\CameraRTSP, sau khi build AI (không cần cài Python trên Windows)
+docker compose run --rm --no-deps -v "${PWD}\ai\download_face_models.py:/app/download_face_models.py:ro" ai python /app/download_face_models.py /models
+```
+
+Script ghim commit `48b10fa505aeb51fbd127fc60a5c660040e823b7` và kiểm SHA-256: [YuNet 2023mar, giấy phép MIT](https://github.com/opencv/opencv_zoo/tree/48b10fa505aeb51fbd127fc60a5c660040e823b7/models/face_detection_yunet), [SFace 2021dec, Apache-2.0](https://github.com/opencv/opencv_zoo/tree/48b10fa505aeb51fbd127fc60a5c660040e823b7/models/face_recognition_sface). Model và giấy phép tải vào `models/`; thư mục này không đưa lên Git. Cách đối chiếu/căn mặt theo [OpenCV FaceDetectorYN / FaceRecognizerSF](https://docs.opencv.org/4.x/d0/dd4/tutorial_dnn_face.html). `AI_FACE_THRESHOLD=0.50` là ngưỡng cosine, yêu cầu cách biệt tối thiểu 0.08 giữa hai người gần nhất và hai lần khớp; không phải xác suất đúng 50%.
+
+Tên và vector 128 chiều lưu trong PostgreSQL (`identified_people`, `identity_samples`); ảnh mặt thu gọn trong `storage/.identities/portraits/`. Chỉ admin có API quản lý và xem ảnh mẫu; API không trả vector. Ảnh đầu vào bị xóa ngay sau phân tích, job chưa đăng ký tự dọn sau 10 phút, job đăng ký xong được xóa ngay. Xóa hồ sơ làm tên biến mất ở Live/lịch sử ở lượt đọc tiếp theo; sự kiện chỉ lưu ID hồ sơ, không chép tên hoặc vector. Retention recording không xóa bộ mẫu người đã đăng ký, nên cần sao lưu DB và `.identities/portraits` cùng nhau. Ảnh lớn được chặn theo byte và kích thước trước khi giải mã. Chỉ endpoint upload `/api/identities/analyze` cho phép 4 MB; các API khác giữ giới hạn cũ và kiểm phiên/CSRF.

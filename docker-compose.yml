@@ -68,6 +68,7 @@ services:
       AI_DEVICE: ${AI_DEVICE}
       AI_SYNC_SECONDS: ${AI_SYNC_SECONDS}
       AI_TRACK_MAX_IDLE_SECONDS: ${AI_TRACK_MAX_IDLE_SECONDS:-8}
+      AI_FACE_THRESHOLD: ${AI_FACE_THRESHOLD:-0.50}
     volumes:
       - type: bind
         source: ${STORAGE_HOST_DIR:-./storage}

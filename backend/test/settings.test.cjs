@@ -32,6 +32,7 @@ before(async () => {
       stored = JSON.parse(values[0]); writes.push({ value: stored, userId: values[1] });
       return { rows: [] };
     }
+    if (sql.startsWith('DELETE FROM detection_events WHERE camera_id')) { assert.deepEqual(values, [1, 'events/1/20000101/%']); return { rows: [] }; }
     throw new Error('Unexpected database operation');
   };
   const app = express(); app.use(browserRequestGuard, express.json()); app.use('/api/settings', settingsRoutes);

@@ -13,7 +13,7 @@ import os
 import signal
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -25,6 +25,7 @@ import psycopg
 from ultralytics import YOLO
 from .live import FrameHistory, playlist_segments
 from .tracking import ObjectTracker
+from .identities import IdentityService
 
 
 logging.basicConfig(
@@ -49,6 +50,7 @@ class CameraConfig:
     ai_fps: float
     ai_confidence: float
     ai_labels: tuple[str, ...]
+    ai_identity_enabled: bool = False
 
     @property
     def source_url(self) -> str:
@@ -92,6 +94,7 @@ class CameraWorker:
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.run, name=f"ai-camera-{camera.id}", daemon=True)
         self.tracker = ObjectTracker(camera.id, max_idle_seconds=TRACK_MAX_IDLE_SECONDS)
+        self.identity_promoted = set()
         self.history = FrameHistory(STORAGE_ROOT, camera.id, synchronized=not bool(camera.ai_rtsp_url))
 
     def start(self) -> None:
@@ -208,6 +211,8 @@ class CameraWorker:
         captured_at = captured_at if captured_at is not None else time.time()
         height, width = frame.shape[:2]
         detections = self.tracker.update(detections, captured_at, width, height)
+        if self.camera.ai_identity_enabled and hasattr(self.detector, 'identities'):
+            self.detector.identities.annotate(frame, detections, captured_at)
         if self.history.synchronized:
             self.history.add(captured_at, width, height, detections)
         else:
@@ -215,6 +220,14 @@ class CameraWorker:
         if not detections:
             return
 
+        for item in detections:
+            if (item.get('identity') or {}).get('state') == 'known' and item['track_id'] not in self.identity_promoted and self.tracker.tracks[item['track_number']].reported:
+                try:
+                    self.promote_identity(item)
+                    self.identity_promoted.add(item['track_id'])
+                except Exception:
+                    log.warning('camera=%s identity event update deferred', self.camera.id)
+        self.identity_promoted.intersection_update(self.tracker.track_id(number) for number in self.tracker.tracks)
         accepted = self.tracker.pending_events(detections)
         if not accepted:
             return
@@ -227,6 +240,17 @@ class CameraWorker:
         except Exception:
             # Retry unreported tracks on the next frame, without killing AI.
             log.exception('camera=%s cannot save tracked event', self.camera.id)
+
+    def promote_identity(self, item):
+        # Keep the captured geometry/time; add the identity learned later in this sighting.
+        identity = json.dumps(item['identity'])
+        with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
+            conn.execute("""UPDATE detection_events SET metadata =
+                jsonb_set(jsonb_set(metadata, '{identity}', %s::jsonb), '{detections}',
+                  (SELECT jsonb_agg(CASE WHEN d->>'track_id' = %s THEN jsonb_set(d, '{identity}', %s::jsonb) ELSE d END)
+                   FROM jsonb_array_elements(metadata->'detections') d))
+                WHERE camera_id=%s AND metadata->>'track_id'=%s AND metadata->'identity'->>'person_id' IS NULL""",
+                (identity, item['track_id'], identity, self.camera.id, item['track_id']))
 
     def write_snapshot(self, frame: Any) -> str:
         timestamp = datetime.now(timezone.utc)
@@ -257,7 +281,7 @@ class CameraWorker:
         return relative.as_posix()
 
     def insert_event(self, item: dict[str, Any], snapshot_path: str, captured_at: float, width: int, height: int, detections: list[dict]) -> None:
-        metadata = json.dumps({"box": item["box"], "track_id": item["track_id"], "track_number": item["track_number"], "ai_fps": self.camera.ai_fps, "width": width, "height": height, "detections": detections, "synchronized": self.history.synchronized})
+        metadata = json.dumps({"identity": item.get("identity"), "box": item["box"], "track_id": item["track_id"], "track_number": item["track_number"], "ai_fps": self.camera.ai_fps, "width": width, "height": height, "detections": detections, "synchronized": self.history.synchronized})
         with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
             conn.execute(
                 """
@@ -278,6 +302,7 @@ class CameraWorker:
 class Runtime:
     def __init__(self) -> None:
         self.detector = Detector()
+        self.detector.identities = IdentityService(STORAGE_ROOT, DATABASE_URL)
         self.workers: dict[int, CameraWorker] = {}
         self.stopping = threading.Event()
 
@@ -285,7 +310,7 @@ class Runtime:
         with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
             rows = conn.execute(
                 """
-                SELECT id, name, ai_rtsp_url, ai_fps, ai_confidence, ai_labels
+                SELECT id, name, ai_rtsp_url, ai_fps, ai_confidence, ai_labels, ai_identity_enabled
                 FROM cameras
                 WHERE enabled = true AND ai_enabled = true
                 ORDER BY id
@@ -299,6 +324,7 @@ class Runtime:
                 ai_fps=float(row[3]),
                 ai_confidence=float(row[4]),
                 ai_labels=tuple(row[5] or []),
+                ai_identity_enabled=bool(row[6]),
             )
             for row in rows
         ]
@@ -306,6 +332,9 @@ class Runtime:
     def sync(self) -> None:
         desired = {camera.id: camera for camera in self.fetch_cameras()}
         for camera_id, worker in list(self.workers.items()):
+            camera = desired.get(camera_id)
+            if camera and replace(worker.camera, ai_identity_enabled=camera.ai_identity_enabled) == camera:
+                worker.camera = camera
             if camera_id not in desired or desired[camera_id] != worker.camera or not worker.is_alive():
                 worker.stop()
                 worker.thread.join(timeout=5)
@@ -332,6 +361,7 @@ class Runtime:
 
     def stop(self, *_: Any) -> None:
         self.stopping.set()
+        self.detector.identities.stopping.set()
 
 
 def main() -> None:

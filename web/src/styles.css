@@ -1301,6 +1301,44 @@ body:has(.live-shell) { min-width: 0; }
 .event-preview > img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .event-preview .detection-box { border-width: 1px; }
 .event-preview .detection-box > span { display: none; }
+.detection-box.identity-unknown { border-color: #ff5065; box-shadow: 0 0 0 1px #33060c80; }
+.detection-box.identity-unknown > span { background: #ff5065; color: #29030a; }
+.detection-box.identity-known > span, .detection-box.identity-unknown > span { max-width: min(260px, 70vw); overflow: hidden; text-overflow: ellipsis; }
+.event-label.identity-known { color: var(--positive-text, #159169); }
+.event-label.identity-unknown { color: var(--danger-text, #d33750); }
+.identity-camera-hint, .identity-hint { margin: 8px 0; color: var(--text-muted, #7186a0); font-size: calc(12px * var(--text-scale, 1)); overflow-wrap: anywhere; }
+.identity-settings { grid-column: 1 / -1; scroll-margin-top: 72px; }
+.identity-settings .settings-heading > div { min-width: 0; }
+.identity-people { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 8px 16px; }
+.identity-person { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.identity-person > img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; }
+.identity-person > div { flex: 1; min-width: 0; }
+.identity-person strong, .identity-person small { display: block; overflow-wrap: anywhere; }
+.identity-person small { color: var(--text-muted, #7186a0); font-size: calc(11px * var(--text-scale, 1)); }
+.identity-enroll-dialog { width: min(760px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); }
+.identity-enroll-dialog[open], .identity-profile-dialog[open] { display: flex; flex-direction: column; }
+.identity-enroll-dialog > .dialog-heading > div { min-width: 0; }
+.identity-enroll-dialog > .dialog-body { min-height: 0; }
+.identity-source-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.identity-source-actions > label { position: relative; cursor: pointer; }
+.identity-source-actions input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.identity-face-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; margin: 12px 0; }
+.identity-face-options > button { position: relative; display: block; padding: 4px; min-width: 0; border: 2px solid var(--line); }
+.identity-face-options > button[aria-pressed=true] { border-color: var(--blue); }
+.identity-face-options img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 5px; }
+.identity-face-options > button > .app-icon { position: absolute; right: 4px; bottom: 4px; color: var(--blue); }
+.identity-job-status { margin: 12px 0; font-size: calc(12px * var(--text-scale, 1)); }
+.identity-event-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.identity-event-list > button { display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 0 0 8px; min-width: 0; overflow: hidden; }
+.identity-event-list img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #101d30; }
+.identity-event-list span, .identity-event-list time { padding: 0 8px; font-size: calc(11px * var(--text-scale, 1)); overflow-wrap: anywhere; }
+.identity-profile-dialog { width: min(480px, calc(100vw - 16px)); }
+@media (max-width: 760px) {
+  .identity-enroll-dialog .dialog-heading, .identity-profile-dialog .dialog-heading { padding: 12px; }
+  .identity-enroll-dialog .dialog-body, .identity-profile-dialog .dialog-body { padding: 12px; }
+  .identity-enroll-dialog .dialog-footer, .identity-profile-dialog .dialog-footer { flex-wrap: wrap; padding: 10px 12px; gap: 8px; }
+  .identity-enroll-dialog .form-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+}
 .event-image-status { position: absolute; inset: 0; display: grid; place-items: center; padding: 8px; color: #b2bfd4; font-size: calc(11px * var(--text-scale, 1)); }
 .event-card .event-label { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 .event-card h3, .event-card time, .event-playback { overflow-wrap: anywhere; white-space: normal; }

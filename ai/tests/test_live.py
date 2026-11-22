@@ -13,6 +13,23 @@ from app.live import FrameHistory, playlist_segments
 
 
 class LiveTests(unittest.TestCase):
+    def test_identity_toggle_keeps_existing_worker_and_tracking_ids(self):
+        with patch.dict(sys.modules, {'cv2': SimpleNamespace(), 'psycopg': SimpleNamespace(), 'ultralytics': SimpleNamespace(YOLO=None)}), patch.dict(os.environ, {'DATABASE_URL': 'fixture'}):
+            main = importlib.import_module('app.main')
+        with tempfile.TemporaryDirectory() as directory, patch.object(main, 'STORAGE_ROOT', Path(directory)):
+            camera = main.CameraConfig(1, 'Fixture', None, 2, .5, ('person',))
+            worker = main.CameraWorker(camera, None)
+            worker.is_alive = lambda: True
+            worker.stop = lambda: self.fail('Identity toggle must not stop tracking')
+            prefix = worker.tracker.prefix
+            runtime = main.Runtime.__new__(main.Runtime)
+            runtime.workers = {1: worker}
+            runtime.fetch_cameras = lambda: [main.replace(camera, ai_identity_enabled=True)]
+            runtime.sync()
+            self.assertIs(runtime.workers[1], worker)
+            self.assertEqual(worker.tracker.prefix, prefix)
+            self.assertTrue(worker.camera.ai_identity_enabled)
+
     def test_snapshot_thumbnail_is_bounded_atomic_and_optional(self):
         with patch.dict(sys.modules, {'cv2': SimpleNamespace(), 'psycopg': SimpleNamespace(), 'ultralytics': SimpleNamespace(YOLO=None)}), patch.dict(os.environ, {'DATABASE_URL': 'fixture'}):
             main = importlib.import_module('app.main')

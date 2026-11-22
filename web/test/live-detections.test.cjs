@@ -19,3 +19,16 @@ test('viewer clock skew does not hide fresh boxes or extend stale worker lifetim
   assert.equal(value.frames,frames);
  }
 });
+
+test('registered names are green; unknown, pending and invisible faces stay red without guessed names',()=>{
+ const known={label:'person',track_number:3,identity:{state:'known',name:'Ông A',person_id:'fixture'}};
+ assert.equal(exports_.detectionLabel(known),'Ông A · ID #3');
+ assert.equal(exports_.identityClass(known),' identity-known');
+ for(const state of ['unmatched','pending','not_visible','unavailable','known']){
+  const unknown={label:'person',track_number:4,identity:{state}};
+  assert.equal(exports_.identityClass(unknown),' identity-unknown');
+  assert(!exports_.detectionLabel(unknown).includes('Ông A'));
+ }
+ assert.equal(exports_.identityClass({label:'person'}),'');
+ assert.equal(exports_.identityClass({label:'dog',identity:known.identity}),'');
+});

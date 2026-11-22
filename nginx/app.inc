@@ -36,6 +36,17 @@ location / {
     proxy_set_header X-Real-IP $remote_addr;
 }
 
+# Auth/CSRF and the backend parser still apply; only face enrollment accepts photos.
+location = /api/identities/analyze {
+    client_max_body_size 4m;
+    proxy_pass http://backend:4000/api/identities/analyze;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $camera_scheme;
+    proxy_hide_header Cache-Control;
+}
+
 # Backend API
 location /api/ {
     proxy_buffering off;

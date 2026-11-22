@@ -10,6 +10,7 @@ import cameraRoutes from './routes/cameras';
 import ptzRoutes from './routes/ptz';
 import recordingRoutes from './routes/recordings';
 import eventRoutes from './routes/events';
+import identityRoutes from './routes/identities';
 import settingsRoutes from './routes/settings';
 import talkRoutes from './routes/talk';
 import controlRoutes from './routes/controls';
@@ -41,6 +42,7 @@ async function main() {
   app.use('/api/cameras', cameraRoutes);
   app.use('/api/recordings', recordingRoutes);
   app.use('/api/events', eventRoutes);
+  app.use('/api/identities', identityRoutes);
   app.use('/api/settings', settingsRoutes);
   app.use('/api/talk', talkRoutes);
 

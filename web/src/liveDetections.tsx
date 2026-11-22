@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { api, type LiveDetectionState, type DetectionFrame } from './api';
+import { api, type LiveDetectionState, type DetectionFrame, type FaceIdentity } from './api';
 
 const LiveContext = createContext<Map<number, LiveDetectionState>>(new Map());
 export function LiveAiProvider({ cameraIds, children }: { cameraIds: number[]; children: React.ReactNode }) {
@@ -44,9 +44,15 @@ export function LiveDetectionOverlay({ cameraId, at, enabled }: { cameraId: numb
   return <DetectionBoxes frame={enabled ? selectDetectionFrame(state, at) : null} />;
 }
 const labels: Record<string, string> = { person: 'Người', cat: 'Mèo', dog: 'Chó', car: 'Ô tô', motorcycle: 'Xe máy', bicycle: 'Xe đạp', truck: 'Xe tải', bus: 'Xe buýt' };
-export function detectionLabel(detection: { label: string; track_number?: number }): string {
+export function identityClass(detection: { label: string; identity?: FaceIdentity }): string {
+  const face = detection.label === 'person' ? detection.identity : undefined;
+  return !face ? '' : face.state === 'known' && face.name ? ' identity-known' : ' identity-unknown';
+}
+export function detectionLabel(detection: { label: string; track_number?: number; identity?: FaceIdentity }): string {
   const number = detection.track_number;
-  return `${labels[detection.label] ?? detection.label} · ${typeof number === 'number' && Number.isInteger(number) && number > 0 ? `ID #${number}` : 'Chưa có ID'}`;
+  const face = detection.label === 'person' ? detection.identity : undefined;
+  const identityLabel = face?.state === 'known' && face.name ? face.name : face?.state === 'not_visible' ? 'Chưa rõ mặt' : face?.state === 'pending' ? 'Đang đối chiếu' : face?.state === 'unavailable' ? 'Định danh chưa sẵn sàng' : face ? 'Chưa định danh' : undefined;
+  return `${identityLabel ?? labels[detection.label] ?? detection.label} · ${typeof number === 'number' && Number.isInteger(number) && number > 0 ? `ID #${number}` : 'Chưa có ID'}`;
 }
 export function DetectionBoxes({ frame }: { frame: DetectionFrame | null }) {
   const layer = useRef<HTMLDivElement>(null), [size, setSize] = useState({ width: 0, height: 0 });
@@ -61,7 +67,7 @@ export function DetectionBoxes({ frame }: { frame: DetectionFrame | null }) {
   return <div className="detection-layer" ref={layer} aria-hidden="true" data-ai-detections={frame?.detections.length ?? 0}>
     {scale > 0 && frame?.detections.map((detection, index) => {
       const [x1, y1, x2, y2] = detection.box;
-      return <div key={detection.track_id ?? index} className="detection-box" style={{ left: left + x1 * scale, top: top + y1 * scale, width: (x2 - x1) * scale, height: (y2 - y1) * scale }}><span className={y1 * scale < 22 ? 'inside' : ''}>{detectionLabel(detection)} {Math.round(detection.confidence * 100)}%</span></div>;
+      return <div key={detection.track_id ?? index} className={`detection-box${identityClass(detection)}`} style={{ left: left + x1 * scale, top: top + y1 * scale, width: (x2 - x1) * scale, height: (y2 - y1) * scale }}><span className={y1 * scale < 22 ? 'inside' : ''}>{detectionLabel(detection)}{!detection.identity && ` ${Math.round(detection.confidence * 100)}%`}</span></div>;
     })}
   </div>;
 }

@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { DetectionEvent, DetectionFrame } from './api';
 import { DetectionBoxes } from './liveDetections';
 import { lockBodyScroll } from './bodyScroll';
 import Icon from './Icon';
+import IdentityEnrollDialog from './IdentityEnrollDialog';
+import { SessionContext } from './ui';
 
 function eventFrame(event: DetectionEvent): DetectionFrame | null {
   const data = event.metadata;
@@ -29,7 +31,8 @@ export function EventThumbnail({ event, onOpen }: { event: DetectionEvent; onOpe
 }
 
 export function EventImageDialog({ event, playbackUrl, onClose }: { event: DetectionEvent; playbackUrl: string; onClose: () => void }) {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useRef<HTMLDialogElement>(null), user = useContext(SessionContext);
+  const [enrolling, setEnrolling] = useState(false);
   const [loaded, setLoaded] = useState(false), [error, setError] = useState(false), [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const previous = document.activeElement;
@@ -45,6 +48,7 @@ export function EventImageDialog({ event, playbackUrl, onClose }: { event: Detec
       {loaded && <DetectionBoxes frame={eventFrame(event)} />}
       {!loaded && <div className="event-original-loading" role="status">{error ? <button type="button" onClick={() => { setError(false); setAttempt(value => value + 1); }}>Tải lại ảnh gốc</button> : 'Đang tải ảnh gốc…'}</div>}
     </div>
-    <footer className="dialog-footer"><Link className="button" to={playbackUrl} onClick={onClose}><Icon name="clock" size={16} />Xem lại thời điểm này</Link><a className="button" href={event.snapshot_url ?? undefined} download>Tải ảnh gốc</a></footer>
+    {user?.role === 'admin' && enrolling && <IdentityEnrollDialog event={event} onClose={() => setEnrolling(false)} onSuccess={() => setEnrolling(false)} />}
+    <footer className="dialog-footer">{user?.role === 'admin' && <button type="button" onClick={() => setEnrolling(true)}><Icon name="user" size={16} />Gán tên khuôn mặt</button>}<Link className="button" to={playbackUrl} onClick={onClose}><Icon name="clock" size={16} />Xem lại thời điểm này</Link><a className="button" href={event.snapshot_url ?? undefined} download>Tải ảnh gốc</a></footer>
   </dialog>;
 }

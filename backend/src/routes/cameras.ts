@@ -62,7 +62,7 @@ router.post('/onvif/probe', async (req, res) => {
 router.get('/', async (_req, res) => {
   const { rows } = await pool.query(
     `SELECT id, name, rtsp_url, enabled, record, codec, ai_enabled, ai_rtsp_url,
-            ai_fps, ai_confidence, ai_labels, ai_overlay_enabled, ai_overlay_labels, onvif_url, status, last_error, updated_at
+            ai_fps, ai_confidence, ai_labels, ai_overlay_enabled, ai_overlay_labels, ai_identity_enabled, onvif_url, status, last_error, updated_at
      FROM cameras ORDER BY id`
   );
   res.json(rows);
@@ -129,7 +129,8 @@ router.post('/', async (req, res) => {
 
 // Cập nhật camera
 router.put('/:id', async (req, res) => {
-  const { name, rtsp_url, enabled, record, codec, ai_enabled, ai_rtsp_url, ai_fps, ai_confidence, ai_labels, onvif_url, ai_overlay_enabled, ai_overlay_labels } = req.body ?? {};
+  const { name, rtsp_url, enabled, record, codec, ai_enabled, ai_rtsp_url, ai_fps, ai_confidence, ai_labels, onvif_url, ai_overlay_enabled, ai_overlay_labels, ai_identity_enabled } = req.body ?? {};
+  if (ai_identity_enabled !== undefined && typeof ai_identity_enabled !== 'boolean') { res.status(400).json({ error: 'Cấu hình định danh không hợp lệ.' }); return; }
   if (!isOverlaySettingsValid(ai_overlay_enabled, ai_overlay_labels)) {
     res.status(400).json({ error: 'Cấu hình khung Live không hợp lệ.' }); return;
   }
@@ -161,12 +162,13 @@ router.put('/:id', async (req, res) => {
        onvif_url = CASE WHEN $12::text = '' THEN NULL ELSE COALESCE($12, onvif_url) END,
        ai_overlay_enabled = COALESCE($13, ai_overlay_enabled),
        ai_overlay_labels = COALESCE($14, ai_overlay_labels),
+       ai_identity_enabled = COALESCE($15, ai_identity_enabled),
        updated_at = now()
      WHERE id = $11 RETURNING *`,
     [
       name ?? null, rtsp_url ?? null, enabled ?? null, record ?? null, codec ?? null,
       ai_enabled ?? null, ai_rtsp_url ?? null, ai_fps ?? null, ai_confidence ?? null,
-      ai_labels ?? null, req.params.id, onvif_url ?? null, ai_overlay_enabled ?? null, ai_overlay_labels ?? null,
+      ai_labels ?? null, req.params.id, onvif_url ?? null, ai_overlay_enabled ?? null, ai_overlay_labels ?? null, ai_identity_enabled ?? null,
     ]
   );
   if (!rows[0]) {
