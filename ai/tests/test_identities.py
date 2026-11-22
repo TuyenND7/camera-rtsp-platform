@@ -47,6 +47,7 @@ class IdentityTests(unittest.TestCase):
 
     def test_empty_gallery_and_unavailable_model_never_produce_known_identity(self):
         service = self.service(); service.gallery = []
+        service.engine.person_feature = lambda *_: self.fail('No live face inference is needed without registered people')
         self.assertEqual(service.annotate(None, [self.item()], 1)[0]['identity'], {'state': 'unmatched'})
         service.engine = None
         self.assertEqual(service.annotate(None, [self.item()], 2)[0]['identity'], {'state': 'unavailable'})

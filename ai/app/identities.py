@@ -214,6 +214,9 @@ class IdentityService:
                 continue
             with self.lock:
                 gallery = self.gallery
+                if not gallery:
+                    detection['identity'] = {'state': 'unmatched'}
+                    continue
                 previous = self.memory.get(detection['track_id'])
                 if previous and 0 <= at - previous['at'] < .75:
                     detection['identity'] = dict(previous['result'])
