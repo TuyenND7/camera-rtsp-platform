@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 os.environ.setdefault("OPENCV_FFMPEG_LOGLEVEL", "-8")
+os.environ.setdefault("OPENCV_IO_MAX_IMAGE_PIXELS", "16000000")
 
 import cv2
 import psycopg

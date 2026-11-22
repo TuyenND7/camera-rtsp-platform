@@ -106,10 +106,20 @@ class IdentityService:
         self.thread.start()
 
     def status(self, state, message=''):
-        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         temporary = self.root / 'status.tmp'
-        temporary.write_text(json.dumps({'state': state, 'message': message, 'updated_at': round(time.time()*1000), 'model': MODEL}))
-        os.replace(temporary, self.root / 'status.json')
+        try:
+            self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+            temporary.write_text(json.dumps({'state': state, 'message': message, 'updated_at': round(time.time()*1000), 'model': MODEL}))
+            os.replace(temporary, self.root / 'status.json')
+        except OSError:
+            # Windows bind mounts may briefly lock a heartbeat during a read.
+            # A transient status write must not stop enrollment or the AI thread.
+            pass
+        finally:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     def sync_gallery(self):
         import psycopg
