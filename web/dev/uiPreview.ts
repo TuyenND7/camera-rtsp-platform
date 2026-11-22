@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
-import type { Camera, DetectionEvent, DiscoveryState, RecordingDay, IdentityPerson } from '../src/api';
+import type { Camera, DetectionEvent, DiscoveryState, RecordingDay, IdentityPerson, SurveillanceConfig, SurveillanceNotice, SurveillancePin } from '../src/api';
 
 const MEDIA = '/__ui-preview__/sample.mp4';
 const SAMPLE_DURATION = 120;
@@ -67,6 +67,17 @@ export function uiPreviewPlugin(): Plugin {
   ];
   let nextId = 7;
   let people: IdentityPerson[] = [];
+  let pins: SurveillancePin[] = [
+    { id: '00000000-0000-4000-8000-000000000001', camera_id: 1, camera_name: cameras[0].name, track_id: 'c1-abcdef123456-7', track_number: 7,
+      label: 'person', automatic: false, created_at: new Date().toISOString(), last_seen_at: new Date().toISOString(), state: 'tracking', snapshot_url: '/__ui-preview__/scene.svg', event_id: '1' },
+    { id: '00000000-0000-4000-8000-000000000002', camera_id: 2, camera_name: cameras[1].name, track_id: 'c2-abcdef123456-3', track_number: 3,
+      label: 'person', automatic: true, created_at: new Date().toISOString(), last_seen_at: new Date(Date.now() - 60_000).toISOString(), state: 'lost', snapshot_url: '/__ui-preview__/scene.svg', event_id: '2' },
+  ];
+  const notices: SurveillanceNotice[] = [1, 2, 3, 4].map((number) => ({ id: String(number), camera_id: number % 2 ? 1 : 2,
+    camera_name: cameras[number % 2 ? 0 : 1].name, kind: number === 1 ? 'intrusion' : number === 2 ? 'loitering' : number === 3 ? 'pacing' : 'unfamiliar',
+    zone_name: 'Cửa ra vào', track_id: `c${number % 2 ? 1 : 2}-abcdef123456-${number}`, track_number: number, label: 'person',
+    detected_at: new Date(Date.now() - (5 - number) * 60_000).toISOString(), metrics: { dwell_seconds: 35, reversals: 3 },
+    snapshot_url: '/__ui-preview__/scene.svg', thumbnail_url: '/__ui-preview__/scene.svg', event_id: String(number), read: number === 1, popup_enabled: true }));
   let discovery: DiscoveryState = { id: 'ui-preview', subnet: '192.168.50.0/24', status: 'complete',
     scanned_hosts: 254, total_hosts: 254, progress_percent: 100, error: null,
     devices: [{ ip: '192.168.50.20', name: 'Camera ONVIF mẫu', onvif_url: 'http://192.168.50.20/onvif/device_service',
@@ -125,6 +136,45 @@ export function uiPreviewPlugin(): Plugin {
           }
           if (pathname === '/api/auth/logout') { req.resume(); json(res, null, 204); return; }
           if (pathname === '/api/health') { json(res, { ok: true, preview: true }); return; }
+          if (pathname === '/api/surveillance/notifications/read') {
+            const data = await body(req);
+            for (const notice of notices) if (data.all || (Array.isArray(data.ids) && data.ids.includes(notice.id))) notice.read = true;
+            json(res, { ok: true }); return;
+          }
+          if (pathname === '/api/surveillance/notifications') {
+            let values = notices.filter(item => (!url.searchParams.get('kind') || item.kind === url.searchParams.get('kind')) &&
+              (url.searchParams.get('unread') !== 'true' || !item.read));
+            if (url.searchParams.get('before')) values = values.filter(item => BigInt(item.id) < BigInt(url.searchParams.get('before')!));
+            if (url.searchParams.get('after')) values = values.filter(item => BigInt(item.id) > BigInt(url.searchParams.get('after')!));
+            values = [...values].sort((a, b) => (url.searchParams.get('after') ? 1 : -1) * (Number(a.id) - Number(b.id)));
+            json(res, { items: values.slice(0, Number(url.searchParams.get('limit') ?? 40)), unread_count: notices.filter(item => !item.read).length, latest_id: notices[notices.length - 1]?.id ?? '0' }); return;
+          }
+          if (pathname === '/api/surveillance/pins') {
+            if (method === 'POST') {
+              const data = await body(req), cam = cameras.find(camera => camera.id === data.camera_id);
+              if (!cam || !cam.enabled || cam.status !== 'online') { json(res, { error: 'Camera mẫu chưa trực tuyến.' }, 409); return; }
+              let pin = pins.find(item => item.camera_id === data.camera_id && item.track_id === data.track_id);
+              if (!pin) {
+                pin = { id: `00000000-0000-4000-8000-${String(Date.now()).slice(-12).padStart(12, '0')}`, camera_id: cam.id, camera_name: cam.name,
+                  track_id: String(data.track_id), track_number: Number(data.track_number), label: String(data.label), automatic: false,
+                  created_at: new Date().toISOString(), last_seen_at: new Date().toISOString(), state: 'tracking', snapshot_url: '/__ui-preview__/scene.svg', event_id: null };
+                pins.push(pin);
+              }
+              json(res, pin); return;
+            }
+            json(res, pins); return;
+          }
+          if (pathname.startsWith('/api/surveillance/pins/') && method === 'DELETE') {
+            pins = pins.filter(item => item.id !== pathname.split('/').pop()); json(res, { ok: true }); return;
+          }
+          if (pathname === '/api/events/live') {
+            const ids = (url.searchParams.get('camera_ids') ?? '').split(',').map(Number), now = Date.now();
+            json(res, cameras.filter(camera => ids.includes(camera.id)).map(camera => ({ camera_id: camera.id, state: camera.status === 'online' ? 'ready' : 'offline', synchronized: true,
+              updated_at: now, server_time: now, frame_ttl_ms: 1500, manual_pin_enabled: camera.ai_surveillance?.manual_pin_enabled !== false,
+              zones: camera.ai_surveillance?.zones_enabled ? camera.ai_surveillance.zones : [],
+              frames: Array.from({ length: 12 }, (_, index) => ({ at: now - (11 - index) * 500, width: 960, height: 540,
+                detections: [{ label: 'person', confidence: .92, box: [250, 130, 420, 485], track_number: 7, track_id: `c${camera.id}-abcdef123456-7` }] })) }))); return;
+          }
           if (pathname === '/api/talk/capabilities') {
             const ids = (await body(req)).camera_ids;
             json(res, cameras.filter(c => Array.isArray(ids) && ids.includes(c.id)).map(c => ({ camera_id: c.id,
@@ -188,6 +238,18 @@ export function uiPreviewPlugin(): Plugin {
           if (item) {
             const id = Number(item[1]); const cam = cameras.find(value => value.id === id); const action = item[2];
             if (!cam) { json(res, { error: 'Không tìm thấy camera mẫu' }, 404); return; }
+            if (action === 'surveillance') {
+              if (!cam.ai_surveillance) cam.ai_surveillance = {
+                zones_enabled: false, zones: [], intrusion_enabled: false, loitering_enabled: false,
+                pacing_enabled: false, unfamiliar_enabled: false, manual_pin_enabled: true,
+                auto_pin_enabled: false, popup_enabled: true, intrusion_seconds: 2,
+                loitering_seconds: 30, pacing_reversals: 3, pacing_window_seconds: 60,
+              };
+              if (method === 'PUT') cam.ai_surveillance = await body(req) as SurveillanceConfig;
+              if (method === 'GET' || method === 'PUT') json(res, cam.ai_surveillance);
+              else { req.resume(); json(res, { error: 'Phương thức không được hỗ trợ.' }, 405); }
+              return;
+            }
             if (!action) {
               if (method === 'PUT') {
                 const data = await body(req); Object.assign(cam, data, { id });

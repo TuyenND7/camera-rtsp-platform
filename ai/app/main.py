@@ -13,6 +13,7 @@ import os
 import signal
 import threading
 import time
+import uuid
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,6 +28,7 @@ from ultralytics import YOLO
 from .live import FrameHistory, playlist_segments
 from .tracking import ObjectTracker
 from .identities import IdentityService
+from .surveillance import SurveillanceRules, policy, zones_for
 
 
 logging.basicConfig(
@@ -52,6 +54,7 @@ class CameraConfig:
     ai_confidence: float
     ai_labels: tuple[str, ...]
     ai_identity_enabled: bool = False
+    ai_surveillance: dict | None = None
 
     @property
     def source_url(self) -> str:
@@ -96,6 +99,9 @@ class CameraWorker:
         self.thread = threading.Thread(target=self.run, name=f"ai-camera-{camera.id}", daemon=True)
         self.tracker = ObjectTracker(camera.id, max_idle_seconds=TRACK_MAX_IDLE_SECONDS)
         self.identity_promoted = set()
+        self.surveillance = SurveillanceRules()
+        self.last_pin_update = -float('inf')
+        self.last_surveillance_failure = -float('inf')
         self.history = FrameHistory(STORAGE_ROOT, camera.id, synchronized=not bool(camera.ai_rtsp_url))
 
     def start(self) -> None:
@@ -205,12 +211,17 @@ class CameraWorker:
                 cap.release()
 
     def process_frame(self, frame: Any, captured_at: float | None = None) -> None:
+        camera = self.camera
+        settings = policy(camera.ai_surveillance)
+        height, width = frame.shape[:2]
         wanted = set(self.camera.ai_labels)
-        detections = [item for item in self.detector.detect(frame, self.camera.ai_confidence) if item["label"] in wanted]
+        # Detect complete objects before filtering ROI. Cropping first can cut a
+        # person's legs at the region boundary and invent an in-region footpoint.
+        detections = [item for item in self.detector.detect(frame,camera.ai_confidence)
+                      if item['label'] in wanted and zones_for(item,width,height,settings)]
         if self.stop_event.is_set():
             return
         captured_at = captured_at if captured_at is not None else time.time()
-        height, width = frame.shape[:2]
         detections = self.tracker.update(detections, captured_at, width, height)
         if self.camera.ai_identity_enabled and hasattr(self.detector, 'identities'):
             self.detector.identities.annotate(frame, detections, captured_at)
@@ -218,6 +229,7 @@ class CameraWorker:
             self.history.add(captured_at, width, height, detections)
         else:
             self.history.write()
+        self.process_surveillance(frame, detections, captured_at, width, height, settings)
         if not detections:
             return
 
@@ -241,6 +253,51 @@ class CameraWorker:
         except Exception:
             # Retry unreported tracks on the next frame, without killing AI.
             log.exception('camera=%s cannot save tracked event', self.camera.id)
+
+    def process_surveillance(self, frame, detections, captured_at, width, height, settings):
+        service = getattr(self.detector, 'identities', None)
+        identities_ready = bool(service is not None and self.camera.ai_identity_enabled and getattr(service,'engine',None) is not None and getattr(service,'gallery',{}))
+        alerts = self.surveillance.evaluate(detections, captured_at, width, height, settings, self.camera.ai_fps, identities_ready)
+        if time.monotonic()-self.last_surveillance_failure < 5: return
+        try:
+            if captured_at-self.last_pin_update >= 3:
+                # Refresh only existing pins; stale IDs stay lost rather than being
+                # assigned to another person after a reconnect or camera change.
+                if detections:
+                    updates = [dict(track_id=item['track_id'],identity=item.get('identity')) for item in detections]
+                    with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
+                        conn.execute('''UPDATE surveillance_pins p SET last_seen_at=%s,identity=d.identity
+                            FROM jsonb_to_recordset(%s::jsonb) AS d(track_id text,identity jsonb)
+                            WHERE p.camera_id=%s AND p.track_id=d.track_id AND p.active''',
+                            (datetime.fromtimestamp(captured_at,timezone.utc),json.dumps(updates),self.camera.id))
+                self.last_pin_update = captured_at
+            if not alerts: return
+            snapshot = None
+            for alert in alerts:
+                if self.surveillance.cooling_down(alert, captured_at): continue
+                item = alert['item']
+                with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
+                    conn.execute('BEGIN')
+                    conn.execute('SELECT pg_advisory_xact_lock(731923, 2)')
+                    if snapshot is None: snapshot = self.write_snapshot(frame)
+                    # A single durable record per track/zone/rule, even on retry.
+                    saved = conn.execute('''INSERT INTO surveillance_notifications
+                        (camera_id,kind,zone_id,zone_name,track_id,track_number,label,detected_at,metrics,identity,snapshot_path,event_id)
+                        SELECT %s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s,
+                          (SELECT id FROM detection_events WHERE camera_id=%s AND metadata->>'track_id'=%s LIMIT 1)
+                        ON CONFLICT DO NOTHING RETURNING id''',
+                        (self.camera.id,alert['kind'],alert['zone_id'],alert['zone_name'],item['track_id'],item['track_number'],item['label'],
+                         datetime.fromtimestamp(captured_at,timezone.utc),json.dumps(alert['metrics']),json.dumps(item.get('identity')),snapshot,self.camera.id,item['track_id'])).fetchone()
+                    if settings['auto_pin_enabled'] and saved:
+                        conn.execute('''INSERT INTO surveillance_pins (id,camera_id,track_id,track_number,label,automatic,last_seen_at,identity)
+                            SELECT %s,%s,%s,%s,%s,true,%s,%s::jsonb WHERE (SELECT count(*) FROM surveillance_pins WHERE active)<64
+                            ON CONFLICT DO NOTHING''', (str(uuid.uuid4()),self.camera.id,item['track_id'],item['track_number'],item['label'],
+                            datetime.fromtimestamp(captured_at,timezone.utc),json.dumps(item.get('identity'))))
+                    conn.execute('COMMIT')
+                self.surveillance.committed(alert, captured_at)
+        except Exception as err:
+            self.last_surveillance_failure = time.monotonic()
+            log.warning('camera=%s surveillance save deferred type=%s code=%s', self.camera.id,type(err).__name__,getattr(err,'sqlstate',''))
 
     def promote_identity(self, item):
         # Keep the captured geometry/time; add the identity learned later in this sighting.
@@ -306,12 +363,13 @@ class Runtime:
         self.detector.identities = IdentityService(STORAGE_ROOT, DATABASE_URL)
         self.workers: dict[int, CameraWorker] = {}
         self.stopping = threading.Event()
+        self.maintenance_at = 0.0
 
     def fetch_cameras(self) -> list[CameraConfig]:
         with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
             rows = conn.execute(
                 """
-                SELECT id, name, ai_rtsp_url, ai_fps, ai_confidence, ai_labels, ai_identity_enabled
+                SELECT id, name, ai_rtsp_url, ai_fps, ai_confidence, ai_labels, ai_identity_enabled, ai_surveillance
                 FROM cameras
                 WHERE enabled = true AND ai_enabled = true
                 ORDER BY id
@@ -326,6 +384,7 @@ class Runtime:
                 ai_confidence=float(row[4]),
                 ai_labels=tuple(row[5] or []),
                 ai_identity_enabled=bool(row[6]),
+                ai_surveillance=row[7] or {},
             )
             for row in rows
         ]
@@ -334,7 +393,7 @@ class Runtime:
         desired = {camera.id: camera for camera in self.fetch_cameras()}
         for camera_id, worker in list(self.workers.items()):
             camera = desired.get(camera_id)
-            if camera and replace(worker.camera, ai_identity_enabled=camera.ai_identity_enabled) == camera:
+            if camera and replace(worker.camera, ai_identity_enabled=camera.ai_identity_enabled, ai_surveillance=camera.ai_surveillance) == camera:
                 worker.camera = camera
             if camera_id not in desired or desired[camera_id] != worker.camera or not worker.is_alive():
                 worker.stop()
@@ -352,6 +411,12 @@ class Runtime:
         while not self.stopping.is_set():
             try:
                 self.sync()
+                if time.monotonic()-self.maintenance_at >= 600:
+                    with psycopg.connect(DATABASE_URL,autocommit=True) as conn:
+                        conn.execute('''DELETE FROM surveillance_notifications WHERE detected_at < now()-interval '30 days'
+                            OR id IN (SELECT id FROM (SELECT id,row_number() OVER (PARTITION BY camera_id ORDER BY id DESC) AS n FROM surveillance_notifications) r WHERE n>2000)''')
+                        conn.execute("DELETE FROM surveillance_pins WHERE last_seen_at < now()-interval '30 days'")
+                    self.maintenance_at = time.monotonic()
             except Exception:
                 log.exception("cannot sync camera configuration")
             self.stopping.wait(SYNC_SECONDS)

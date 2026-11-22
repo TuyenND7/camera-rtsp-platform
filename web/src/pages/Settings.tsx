@@ -137,6 +137,10 @@ export default function Settings() {
   return <section className="settings-page" data-settings-unsaved={dirty || saving ? 'true' : undefined}>
     <PageHeader title="Cài đặt" />
     <section className="panel settings-section appearance-settings">
+      <div className="appearance-mobile-fields">
+        <label className="appearance-mobile-row"><Icon name="sun" size={20} /><span>Giao diện</span><select aria-label="Giao diện" value={theme} onChange={event => setTheme(event.target.value === 'dark' ? 'dark' : 'light')}><option value="light">Sáng</option><option value="dark">Tối</option></select></label>
+        <label className="appearance-mobile-row"><span className="appearance-text-icon" aria-hidden="true">Aa</span><span>Cỡ chữ</span><select aria-label="Cỡ chữ" value={textSize} onChange={event => { const option = TEXT_SIZES.find(item => item.value === Number(event.target.value)); if (option) setTextSize(option.value); }}>{TEXT_SIZES.map(option => <option key={option.value} value={option.value}>{option.value}%</option>)}</select></label>
+      </div>
       <div className="theme-setting">
         <header className="settings-heading"><Icon name="sun" size={22} /><div><h2>Giao diện</h2></div></header>
         <div className="theme-options" role="group" aria-label="Chế độ giao diện">

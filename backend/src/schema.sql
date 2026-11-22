@@ -118,3 +118,46 @@ CREATE TABLE IF NOT EXISTS identity_samples (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_identity_samples_person ON identity_samples(person_id);
+
+-- ROI and surveillance rules run locally; no automatic hardware alarm command.
+ALTER TABLE cameras ADD COLUMN IF NOT EXISTS ai_surveillance JSONB NOT NULL DEFAULT '{}'::jsonb;
+CREATE TABLE IF NOT EXISTS surveillance_notifications (
+  id BIGSERIAL PRIMARY KEY,
+  camera_id INTEGER NOT NULL REFERENCES cameras(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('intrusion','loitering','pacing','unfamiliar')),
+  zone_id TEXT NOT NULL,
+  zone_name TEXT,
+  track_id TEXT NOT NULL,
+  track_number INTEGER,
+  label TEXT NOT NULL,
+  detected_at TIMESTAMPTZ NOT NULL,
+  metrics JSONB NOT NULL DEFAULT '{}'::jsonb,
+  identity JSONB,
+  snapshot_path TEXT,
+  event_id BIGINT REFERENCES detection_events(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (camera_id, track_id, zone_id, kind)
+);
+CREATE INDEX IF NOT EXISTS idx_surveillance_notifications_time ON surveillance_notifications (id DESC);
+CREATE INDEX IF NOT EXISTS idx_surveillance_notifications_camera ON surveillance_notifications (camera_id, id DESC);
+CREATE TABLE IF NOT EXISTS surveillance_notification_reads (
+  notification_id BIGINT NOT NULL REFERENCES surveillance_notifications(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  read_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (notification_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS surveillance_pins (
+  id UUID PRIMARY KEY,
+  camera_id INTEGER NOT NULL REFERENCES cameras(id) ON DELETE CASCADE,
+  track_id TEXT NOT NULL,
+  track_number INTEGER NOT NULL,
+  label TEXT NOT NULL,
+  automatic BOOLEAN NOT NULL DEFAULT false,
+  active BOOLEAN NOT NULL DEFAULT true,
+  identity JSONB,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen_at TIMESTAMPTZ NOT NULL,
+  UNIQUE (camera_id, track_id)
+);
+CREATE INDEX IF NOT EXISTS idx_surveillance_pins_active ON surveillance_pins (camera_id) WHERE active;

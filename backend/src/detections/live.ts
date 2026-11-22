@@ -2,10 +2,11 @@ import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config';
 import { faceIdentity, FaceIdentity } from '../identities';
+import { surveillanceConfig, SurveillanceZone, insideSurveillanceZone } from './surveillance';
 
 export type Detection = { label: string; confidence: number; box: [number, number, number, number]; track_id?: string; track_number?: number; identity?: FaceIdentity };
 export type DetectionFrame = { at: number; width: number; height: number; detections: Detection[] };
-export type LiveDetections = { camera_id: number; state: string; synchronized: boolean; updated_at: number; server_time: number; frame_ttl_ms: number; frames: DetectionFrame[] };
+export type LiveDetections = { camera_id: number; state: string; synchronized: boolean; updated_at: number; server_time: number; frame_ttl_ms: number; frames: DetectionFrame[]; manual_pin_enabled?: boolean; zones?: SurveillanceZone[] };
 export const detectionLabels = ['person', 'car', 'motorcycle', 'bicycle', 'truck', 'bus', 'cat', 'dog'];
 const labels = new Set(detectionLabels);
 type OverlaySettings = { ai_overlay_enabled?: boolean; ai_overlay_labels?: string[] };
@@ -54,8 +55,10 @@ export function sanitizeLiveDetections(raw: unknown, cameraId: number, fps: numb
   return { ...fallback, state: ['ready', 'error', 'stopped'].includes(value.state) ? value.state : 'waiting', synchronized, updated_at: value.updated_at, frames };
 }
 
-export async function readLiveDetections(camera: { id: number; status: string; ai_enabled: boolean; enabled: boolean; ai_fps: number; ai_identity_enabled?: boolean } & OverlaySettings, people = new Map<string, string>()): Promise<LiveDetections> {
-  const empty = sanitizeLiveDetections(null, camera.id, camera.ai_fps);
+export async function readLiveDetections(camera: { id: number; status: string; ai_enabled: boolean; enabled: boolean; ai_fps: number; ai_identity_enabled?: boolean; ai_surveillance?: unknown } & OverlaySettings, people = new Map<string, string>()): Promise<LiveDetections> {
+  const rules = surveillanceConfig(camera.ai_surveillance);
+  const settings = { manual_pin_enabled: rules.manual_pin_enabled, zones: rules.zones_enabled ? rules.zones : [] };
+  const empty = { ...sanitizeLiveDetections(null, camera.id, camera.ai_fps), ...settings };
   if (!camera.enabled || !camera.ai_enabled) return { ...empty, state: 'disabled' };
   if (camera.status !== 'online') return { ...empty, state: 'offline' };
   if (camera.ai_overlay_enabled === false || camera.ai_overlay_labels?.length === 0) return filterLiveOverlay(empty, camera);
@@ -68,6 +71,11 @@ export async function readLiveDetections(camera: { id: number; status: string; a
       if (!camera.ai_identity_enabled) delete detection.identity;
       else if (detection.label === 'person' && !detection.identity) detection.identity = { state: 'pending' };
     }
-    return filterLiveOverlay(value, camera);
+    if (rules.zones_enabled) for (const frame of value.frames) frame.detections = frame.detections.filter(d => {
+      const [x1,y1,x2,y2] = d.box;
+      const point: [number,number] = [(x1+x2)/2/frame.width, (d.label === 'person' ? y2 : (y1+y2)/2)/frame.height];
+      return rules.zones.some(zone => insideSurveillanceZone(point,zone.points));
+    });
+    return { ...filterLiveOverlay(value, camera), ...settings };
   } catch { return empty; }
 }

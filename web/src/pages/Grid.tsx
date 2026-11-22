@@ -19,6 +19,7 @@ import LiveClock from '../LiveClock';
 import { useDevice } from '../device';
 import { PageHeader, statusLabels } from '../ui';
 import { lockBodyScroll } from '../bodyScroll';
+import PinnedObjects from '../PinnedObjects';
 
 type LiveTalk = ReturnType<typeof useCameraTalk>;
 
@@ -135,6 +136,8 @@ export default function Grid() {
         </div>} center={<LiveClock />} actions={<div className="mi-live-actions">
           <EmergencyControls cameras={cameras} talk={cameraTalk} compact />
         </div>} />
+
+      <PinnedObjects />
 
       {err && <div className="notice error">Không tải được camera: {err}</div>}
       {!err && layout === 1 && visible[0] && <FocusView cameraTalk={cameraTalk} talkActive={talkActive} camera={visible[0]} cameras={cameras.filter(camera => camera.enabled)} onChoose={id => chooseCamera(id, 0)} onClose={() => closeSlot(0)} onSettings={() => { cameraTalk.stop(); setSettingsCameraId(visible[0]!.id); }} />}

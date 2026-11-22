@@ -562,7 +562,23 @@ Sau lần thoát bất thường, `rtsp_port_after_exit` chỉ thử bắt tay T
 Get-Content "$env:USERPROFILE\Documents\CameraRTSP\storage\.stream-diagnostics\streams.jsonl" -Tail 100 -Wait | Select-String '"camera_id":1,'
 ```
 
+### Vùng nhận dạng, ghim đối tượng và thông báo
+
+- Vào **Thiết bị → Cài đặt → Nhận dạng → Vùng nhận dạng và giám sát**, hoặc mở bánh răng của camera trên Live. Bật AI, nhấn **Chỉnh vùng**, kéo trên hình để tạo tối đa 3 vùng chữ nhật, rồi **Áp dụng vùng**. Bật **Chỉ nhận dạng trong vùng đã vẽ** để giới hạn xử lý; ngoài vùng không có khung/sự kiện nhận dạng mới. Tọa độ được lưu theo tỷ lệ ảnh, dùng lại khi đổi độ phân giải. Với người, điểm chân ở giữa cạnh dưới khung quyết định có vào vùng hay không. Khi quay PTZ sang hướng khác, cần kiểm tra/vẽ lại vùng.
+- Bật từng quy tắc riêng: **Xâm nhập vùng** sau 2/3/5/10 giây hiện diện; **Lảng vảng kéo dài** sau 15/30/60/120/300 giây; **Đi qua lại nhiều lần** sau 3/4/5 lần đổi hướng đáng kể trong 30/60/120 giây. Các quy tắc này theo dõi người. Khi chưa bật giới hạn vùng, chúng áp dụng toàn khung hình. Mặc định các cảnh báo tự động tắt để người quản trị chọn camera/vùng phù hợp.
+- **Khuôn mặt chưa đăng ký** chỉ tạo thông báo khi định danh đang bật, đã có người đăng ký, và có nhiều lần thấy khuôn mặt đủ rõ nhưng không khớp. Chưa rõ mặt, model chưa sẵn sàng hoặc thư viện người rỗng không được xem là bằng chứng người lạ.
+- Có công tắc riêng cho **ghim thủ công**, **tự ghim đối tượng có cảnh báo**, và **popup mới**. Trên Live, nhấn nhãn khung để ghim; danh sách ghim mở cửa sổ theo dõi trực tiếp, chọn camera, xem lại recording và bỏ ghim. ID chỉ gắn với một lần theo dõi liên tục trong từng camera; chưa có tái định danh người lạ giữa nhiều camera. Không thấy lại đối tượng/luồng gián đoạn sẽ hiển thị trạng thái chờ, không gán ID đó cho đối tượng khác.
+- Tab **Thông báo** có ảnh xem trước nhẹ, bộ lọc, phân trang và trạng thái đã đọc riêng cho từng tài khoản. Popup trong web chỉ hiện thông báo mới, đợi đóng hộp thoại đang thao tác; không tự phát âm thanh. Nút **Báo động…** mở điều khiển và vẫn yêu cầu xác nhận trước khi bật còi. Không có đường tự động từ AI tới lệnh bật còi. Thông báo hiện trong web khi web đang mở; đây chưa phải push khi đã đóng trình duyệt.
+- Cảnh báo dựa trên vị trí/thời gian/chuyển động quan sát được, không kết luận ý định trộm cắp. Mỗi ID/vùng/quy tắc chỉ tạo một thông báo; cùng ID/quy tắc có khoảng chờ 30 giây khi mất rồi thấy lại ngắn hạn, không chặn thông báo của người thứ hai. Giữ tối đa 2.000 thông báo/camera hoặc 30 ngày, dọn mỗi 10 phút; tối đa 64 ghim đang giữ. Cấu hình được tải lại nóng, không khởi động lại luồng RTSP.
+- Trên điện thoại, các trang và hộp thoại co theo chiều rộng nội dung: Playback có ngày/tốc độ xuống hàng, danh sách thiết bị chuyển thành card và hàng cài đặt gọn; cỡ chữ lớn xuống hàng để đọc được. Các nút chạm chính tối thiểu 44 px.
+
 ## API
+
+- `GET/PUT /api/cameras/:id/surveillance`: đọc/lưu vùng và tùy chọn theo dõi, quản trị viên.
+- `GET /api/surveillance/notifications`: `limit=1..100`, `before` hoặc `after`, `kind`, `unread=true`; trả `items`, `unread_count`, `latest_id`. Lượt `after` trả theo ID tăng dần để không bỏ sót khi có nhiều thông báo.
+- `POST /api/surveillance/notifications/read`: `{ids:["..."]}` hoặc `{all:true}`, chỉ đánh dấu cho tài khoản hiện tại.
+- `GET /api/surveillance/notifications/:id/thumbnail`: ảnh nhỏ có xác thực.
+- `GET/POST /api/surveillance/pins`, `DELETE /api/surveillance/pins/:id`: ghim/bỏ ghim cần quản trị viên; chỉ nhận ID đang có trong kết quả AI gần nhất của camera.
 
 - `POST /api/talk/capabilities`: kiểm tra các `camera_ids` đã lưu, không sửa cấu hình camera.
 - `POST /api/talk/sessions`: mở đàm thoại cho `camera_ids`, tùy chọn `duplex: true`; trả `listen_camera_ids` thực sự hỗ trợ (HTTPS, admin).

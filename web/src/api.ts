@@ -19,11 +19,35 @@ export interface DeviceControls {
   confirmed?: boolean;
 }
 export type FaceIdentity = { state: 'known' | 'unmatched' | 'not_visible' | 'pending' | 'unavailable'; person_id?: string; name?: string };
+export type Point = [number, number];
+export type SurveillanceZone = { id: string; name: string; points: Point[] };
+export interface SurveillanceConfig {
+  zones_enabled: boolean; zones: SurveillanceZone[];
+  intrusion_enabled: boolean; loitering_enabled: boolean; pacing_enabled: boolean; unfamiliar_enabled: boolean;
+  manual_pin_enabled: boolean; auto_pin_enabled: boolean; popup_enabled: boolean;
+  intrusion_seconds: number; loitering_seconds: number; pacing_reversals: number; pacing_window_seconds: number;
+}
+export const defaultSurveillanceConfig: SurveillanceConfig = {
+  zones_enabled: false, zones: [], intrusion_enabled: false, loitering_enabled: false, pacing_enabled: false,
+  unfamiliar_enabled: false, manual_pin_enabled: true, auto_pin_enabled: false, popup_enabled: true,
+  intrusion_seconds: 2, loitering_seconds: 30, pacing_reversals: 3, pacing_window_seconds: 60,
+};
+export interface SurveillanceNotice {
+  id: string; camera_id: number; camera_name: string; kind: 'intrusion' | 'loitering' | 'pacing' | 'unfamiliar';
+  zone_name: string | null; track_id: string; track_number: number | null; label: string; detected_at: string;
+  metrics: Record<string, number>; identity?: FaceIdentity; snapshot_url: string | null; thumbnail_url: string | null;
+  event_id: string | null; read: boolean; popup_enabled: boolean;
+}
+export interface SurveillancePin {
+  id: string; camera_id: number; camera_name: string; track_id: string; track_number: number; label: string;
+  automatic: boolean; created_at: string; last_seen_at: string; identity?: FaceIdentity;
+  state: 'tracking' | 'lost'; snapshot_url: string | null; event_id: string | null;
+}
 export interface IdentityPerson { id: string; name: string; sample_count: number; image_url: string | null }
 export interface IdentityJob { id: string; state: 'processing' | 'ready' | 'error'; message?: string; faces?: Array<{ id: string; image_url: string }> }
 export interface IdentityList { people: IdentityPerson[]; status: { state: string; message?: string; model: string } }
 export type DetectionFrame = { at: number; width: number; height: number; detections: Array<{ label: string; confidence: number; box: [number, number, number, number]; track_id?: string; track_number?: number; identity?: FaceIdentity }> };
-export type LiveDetectionState = { camera_id: number; state: string; synchronized: boolean; updated_at: number; server_time: number; frame_ttl_ms: number; frames: DetectionFrame[] };
+export type LiveDetectionState = { camera_id: number; state: string; synchronized: boolean; updated_at: number; server_time: number; frame_ttl_ms: number; frames: DetectionFrame[]; manual_pin_enabled?: boolean; zones?: SurveillanceZone[] };
 export interface TalkCapability { camera_id: number; supported: boolean; reason: string; codec?: string }
 export interface TalkSession { id: string; camera_ids: number[]; listen_camera_ids?: number[]; sample_rate: number; max_seconds: number }
 export interface ServerSettings {
@@ -56,6 +80,7 @@ export interface Camera {
   ai_identity_enabled?: boolean;
   ai_overlay_enabled?: boolean;
   ai_overlay_labels?: string[];
+  ai_surveillance?: SurveillanceConfig;
   onvif_url?: string | null;
   status: string;
   last_error?: string | null;
@@ -235,6 +260,25 @@ async function read<T>(path: string, signal?: AbortSignal, parse: (res: Response
 }
 
 export const api = {
+  surveillanceSettings(id: number) { return read<SurveillanceConfig>(`/cameras/${id}/surveillance`); },
+  async updateSurveillanceSettings(id: number, value: SurveillanceConfig) {
+    return handle<SurveillanceConfig>(await fetch(`${API_BASE}/cameras/${id}/surveillance`, { method: 'PUT', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(value) }));
+  },
+  surveillanceNotifications(filters: { limit?: number; before?: string; after?: string; unread?: boolean; kind?: string } = {}, signal?: AbortSignal) {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) if (value !== undefined && value !== '') query.set(key, String(value));
+    return read<{ items: SurveillanceNotice[]; unread_count: number; latest_id: string }>(`/surveillance/notifications?${query}`, signal);
+  },
+  async readSurveillanceNotifications(body: { ids?: string[]; all?: boolean }) {
+    return handle<{ ok: boolean }>(await fetch(`${API_BASE}/surveillance/notifications/read`, { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
+  },
+  surveillancePins(signal?: AbortSignal) { return read<SurveillancePin[]>('/surveillance/pins', signal); },
+  async pinSurveillanceObject(body: { camera_id: number; track_id: string; track_number: number; label: string }) {
+    return handle<SurveillancePin>(await fetch(`${API_BASE}/surveillance/pins`, { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
+  },
+  async unpinSurveillanceObject(id: string) {
+    return handle<{ ok: boolean }>(await fetch(`${API_BASE}/surveillance/pins/${encodeURIComponent(id)}`, { method: 'DELETE', headers: authHeaders() }));
+  },
   identities() { return read<IdentityList>('/identities'); },
   async analyzeIdentityPhoto(input: File | number, signal: AbortSignal) {
     return handle<IdentityJob>(await fetch(`${API_BASE}/identities/analyze`, { method: 'POST', headers: { ...authHeaders(), 'Content-Type': typeof input === 'number' ? 'application/json' : input.type }, body: typeof input === 'number' ? JSON.stringify({ event_id: input }) : input, signal }));

@@ -1,0 +1,54 @@
+.camera-surveillance-settings { min-width: 0; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+.camera-surveillance-settings .camera-settings-heading { margin-bottom: 10px; }
+.camera-surveillance-settings .camera-settings-heading h3 { margin: 0; font-size: calc(16px * var(--text-scale, 1)); }
+.camera-surveillance-settings .camera-settings-heading > button { flex: 0 0 auto; }
+.surveillance-group { min-width: 0; margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; }
+.surveillance-group h4 { margin: 4px 0 8px; font-size: calc(13px * var(--text-scale, 1)); }
+.surveillance-switch-row, .surveillance-select-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; min-height: 48px; padding: 8px 0; }
+.surveillance-switch-row > span, .surveillance-select-row > span { flex: 1 1 auto; min-width: 0; font-size: calc(12px * var(--text-scale, 1)); overflow-wrap: anywhere; }
+.surveillance-switch-row input[type=checkbox] { appearance: none; -webkit-appearance: none; position: relative; flex: 0 0 40px; width: 40px; height: 24px; margin: 0; border: 1px solid var(--line); border-radius: 20px; background: var(--surface-soft, #dbe3ef); cursor: pointer; }
+.surveillance-switch-row input[type=checkbox]::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-muted, #879ab0); transition: transform .15s; }
+.surveillance-switch-row input[type=checkbox]:checked { border-color: var(--blue); background: var(--blue); }
+.surveillance-switch-row input[type=checkbox]:checked::after { transform: translateX(16px); background: #fff; }
+.surveillance-switch-row input[type=checkbox]:disabled { cursor: default; opacity: .45; }
+.surveillance-switch-row input[type=checkbox]:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.surveillance-select-row > select { flex: 0 1 130px; width: 130px; max-width: 48%; min-width: 0; margin: 0; padding: 7px 9px; min-height: 44px; }
+.surveillance-select-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+.surveillance-hint { margin: 7px 0 2px; color: var(--text-muted, #7186a0); font-size: calc(11px * var(--text-scale, 1)); overflow-wrap: anywhere; }
+.surveillance-save-status { margin: 8px 0 0; color: var(--positive-text, #168467); font-size: calc(12px * var(--text-scale, 1)); }
+.region-editor { min-width: 0; }
+.surveillance-region-summary { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 48px; }
+.surveillance-region-summary > span { min-width: 0; color: var(--text-muted, #7186a0); font-size: calc(12px * var(--text-scale, 1)); overflow-wrap: anywhere; }
+.surveillance-region-summary > button { flex-shrink: 0; min-height: 44px; padding: 6px 10px; font-size: calc(12px * var(--text-scale, 1)); }
+.region-editor-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px 0 9px; min-width: 0; }
+.region-editor-toolbar > button { min-height: 44px; padding: 6px 9px; font-size: calc(11px * var(--text-scale, 1)); }
+.region-selector { flex: 1 1 110px; min-width: 0; }
+.region-selector > span { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.region-selector > select { width: 100%; min-width: 0; margin: 0; min-height: 44px; padding: 6px 9px; font-size: calc(11px * var(--text-scale, 1)); }
+.region-canvas { position: relative; isolation: isolate; width: 100%; min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: #101d30; }
+.region-feed, .region-overlay, .region-feed-status { position: absolute; inset: 0; width: 100%; height: 100%; }
+.region-feed > video { display: block; object-fit: contain; pointer-events: none; }
+.region-feed-status { display: grid; place-items: center; padding: 10px; color: #d4e1f1; font-size: calc(12px * var(--text-scale, 1)); text-align: center; }
+.region-overlay { z-index: 1; touch-action: pan-y; }
+.region-canvas.drawing .region-overlay { cursor: crosshair; touch-action: none; }
+.region-overlay polygon { fill: #39e58c20; stroke: #39e58c; stroke-width: 2; vector-effect: non-scaling-stroke; cursor: pointer; }
+.region-overlay .selected polygon, .region-overlay .region-draft { fill: #4d9cff33; stroke: #79b8ff; }
+.region-overlay text { fill: #fff; stroke: #101d30; stroke-width: 4px; paint-order: stroke; font-size: 38px; font-weight: 700; pointer-events: none; }
+.region-handle-target { fill: transparent; stroke: none; cursor: nwse-resize; touch-action: none; }
+.region-handle { fill: #fff; stroke: #1768ef; stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.region-draw-instruction, .region-apply-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 10px; margin-top: 8px; font-size: calc(11px * var(--text-scale, 1)); }
+.region-draw-instruction > span, .region-apply-row > span { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
+.region-draw-instruction > button, .region-apply-row button { min-height: 44px; padding: 6px 10px; font-size: calc(11px * var(--text-scale, 1)); }
+.region-apply-row > div { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 760px) {
+  .camera-surveillance-settings { margin-top: 14px; padding-top: 12px; }
+  .camera-surveillance-settings .camera-settings-heading h3 { font-size: calc(16px * var(--text-scale, 1)); }
+  .surveillance-group { padding: 8px 12px; margin-bottom: 10px; }
+  .surveillance-select-pair { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .region-editor-toolbar { gap: 5px; }
+  .region-editor-toolbar > button { min-height: 44px; padding: 5px 8px; }
+  .region-selector { flex-basis: 100%; }
+  .region-selector > select { min-height: 44px; }
+  .region-apply-row > div { width: 100%; }
+  .region-apply-row > div > button { flex: 1 1 100px; min-height: 44px; }
+}

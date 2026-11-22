@@ -62,7 +62,7 @@ router.post('/onvif/probe', async (req, res) => {
 router.get('/', async (_req, res) => {
   const { rows } = await pool.query(
     `SELECT id, name, rtsp_url, enabled, record, codec, ai_enabled, ai_rtsp_url,
-            ai_fps, ai_confidence, ai_labels, ai_overlay_enabled, ai_overlay_labels, ai_identity_enabled, onvif_url, status, last_error, updated_at
+            ai_fps, ai_confidence, ai_labels, ai_overlay_enabled, ai_overlay_labels, ai_identity_enabled, ai_surveillance, onvif_url, status, last_error, updated_at
      FROM cameras ORDER BY id`
   );
   res.json(rows);

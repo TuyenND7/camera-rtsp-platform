@@ -12,6 +12,7 @@ import ptzRoutes from './routes/ptz';
 import recordingRoutes from './routes/recordings';
 import eventRoutes from './routes/events';
 import identityRoutes from './routes/identities';
+import surveillanceRoutes, { cameraSurveillanceRouter } from './routes/surveillance';
 import settingsRoutes from './routes/settings';
 import talkRoutes from './routes/talk';
 import controlRoutes from './routes/controls';
@@ -40,10 +41,12 @@ async function main() {
   app.use('/api/cameras/:id/controls', controlRoutes);
   app.use('/api/cameras/:id/video-settings', videoSettingsRoutes);
   app.use('/api/cameras/:id/device-settings', deviceSettingsRoutes);
+  app.use('/api/cameras/:id/surveillance', cameraSurveillanceRouter);
   app.use('/api/cameras', cameraRoutes);
   app.use('/api/recordings', recordingRoutes);
   app.use('/api/events', eventRoutes);
   app.use('/api/identities', identityRoutes);
+  app.use('/api/surveillance', surveillanceRoutes);
   app.use('/api/settings', settingsRoutes);
   app.use('/api/talk', talkRoutes);
 

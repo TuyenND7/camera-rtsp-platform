@@ -13,6 +13,23 @@ from app.live import FrameHistory, playlist_segments
 
 
 class LiveTests(unittest.TestCase):
+    def test_region_uses_full_person_geometry_and_filters_before_face_or_events(self):
+        with patch.dict(sys.modules, {'cv2': SimpleNamespace(), 'psycopg': SimpleNamespace(), 'ultralytics': SimpleNamespace(YOLO=None)}), patch.dict(os.environ, {'DATABASE_URL': 'fixture'}):
+            main = importlib.import_module('app.main')
+        with tempfile.TemporaryDirectory() as directory, patch.object(main,'STORAGE_ROOT',Path(directory)):
+            roi=dict(zones_enabled=True,zones=[dict(id='top',name='Top',points=[[0,0],[1,0],[1,.5],[0,.5]])])
+            frame=SimpleNamespace(shape=(100,100,3)); seen=[]; annotated=[]
+            def detect(image,*_):
+                seen.append(image)
+                return [dict(label='person',confidence=.9,box=[10,10,30,80]),dict(label='person',confidence=.9,box=[40,10,60,40])]
+            detector=SimpleNamespace(detect=detect,identities=SimpleNamespace(annotate=lambda _,items,at:annotated.extend(items)))
+            worker=main.CameraWorker(main.CameraConfig(1,'Fixture',None,2,.5,('person',),True,roi),detector)
+            worker.process_surveillance=lambda *_:None
+            worker.process_frame(frame,time.time())
+            self.assertIs(seen[0],frame)
+            self.assertEqual(len(annotated),1)
+            self.assertEqual(annotated[0]['box'],[40,10,60,40])
+
     def test_identity_toggle_keeps_existing_worker_and_tracking_ids(self):
         with patch.dict(sys.modules, {'cv2': SimpleNamespace(), 'psycopg': SimpleNamespace(), 'ultralytics': SimpleNamespace(YOLO=None)}), patch.dict(os.environ, {'DATABASE_URL': 'fixture'}):
             main = importlib.import_module('app.main')
@@ -85,6 +102,7 @@ class LiveTests(unittest.TestCase):
             config = main.CameraConfig(3, 'Fixture', None, 2, .5, ('person',))
             detections = [{'label': 'person', 'confidence': .9, 'box': [0, 0, 100, 200]}, {'label': 'person', 'confidence': .8, 'box': [100, 0, 200, 200]}]
             worker = main.CameraWorker(config, SimpleNamespace(detect=lambda *_: detections))
+            worker.process_surveillance = lambda *_: None
             saved = []
             worker.write_snapshot = lambda _: 'events/fixture.jpg'
             worker.insert_event = lambda *args: saved.append(args)
@@ -112,6 +130,7 @@ class LiveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.object(main, 'STORAGE_ROOT', Path(directory)):
             detections = [{'label': 'person', 'confidence': .9, 'box': [10, 20, 60, 100]}]
             worker = main.CameraWorker(main.CameraConfig(1, 'Fixture', None, 1, .5, ('person',)), SimpleNamespace(detect=lambda *_: detections))
+            worker.process_surveillance = lambda *_: None
             worker.write_snapshot = lambda _: 'events/fixture.jpg'
             calls = []
             def save(*args):

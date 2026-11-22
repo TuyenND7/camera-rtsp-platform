@@ -10,7 +10,7 @@
 :root { font-family: 'Be Vietnam Pro', system-ui, sans-serif; color: var(--text-strong, #243b57); background: var(--app-bg, #f5f8fc); font-size: calc(14px * var(--text-scale, 1)); line-height: 1.6; font-synthesis: none; font-weight: 500; --blue: #1768ef; --blue-light: #eaf3ff; --ink: #1f3b60; --muted: #7a8fa9; --line: #e0e9f4; --green: #15a085; --sidebar-width: 252px; }
 * { box-sizing: border-box; }
 .app-icon { display: inline-block; flex-shrink: 0; vertical-align: middle; background-color: currentColor; mask-repeat: no-repeat; -webkit-mask-repeat: no-repeat; mask-mode: alpha; }
-body { margin: 0; min-width: 360px; }
+body { margin: 0; min-width: 0; }
 button, input, select, textarea { font: inherit; }
 button, .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 9px 15px; border: 1px solid var(--line, #d8e4f2); border-radius: 8px; color: var(--text-body, #526f94); background: var(--surface, #fff); font-size: calc(12px * var(--text-scale, 1)); font-weight: 600; cursor: pointer; text-decoration: none; transition: background .15s, border-color .15s, color .15s; }
 button:hover:not(:disabled), .button:hover { color: var(--blue); border-color: var(--line, #b9d0f0); background: var(--surface, #f6faff); }
@@ -629,7 +629,7 @@ body:has(.live-shell) { min-width: 0; }
 .discovery-dialog .dialog-footer > span:not(.app-icon) { font-size: calc(10px * var(--text-scale, 1)); }
 .login-simple { display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; min-height: 100dvh; padding: 24px; }
 .ui-preview-entry { width: 100%; margin: 16px 0 8px; }
-.login-simple .login-form { width: 390px; padding: 32px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface, #fff); }
+.login-simple .login-form { width: min(390px, 100%); padding: 32px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface, #fff); }
 .login-simple .login-lock { width: 45px; height: 45px; margin-bottom: 21px; border-radius: 11px; }
 .login-simple .login-form h2 { font-size: calc(22px * var(--text-scale, 1)); }
 .login-simple .login-form > p { margin: 8px 0 27px; font-size: calc(12px * var(--text-scale, 1)); }
@@ -725,6 +725,7 @@ body:has(.live-shell) { min-width: 0; }
 .text-size-option strong { max-width: 100%; font-size: inherit; font-weight: 600; overflow-wrap: anywhere; }
 .text-size-option small { color: var(--muted); font-size: calc(10px * var(--text-scale, 1)); }
 .appearance-settings { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px; }
+.appearance-mobile-fields { display: none; }
 .appearance-settings > .theme-setting { flex: 0 1 330px; min-width: 0; }
 .appearance-settings > .text-size-setting { flex: 1 1 400px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .appearance-settings .text-size-setting > h3 { min-height: 24px; font-size: calc(15px * var(--text-scale, 1)); line-height: 1.5; }
@@ -762,6 +763,7 @@ body:has(.live-shell) { min-width: 0; }
 .playback-page .playback-config { flex: 0 1 auto; min-width: 0; min-height: 0; max-height: 60%; margin: 0; padding: 0 8px 8px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .playback-page .pb-controls { position: sticky; top: 0; z-index: 5; flex-wrap: wrap; justify-content: space-between; gap: 6px 10px; margin-bottom: 8px; padding: 8px 0; background: var(--surface, #fff); }
 .playback-page .pb-controls-main, .playback-page .pb-controls-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.playback-page .pb-controls-settings { flex-basis: calc(260px + (var(--text-scale, 1) - 1) * 140px); }
 .playback-page .pb-controls button { flex-shrink: 0; min-width: 44px; min-height: 44px; }
 .playback-page .pb-controls .pb-play { width: 44px; height: 44px; }
 .playback-page .playback-day-picker { width: calc(148px + (var(--text-scale, 1) - 1) * 40px); min-width: 148px; max-width: 100%; min-height: 44px; }
@@ -788,15 +790,23 @@ body:has(.live-shell) { min-width: 0; }
   .playback-page .playback-camera-rail { flex-direction: row; }
   .playback-page .playback-camera-list { overflow-x: auto; overflow-y: hidden; }
   .playback-page .playback-camera-list a > span:not(.app-icon) { white-space: nowrap; }
+  .playback-page .playback-camera-rail { padding: 4px 8px; }
+  .playback-page .playback-rail-heading, .playback-page .playback-camera-list { display: none; }
+  .playback-page .playback-camera-dropdown { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
+  .playback-camera-dropdown select { min-height: 44px; padding: 5px 8px; }
 }
+
 @media (max-width: 760px) {
   .playback-page .playback-camera-rail { padding: 4px 8px; }
   .playback-page .playback-rail-heading, .playback-page .playback-camera-list { display: none; }
   .playback-page .playback-camera-dropdown { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
   .playback-camera-dropdown select { min-height: 36px; padding: 5px 8px; }
   .simple-shell .playback-page .playback-workspace { padding: 6px; }
-  .playback-page .pb-controls-settings { flex: 1; }
-  .playback-page .pb-controls-settings .playback-day-picker { flex-grow: 1; }
+  .playback-page .pb-controls-settings { display: grid; flex: 1 0 100%; grid-template-columns: minmax(0, 1fr) auto; width: 100%; gap: 8px; }
+  .playback-page .pb-controls-settings .playback-day-picker { width: auto; min-width: 0; }
+  .playback-page .playback-day-picker select { flex: 1; min-width: 0; width: 100%; }
+  .playback-page .pb-speed { min-width: 0; max-width: 100%; }
+  .playback-page .pb-controls-main { max-width: 100%; }
   .playback-page .playback-config { padding-right: 6px; padding-left: 6px; }
   .playback-page .pt-toolbar { flex-wrap: wrap; gap: 4px; }
 }
@@ -1365,4 +1375,115 @@ body:has(.live-shell) { min-width: 0; }
   .events-page .table-toolbar { gap: 10px; }
   .events-page .filter-field { flex: 1 1 140px; min-width: 0; }
   .events-page .filter-field select { width: 100%; min-width: 0; }
+}
+
+/* The table turns into cards whenever its content area is narrow, including a
+   tablet with an open sidebar. Controls stay reachable without swiping a row. */
+.device-table-panel, .recording-table { container-type: inline-size; container-name: camera-list; }
+@container camera-list (max-width: 720px) {
+  .mobile-card-list { min-width: 0; overflow: visible; }
+  .simple-shell .mobile-card-list .responsive-camera-table { display: block; width: 100%; min-width: 0; }
+  .responsive-camera-table thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .responsive-camera-table tbody { display: grid; gap: 8px; width: 100%; }
+  .responsive-camera-table tbody > tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface, #fff); }
+  .responsive-camera-table tbody > tr > td { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; padding: 0; border: 0; overflow-wrap: anywhere; white-space: normal; }
+  .responsive-camera-table td[data-label]::before { margin-bottom: 3px; color: var(--text-muted); font-size: calc(10px * var(--text-scale, 1)); font-weight: 650; content: attr(data-label); }
+  .responsive-camera-table tbody > tr > td:first-child { grid-column: 1 / -1; }
+  .responsive-camera-table tbody > tr > td:first-child::before { display: none; }
+  .responsive-camera-table .card-actions { grid-column: 1 / -1; justify-content: flex-start; padding-top: 8px; border-top: 1px solid var(--line); }
+  .responsive-camera-table .card-actions > .button { width: 100%; min-height: 44px; justify-content: center; }
+  .responsive-camera-table .row-actions { width: 100%; flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+  .responsive-camera-table .row-actions > .icon-button { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+  .responsive-camera-table .device-cell, .responsive-camera-table .device-cell > span:last-child { min-width: 0; max-width: 100%; }
+  .responsive-camera-table .device-cell strong { overflow-wrap: anywhere; white-space: normal; }
+  .responsive-camera-table .ip-address, .responsive-camera-table .status-badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+}
+
+/* A single phone header, compact option cards and rows, with natural wrapping
+   when the user chooses larger text. The Live wall keeps its tighter spacing. */
+@media (max-width: 760px) {
+  .simple-shell { --page-inset-x: 12px; --page-inset-y: 10px; --page-title-size: calc(20px * var(--text-scale, 1)); --page-title-line: 1.3; --panel-inset: 12px; --page-section-gap: 10px; }
+  .login-simple { padding: 16px; }
+  .login-simple .login-form { padding: 20px; }
+  .login-simple .login-form h2 { overflow-wrap: anywhere; }
+  .simple-shell:not(.live-shell) .app-topbar { display: none; }
+  .simple-shell:not(.live-shell) .app-main { min-height: 100dvh; }
+  .simple-shell:not(.live-shell) .page-heading { gap: 8px; margin-bottom: 12px; }
+  .simple-shell:not(.live-shell) .page-heading .sidebar-visibility-toggle { display: inline-flex; width: 44px; height: 44px; min-width: 44px; min-height: 44px; margin-left: -6px; }
+  .simple-shell .page-heading-title { gap: 6px; min-width: 0; }
+  .simple-shell .page-heading-title > div { min-width: 0; }
+  .simple-shell .page-actions { flex-wrap: wrap; min-width: 0; gap: 6px; }
+  .simple-shell .page-actions > button, .simple-shell .page-actions > .button { min-height: 44px; padding: 7px 10px; }
+  .simple-shell .page-heading h1 { overflow-wrap: anywhere; }
+  .simple-shell.live-shell { --page-inset-x: 6px; --page-inset-y: 6px; }
+  .simple-shell .settings-section { margin-bottom: 10px; }
+  .settings-form { gap: 0; }
+  .settings-heading { margin-bottom: 10px; gap: 8px; }
+  .settings-heading > div { min-width: 0; }
+  .settings-heading h2 { font-size: calc(14px * var(--text-scale, 1)); }
+  .appearance-settings { gap: 0; }
+  .appearance-settings > .theme-setting, .appearance-settings > .text-size-setting { display: none; }
+  .appearance-mobile-fields { display: grid; width: 100%; min-width: 0; }
+  .appearance-mobile-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) minmax(92px, .8fr); align-items: center; gap: 8px; min-width: 0; min-height: 52px; padding: 4px 0; font-size: calc(14px * var(--text-scale, 1)); line-height: 1.35; }
+  .appearance-mobile-row + .appearance-mobile-row { border-top: 1px solid var(--line); }
+  .appearance-mobile-row > span { min-width: 0; overflow-wrap: anywhere; }
+  .appearance-mobile-row > select { min-width: 0; min-height: 44px; margin: 0; padding: 8px; font-size: calc(14px * var(--text-scale, 1)); }
+  .appearance-text-icon { color: var(--text-muted); font-weight: 700; font-size: 16px; white-space: nowrap; }
+  .simple-shell .viewing-device-settings { padding: 10px 12px; }
+  .viewing-device-settings > .settings-heading { margin-bottom: 4px; }
+  .viewing-device-settings .settings-heading h2 { line-height: 1.3; }
+  .viewing-device-fields { gap: 4px; }
+  .viewing-device-fields label { font-size: calc(12px * var(--text-scale, 1)); line-height: 1.35; }
+  .viewing-device-fields label > span { gap: 8px; }
+  .viewing-device-fields output { white-space: nowrap; }
+  .viewing-device-fields input[type=range] { height: 44px; min-height: 44px; margin: 0; }
+  .viewing-device-fields label > button { min-height: 44px; margin-top: 0; padding: 6px 10px; }
+  .settings-fields { gap: 10px; }
+  .settings-page .camera-setting-field { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: center; gap: 6px 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .settings-page .camera-setting-label { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+  .settings-page .camera-setting-trigger { min-width: 0; min-height: 44px; padding: 6px; gap: 6px; }
+  .settings-page .camera-setting-trigger-icon { width: 24px; height: 24px; flex: 0 0 24px; }
+  .settings-page .camera-setting-help { grid-column: 1 / -1; margin: 0; }
+  .settings-page .camera-setting-field:last-child { border-bottom: 0; }
+  .settings-address-actions { width: 100%; }
+  .settings-address-actions > button { flex: 1 1 120px; min-width: 0; white-space: normal; }
+  .tenda-account-row { gap: 8px; }
+  .tenda-account-row > div { min-width: 0; overflow-wrap: anywhere; }
+  .camera-settings-workspace .simple-check { min-height: 44px; margin: 6px 0; }
+  .camera-settings-workspace .camera-ai-labels { gap: 0 12px; }
+  .device-dialog .dialog-heading, .device-dialog .dialog-footer { gap: 8px; padding: 12px; }
+  .device-dialog .dialog-heading > div { min-width: 0; }
+  .device-dialog .dialog-heading h2 { font-size: calc(17px * var(--text-scale, 1)); overflow-wrap: anywhere; }
+  .device-dialog .dialog-body { padding: 12px; }
+  .device-dialog .dialog-heading .icon-button { flex-shrink: 0; min-width: 44px; width: 44px; min-height: 44px; height: 44px; }
+  .device-dialog .dialog-footer { flex-wrap: wrap; }
+  .device-dialog .dialog-footer > button { min-height: 44px; }
+  .device-editor-tabs { flex-wrap: wrap; padding: 0 12px; gap: 0 12px; }
+  .device-editor-tabs > button { flex: 1 1 80px; min-width: 0; min-height: 44px; padding: 10px 0; justify-content: center; white-space: normal; }
+  .playback-page .pb-controls-settings { flex-basis: 100%; }
+  .playback-page .pb-speed { flex-wrap: wrap; }
+  .playback-page .segment-details button { min-width: 0; max-width: 100%; }
+  .playback-page .segment-details button > b { min-width: 0; overflow-wrap: anywhere; }
+  .live-device-dialog .live-device-row, .emergency-camera-row, .emergency-camera-all { min-height: 56px; padding: 8px 12px; }
+  .live-device-dialog .live-device-search { margin: 0 12px 10px; }
+  .live-device-dialog .live-device-list { padding: 0 12px 12px; }
+  .emergency-selection-note { padding: 8px 12px; font-size: calc(12px * var(--text-scale, 1)); }
+  :root[data-text-size="200"] .simple-shell .pb-controls-settings { grid-template-columns: minmax(0, 1fr); }
+  :root[data-text-size="200"] .simple-shell .pb-speed { justify-content: space-between; }
+  :root[data-text-size="200"] .appearance-mobile-row { grid-template-columns: 24px minmax(0, 1fr); }
+  :root[data-text-size="200"] .appearance-mobile-row > select { grid-column: 2; width: 100%; }
+  :root[data-text-size="200"] .simple-shell .settings-page .camera-setting-field { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (min-width: 360px) and (max-width: 760px) {
+  .devices-page .responsive-camera-table tbody > tr { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  :root[data-text-size="150"] .devices-page .responsive-camera-table tbody > tr,
+  :root[data-text-size="200"] .devices-page .responsive-camera-table tbody > tr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@container live-wall (max-width: 620px) {
+  :root[data-text-size="200"] .simple-shell.live-shell .mi-live-heading > .page-heading-title { flex-wrap: wrap; gap: 6px; }
+  :root[data-text-size="200"] .simple-shell.live-shell .mi-live-heading h1 { font-size: calc(15px * var(--text-scale, 1)); }
+  :root[data-text-size="200"] .simple-shell.live-shell .mi-live-selectors { flex: 1 1 100%; min-width: 0; max-width: 100%; flex-wrap: wrap; margin-left: 0; }
+  :root[data-text-size="200"] .simple-shell.live-shell .mi-live-selectors > * { max-width: 100%; }
 }
