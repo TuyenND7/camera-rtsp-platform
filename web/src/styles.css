@@ -920,7 +920,7 @@ body:has(.live-shell) { min-width: 0; }
 .camera-video-current span { display: flex; flex-direction: column; gap: 4px; color: var(--text-muted); font-size: calc(12px * var(--text-scale, 1)); }
 .camera-video-current strong { color: var(--text-body); font-size: calc(14px * var(--text-scale, 1)); }
 .camera-settings-note, .camera-settings-tip { font-size: calc(13px * var(--text-scale, 1)); color: var(--text-muted); line-height: 1.6; }
-.camera-settings-apply { position: sticky; bottom: 0; z-index: 1; display: flex; justify-content: flex-end; margin-top: 18px; padding: 14px 0; border-top: 1px solid var(--line); background: var(--surface); }
+.camera-settings-apply { position: sticky; bottom: 0; z-index: 1; display: flex; justify-content: flex-end; margin-top: 18px; padding: 14px 0; border-top: 1px solid var(--line); background: var(--surface, #fff); }
 .camera-settings-apply button { min-height: 44px; }
 .camera-settings-tip { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--line); margin-top: 24px; padding-top: 18px; }
 @media (max-width: 800px) {
@@ -1187,6 +1187,52 @@ body:has(.live-shell) { min-width: 0; }
 .event-picture { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #101d30; }
 .event-picture > img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .camera-settings-switch { flex-wrap: wrap; }
+
+/* Camera settings use compact rows on phones, with controls large enough to tap. */
+@media (max-width: 760px) {
+  .live-camera-settings-dialog, .device-editor-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); border-radius: 12px; }
+  .live-camera-settings-dialog > .dialog-heading, .device-editor-dialog > .dialog-heading { gap: 8px; padding: 10px 12px; }
+  .live-camera-settings-dialog > .dialog-heading > div, .device-editor-dialog > .dialog-heading > div { min-width: 0; }
+  .live-camera-settings-dialog .dialog-heading h2, .device-editor-dialog .dialog-heading h2 { font-size: calc(16px * var(--text-scale, 1)); line-height: 1.35; }
+  .live-camera-settings-dialog .dialog-heading p, .device-editor-dialog .dialog-heading p { font-size: calc(11px * var(--text-scale, 1)); overflow-wrap: anywhere; }
+  .live-camera-settings-dialog .device-editor-content, .device-editor-dialog .device-editor-content { padding: 12px; }
+  .camera-settings-switch { gap: 4px; padding: 3px; margin-bottom: 12px; border-radius: 8px; flex-wrap: nowrap; }
+  .camera-settings-switch button { flex: 1; min-width: 0; min-height: 44px; padding: 6px; font-size: calc(11px * var(--text-scale, 1)); line-height: 1.4; overflow-wrap: anywhere; }
+  .camera-settings-switch button > .app-icon { display: none !important; }
+  .camera-settings-heading { gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .camera-settings-heading > div { flex: 1 1 140px; min-width: 0; }
+  .camera-settings-heading h3 { font-size: calc(15px * var(--text-scale, 1)); }
+  .camera-settings-heading p { font-size: calc(12px * var(--text-scale, 1)); }
+  .camera-settings-heading button { min-height: 44px; padding: 6px 10px; font-size: calc(11px * var(--text-scale, 1)); }
+  .camera-setting-group { margin-bottom: 8px; border-radius: 8px; }
+  .camera-setting-group > summary { min-height: 44px; padding: 10px; gap: 8px; }
+  .camera-setting-group > summary strong { min-width: 0; font-size: calc(13px * var(--text-scale, 1)); }
+  .camera-setting-group > summary > span:not(.app-icon) { flex-shrink: 0; font-size: calc(11px * var(--text-scale, 1)); }
+  .camera-setting-group-content { padding: 0 10px; }
+  .camera-setting-group-content .form-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .camera-settings-workspace .camera-setting-field { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: center; gap: 6px 10px; margin: 0; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .camera-settings-workspace .camera-setting-field:last-child { border-bottom: 0; }
+  .camera-settings-workspace .camera-setting-label { margin: 0; font-size: calc(12px * var(--text-scale, 1)); }
+  .camera-settings-workspace .camera-setting-trigger { min-height: 44px; padding: 6px; gap: 6px; border-radius: 7px; }
+  .camera-settings-workspace .camera-setting-trigger-icon { width: 24px; height: 24px; border-radius: 5px; }
+  .camera-settings-workspace .camera-setting-trigger-icon > .app-icon { transform: scale(.8); }
+  .camera-settings-workspace .camera-setting-trigger-value strong { font-size: calc(13px * var(--text-scale, 1)); }
+  .camera-settings-workspace .camera-setting-trigger-value small, .camera-settings-workspace .camera-setting-help { font-size: calc(11px * var(--text-scale, 1)); }
+  .camera-settings-workspace .camera-setting-help { grid-column: 1 / -1; margin: 0; }
+  .camera-settings-workspace .camera-settings-apply { position: static; gap: 8px; margin-top: 10px; padding: 10px 0; }
+  .camera-settings-workspace .camera-settings-apply button, .camera-settings-workspace .camera-settings-apply > span { font-size: calc(12px * var(--text-scale, 1)); }
+  .camera-device-information { gap: 10px 16px; padding: 10px; margin-top: 12px; }
+  .camera-choice-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); border-radius: 12px; }
+  .camera-choice-heading { gap: 8px; padding: 12px; }
+  .camera-choice-heading-icon { width: 32px; height: 32px; border-radius: 8px; }
+  .camera-choice-heading h2 { font-size: calc(16px * var(--text-scale, 1)); }
+  .camera-choice-heading p { font-size: calc(11px * var(--text-scale, 1)); }
+  .camera-choice-options { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 12px; }
+  .camera-choice-option { min-height: 48px; padding: 9px 10px; gap: 8px; border-radius: 8px; }
+  .camera-choice-option-title strong { font-size: calc(13px * var(--text-scale, 1)); }
+  .camera-choice-option-content > small { margin-top: 3px; font-size: calc(11px * var(--text-scale, 1)); }
+  .camera-choice-footer { padding: 10px 12px; }
+}
 
 /* Phone Live keeps one title row and one clock/emergency row. */
 @media (max-width: 760px) {
