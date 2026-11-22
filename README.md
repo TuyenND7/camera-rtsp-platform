@@ -549,6 +549,19 @@ Khi mạng xem Live gián đoạn, trình phát tự thử lại kể cả lúc 
 
 Gateway nén JS/CSS và JSON; chỉ các tệp giao diện có tên chứa hash trong `/assets/` được lưu cache lâu dài. API dữ liệu camera, playlist, recording và snapshot vẫn yêu cầu đăng nhập, dùng `private, no-store`. Nếu camera không phản hồi cả trong LAN, cần kiểm tra nguồn và kết nối Wi-Fi của camera; tải lại web không khôi phục được kết nối Wi-Fi đó.
 
+### Nhật ký chẩn đoán RTSP
+
+Backend tự ghi JSONL vào `/storage/.stream-diagnostics/streams.jsonl`, tương ứng `C:\Users\Tuyen\Documents\CameraRTSP\storage\.stream-diagnostics\streams.jsonl` nếu dùng thư mục Windows ở trên. Log còn sau khi container được tạo lại; tự xoay vòng tối đa 4 file × 5 MiB (`streams.jsonl`, `.1`, `.2`, `.3`). Thư mục này không có đường tải trên web.
+
+Mỗi lần kết nối có `camera_id` và `run_id`: `probe_start`/`probe_result` đo thời gian ffprobe; `process_spawned` ghi PID, codec và số bộ mã hóa; `first_frame` xác nhận frame lớn hơn 0; `health` ghi mỗi 30 giây. CPU/RAM/thread FFmpeg và tuổi playlist được lấy mẫu mỗi 5 giây, giữ mẫu gần nhất trong `exit`, cùng mã thoát, signal, tiến trình cuối, lỗi gần nhất và thời gian chờ kết nối lại. `stop` phân biệt lệnh dừng, đổi ngày ghi và tắt backend. CPU 100% tương đương một lõi; `playlist_video_lag_ms` là độ trễ ước lượng từ timestamp HLS, không phải độ trễ đo trực tiếp tại cảm biến.
+
+Sau lần thoát bất thường, `rtsp_port_after_exit` chỉ thử bắt tay TCP tối đa 2 giây: không đăng nhập, không mở thêm phiên RTSP. `reachable: true` chỉ xác nhận cổng còn nhận kết nối, không chứng minh luồng video còn tốt. Tài khoản, mật khẩu và URL RTSP được che trước khi ghi file hoặc Docker log; lỗi giải mã lặp lại được giới hạn số dòng, vẫn giữ tổng số và đuôi lỗi tại lúc thoát. Việc ghi log không thay đổi codec, timeout hay chính sách reconnect.
+
+```powershell
+# Trên máy Windows, theo dõi riêng camera ID 1:
+Get-Content "$env:USERPROFILE\Documents\CameraRTSP\storage\.stream-diagnostics\streams.jsonl" -Tail 100 -Wait | Select-String '"camera_id":1,'
+```
+
 ## API
 
 - `POST /api/talk/capabilities`: kiểm tra các `camera_ids` đã lưu, không sửa cấu hình camera.

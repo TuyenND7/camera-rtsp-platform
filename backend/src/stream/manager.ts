@@ -3,6 +3,7 @@ import { startFfmpeg, FfmpegHandle, CodecMode } from './ffmpeg';
 import { config } from '../config';
 import { rediscoverCamera, rememberSerial } from '../discovery';
 import { liveAudio } from './audio';
+import { StreamDiagnostics } from './diagnostics';
 
 export interface CameraRow {
   id: number;
@@ -15,6 +16,7 @@ export interface CameraRow {
 }
 
 interface Worker {
+  diagnostics: StreamDiagnostics;
   audioGeneration: string;
   lastIdentityCheck: number;
   handle?: FfmpegHandle; // undefined trong lúc đang probe/spawn
@@ -69,7 +71,7 @@ class StreamManager {
     void pool.query<CameraRow>('SELECT * FROM cameras WHERE enabled = true AND record = true')
       .then(({ rows }) => {
         console.log(`[stream] recording day changed to ${nextDay}; restarting ${rows.length} camera(s)`);
-        rows.forEach((cam) => void this.restart(cam.id));
+        rows.forEach((cam) => void this.restart(cam.id, 'recording_day_changed'));
       })
       .catch((err) => console.error('[stream] failed to roll recording day:', err));
   }
@@ -92,32 +94,42 @@ class StreamManager {
     void this.setStatus(cam.id, 'connecting');
 
     // Đăng ký worker placeholder ngay để stop() có thể hủy trong lúc probe
-    const worker: Worker = { audioGeneration: liveAudio.begin(cam.id), lastIdentityCheck: 0, stopping: false, backoffMs, online: false };
+    const worker: Worker = { diagnostics: new StreamDiagnostics(cam.id, cam.rtsp_url), audioGeneration: liveAudio.begin(cam.id), lastIdentityCheck: 0, stopping: false, backoffMs, online: false };
     this.workers.set(cam.id, worker);
+    worker.diagnostics.event('start', { backoff_ms: backoffMs, codec_mode: cam.codec ?? 'auto', record: cam.record,
+      backend_pid: process.pid, backend_uptime_s: Math.round(process.uptime()), rtsp_read_timeout_ms: 10000,
+      transcode_preset: config.transcodePreset, browser_playback_archive: config.browserPlaybackArchive });
 
     startFfmpeg(
       cam.id,
       cam.rtsp_url,
       cam.record,
       cam.codec ?? 'auto',
-      (line) => {
+      (line, source) => {
+        if (source === 'stderr') {
+          worker.diagnostics.stderr(line);
+          return;
+        }
+        worker.diagnostics.progressLine(line);
         // -progress ghi "frame=N" ra stdout khi FFmpeg đã nhận frame thật.
         // Chỉ UPDATE DB một lần mỗi lần spawn thay vì mỗi báo cáo tiến trình.
         if (!worker.stopping && this.workers.get(cam.id) === worker && !worker.online && /(^|\n)frame=\d+/.test(line)) {
           worker.online = true;
           this.failures.delete(cam.id);
           void this.setStatus(cam.id, 'online', null);
+          worker.diagnostics.event('status_online');
         }
         if (!worker.stopping && this.workers.get(cam.id) === worker && /(^|\n)frame=\d+/.test(line) && Date.now() - worker.lastIdentityCheck >= 30_000) {
           worker.lastIdentityCheck = Date.now();
           void rememberSerial(cam.id).catch(() => undefined);
         }
-        if (/error|failed|refused|timed out|Connection/i.test(line)) {
-          console.warn(`[cam ${cam.id}] ${line}`);
-        }
       },
-      (code) => this.onExit(cam, code, worker),
-      pcm => liveAudio.push(cam.id, worker.audioGeneration, pcm)
+      (code, signal) => this.onExit(cam, code, worker, signal),
+      pcm => liveAudio.push(cam.id, worker.audioGeneration, pcm),
+      (event, details) => {
+        worker.diagnostics.event(event, details);
+        if (event === 'process_spawned' && !worker.stopping) worker.diagnostics.spawned(typeof details.pid === 'number' ? details.pid : undefined);
+      }
     )
       .then((handle) => {
         // Nếu đã bị stop trong lúc probe => kill ngay
@@ -130,19 +142,14 @@ class StreamManager {
           return;
         }
         worker.handle = handle;
-        console.log(
-          `[cam ${cam.id}] started (live codec: ${handle.liveCodec}${
-            handle.liveCodec === 'h265' ? ' -> transcode H.264' : ' copy'
-          })`
-        );
       })
       .catch((err) => {
-        console.error(`[cam ${cam.id}] failed to start ffmpeg:`, err);
+        worker.diagnostics.event('start_error', { message: err instanceof Error ? err.message : String(err) });
         this.onExit(cam, -1, worker);
       });
   }
 
-  private onExit(cam: CameraRow, code: number | null, expected: Worker): void {
+  private onExit(cam: CameraRow, code: number | null, expected: Worker, signal: NodeJS.Signals | null = null): void {
     const worker = this.workers.get(cam.id);
     if (worker !== expected) return;
     if (worker) liveAudio.end(cam.id, worker.audioGeneration);
@@ -155,7 +162,7 @@ class StreamManager {
 
     // exponential backoff tối đa 30s
     const nextBackoff = Math.min(worker.backoffMs * 2, 30000);
-    console.warn(`[cam ${cam.id}] ${err}, restart in ${worker.backoffMs}ms`);
+    worker.diagnostics.end({ code, signal, was_online: worker.online, restart_in_ms: worker.backoffMs }, true);
     worker.restartTimer = setTimeout(() => {
       this.workers.delete(cam.id);
       this.spawn(cam, nextBackoff);
@@ -167,20 +174,22 @@ class StreamManager {
     if (failures >= FAILURES_BEFORE_REDISCOVERY) {
       void rediscoverCamera(cam.id)
         .then((moved) => {
+          worker.diagnostics.event('rediscovery_result', { moved });
           if (!moved) return;
           this.failures.delete(cam.id);
           // restart đọc lại rtsp_url mới từ DB.
-          return this.restart(cam.id);
+          return this.restart(cam.id, 'rediscovered_address');
         })
-        .catch((error) => console.error(`[cam ${cam.id}] rediscovery failed:`, error));
+        .catch((error) => worker.diagnostics.event('rediscovery_error', { message: error instanceof Error ? error.message : String(error) }));
     }
   }
 
-  stop(id: number): void {
+  stop(id: number, reason = 'requested'): void {
     const worker = this.workers.get(id);
     if (!worker) return;
     liveAudio.end(id, worker.audioGeneration);
     worker.stopping = true;
+    worker.diagnostics.end({ reason });
     if (worker.restartTimer) clearTimeout(worker.restartTimer);
     if (worker.handle) {
       try {
@@ -193,8 +202,8 @@ class StreamManager {
     void this.setStatus(id, 'stopped', null);
   }
 
-  async restart(id: number): Promise<void> {
-    this.stop(id);
+  async restart(id: number, reason = 'requested'): Promise<void> {
+    this.stop(id, reason);
     const { rows } = await pool.query<CameraRow>(
       'SELECT * FROM cameras WHERE id = $1',
       [id]
@@ -208,7 +217,7 @@ class StreamManager {
   stopAll(): void {
     if (this.recordDayTimer) clearInterval(this.recordDayTimer);
     for (const id of Array.from(this.workers.keys())) {
-      this.stop(id);
+      this.stop(id, 'backend_shutdown');
     }
   }
 }

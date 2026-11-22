@@ -2,6 +2,7 @@ import { spawn, ChildProcess, execFile } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { Readable } from 'stream';
+import { StringDecoder } from 'string_decoder';
 import { config } from '../config';
 
 export type CodecMode = 'auto' | 'h264' | 'h265';
@@ -40,8 +41,9 @@ export function resolvePaths(cameraId: number): FfmpegPaths {
 /**
  * Dùng ffprobe phát hiện codec video và kênh audio của luồng RTSP.
  */
-export function probeMedia(rtspUrl: string): Promise<{ video: 'h264' | 'h265' | null; audio: boolean }> {
+export function probeMedia(rtspUrl: string, onResult?: (details: Record<string, unknown>) => void): Promise<{ video: 'h264' | 'h265' | null; audio: boolean }> {
   return new Promise((resolve) => {
+    const started = Date.now();
     const args = [
       '-v', 'error',
       '-rtsp_transport', 'tcp',
@@ -49,16 +51,24 @@ export function probeMedia(rtspUrl: string): Promise<{ video: 'h264' | 'h265' | 
       '-of', 'json',
       rtspUrl,
     ];
-    execFile('ffprobe', args, { timeout: 15000 }, (err, stdout) => {
+    execFile('ffprobe', args, { timeout: 15000 }, (err, stdout, stderr) => {
       if (err) {
+        // Error.message của execFile chứa nguyên command/URL, tuyệt đối không log.
+        onResult?.({ ok: false, duration_ms: Date.now() - started, code: err.code, signal: err.signal,
+          killed: err.killed, stderr });
         resolve({ video: null, audio: false });
         return;
       }
       try {
         const streams = JSON.parse(stdout).streams as Array<{ codec_type: string; codec_name: string }>;
         const name = streams.find(stream => stream.codec_type === 'video')?.codec_name?.toLowerCase() ?? '';
+        onResult?.({ ok: true, duration_ms: Date.now() - started, video_codec: name,
+          audio_codec: streams.find(stream => stream.codec_type === 'audio')?.codec_name ?? null });
         resolve({ video: /hevc|h265/.test(name) ? 'h265' : /h264|avc/.test(name) ? 'h264' : null, audio: streams.some(stream => stream.codec_type === 'audio') });
-      } catch { resolve({ video: null, audio: false }); }
+      } catch {
+        onResult?.({ ok: false, duration_ms: Date.now() - started, error: 'invalid_probe_output', stderr });
+        resolve({ video: null, audio: false });
+      }
     });
   });
 }
@@ -182,6 +192,25 @@ export interface FfmpegHandle {
   hasAudio: boolean;
 }
 
+/** Pipe data có thể chia giữa một dòng/UTF-8; chỉ chuyển dòng hoàn chỉnh cho logger. */
+export function readFfmpegLines(stream: Readable, onLine: (line: string) => void): void {
+  const decoder = new StringDecoder('utf8');
+  let pending = '';
+  const consume = (text: string) => {
+    pending += text;
+    let end: number;
+    while ((end = pending.search(/[\r\n]/)) >= 0) {
+      const line = pending.slice(0, end);
+      pending = pending.slice(end + 1);
+      if (line.trim()) onLine(line.trim());
+    }
+    // FFmpeg không tạo dòng dài như vậy; bỏ phần đầu nếu process lỗi/phun dữ liệu.
+    if (pending.length > 16384) pending = pending.slice(-16384);
+  };
+  stream.on('data', (data: Buffer) => consume(decoder.write(data)));
+  stream.on('end', () => { consume(decoder.end()); if (pending.trim()) onLine(pending.trim()); pending = ''; });
+}
+
 /**
  * Khởi động ffmpeg cho 1 camera. Async vì có thể phải probe codec trước.
  */
@@ -190,16 +219,18 @@ export async function startFfmpeg(
   rtspUrl: string,
   record: boolean,
   codec: CodecMode,
-  onLog: (line: string) => void,
-  onExit: (code: number | null) => void,
-  onAudio?: (pcm: Buffer) => void
+  onLog: (line: string, source: 'progress' | 'stderr') => void,
+  onExit: (code: number | null, signal: NodeJS.Signals | null) => void,
+  onAudio?: (pcm: Buffer) => void,
+  onDiagnostic?: (event: string, details: Record<string, unknown>) => void
 ): Promise<FfmpegHandle> {
   const paths = resolvePaths(cameraId);
   fs.mkdirSync(paths.liveDir, { recursive: true });
   fs.mkdirSync(paths.recDir, { recursive: true });
   fs.mkdirSync(paths.playbackDir, { recursive: true });
 
-  const media = await probeMedia(rtspUrl);
+  onDiagnostic?.('probe_start', { timeout_ms: 15000 });
+  const media = await probeMedia(rtspUrl, details => onDiagnostic?.('probe_result', details));
   const liveCodec = codec === 'auto' ? media.video ?? 'h264' : codec;
   const args = buildArgs(rtspUrl, record, paths, liveCodec, media.audio && !!onAudio);
   // Tên file recording (-strftime) luôn theo UTC để API đổi ra giờ chính xác;
@@ -209,10 +240,17 @@ export async function startFfmpeg(
     env: { ...process.env, TZ: 'UTC' },
   });
 
-  proc.stderr?.on('data', (d: Buffer) => onLog(d.toString().trim()));
-  proc.stdout?.on('data', (d: Buffer) => onLog(d.toString().trim()));
+  if (proc.stderr) readFfmpegLines(proc.stderr, line => onLog(line, 'stderr'));
+  if (proc.stdout) readFfmpegLines(proc.stdout, line => onLog(line, 'progress'));
   (proc.stdio[3] as Readable).on('data', (d: Buffer) => onAudio?.(d));
-  proc.on('exit', (code) => onExit(code));
+  proc.once('error', err => onDiagnostic?.('process_error', { code: (err as NodeJS.ErrnoException).code ?? null }));
+  // close đến sau khi stderr/stdout đã hết: log exit không mất thông báo cuối.
+  proc.once('close', (code, signal) => {
+    onDiagnostic?.('process_close', { code, signal });
+    onExit(code, signal);
+  });
+  onDiagnostic?.('process_spawned', { pid: proc.pid ?? null, live_codec: liveCodec,
+    record, has_audio: media.audio, x264_encoders: args.filter(arg => arg === 'libx264').length });
 
   return { proc, paths, liveCodec, hasAudio: media.audio };
 }

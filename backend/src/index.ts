@@ -5,6 +5,7 @@ import { initDb, waitForDb } from './db';
 import { streamManager } from './stream/manager';
 import { startRetentionJob } from './stream/retention';
 import { startThumbnailJob } from './stream/thumbnails';
+import { flushStreamDiagnostics } from './stream/diagnostics';
 import authRoutes from './routes/auth';
 import cameraRoutes from './routes/cameras';
 import ptzRoutes from './routes/ptz';
@@ -62,7 +63,7 @@ async function main() {
     talkManager.close();
     deviceControls.close();
     streamManager.stopAll();
-    server.close(() => process.exit(0));
+    server.close(() => { void flushStreamDiagnostics().finally(() => process.exit(0)); });
     setTimeout(() => process.exit(0), 5000);
   };
   process.on('SIGTERM', shutdown);
