@@ -7,7 +7,9 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.net.http.SslError;
 import android.os.Build;
@@ -116,13 +118,20 @@ public final class MainActivity extends Activity {
         errorMessage.setPadding(0, dp(14), 0, dp(20));
         errorPanel.addView(errorMessage);
         Button retry = new Button(this);
-        retry.setText(R.string.retry);
+        retry.setText(R.string.reload);
+        retry.setAllCaps(false);
+        retry.setTextColor(Color.WHITE);
+        retry.setTextSize(16);
+        retry.setBackgroundTintList(ColorStateList.valueOf(INK));
+        retry.setPadding(dp(20), dp(10), dp(20), dp(10));
+        retry.setMinHeight(dp(52));
+        Drawable reloadIcon = getDrawable(R.drawable.ic_reload_imagegen).mutate();
+        reloadIcon.setTint(Color.WHITE);
+        reloadIcon.setBounds(0, 0, dp(32), dp(32));
+        retry.setCompoundDrawablesRelative(reloadIcon, null, null, null);
+        retry.setCompoundDrawablePadding(dp(8));
         retry.setOnClickListener(view -> reload());
-        errorPanel.addView(retry);
-        Button change = new Button(this);
-        change.setText(R.string.server);
-        change.setOnClickListener(view -> showServerDialog());
-        errorPanel.addView(change);
+        errorPanel.addView(retry, new LinearLayout.LayoutParams(-2, -2));
         errorPanel.setVisibility(View.GONE);
         page.addView(errorPanel, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
@@ -298,7 +307,7 @@ public final class MainActivity extends Activity {
     private void showError(String message) {
         pageFailed = true;
         progress.setVisibility(View.GONE);
-        errorMessage.setText(getString(R.string.error_details, message, serverUrl));
+        errorMessage.setText(message);
         errorPanel.setVisibility(View.VISIBLE);
     }
 

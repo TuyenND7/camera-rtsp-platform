@@ -7,10 +7,8 @@
     <string name="server">Địa chỉ máy chủ</string>
     <string name="connect">Kết nối</string>
     <string name="cancel">Hủy</string>
-    <string name="retry">Thử lại</string>
     <string name="connection_error">Chưa kết nối được máy chủ</string>
-    <string name="connection_help">Kiểm tra Internet, máy chủ và địa chỉ đang kết nối.</string>
-    <string name="error_details">%1$s\n\n%2$s</string>
+    <string name="connection_help">Kiểm tra kết nối rồi tải lại trang.</string>
     <string name="invalid_url">Nhập địa chỉ HTTP hoặc HTTPS hợp lệ, không kèm tài khoản hay mật khẩu.</string>
     <string name="server_hint">https://camera.taild8cb98.ts.net:8443/live</string>
     <string name="tls_error">Chứng chỉ HTTPS chưa hợp lệ hoặc chưa được thiết bị tin cậy.</string>
