@@ -15,7 +15,6 @@ import android.view.View;
 import android.widget.RemoteViews;
 
 public final class CameraWidgetProvider extends AppWidgetProvider {
-    static final String REFRESH="vn.tuyen.camerastation.WIDGET_REFRESH";
     static SharedPreferences prefs(Context c){return c.getSharedPreferences("camera_widgets",Context.MODE_PRIVATE);}
     static void schedule(Context c,int id,boolean periodic){
         if(id<=0)return;
@@ -35,11 +34,8 @@ public final class CameraWidgetProvider extends AppWidgetProvider {
         view.setImageViewBitmap(R.id.widget_image,bitmap);
         Intent open=new Intent(c,MainActivity.class).setAction("vn.tuyen.camerastation.WIDGET_OPEN."+id).putExtra("camera_widget_id",camera).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP);
         view.setOnClickPendingIntent(R.id.widget_root,PendingIntent.getActivity(c,id,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
-        Intent refresh=new Intent(c,CameraWidgetProvider.class).setAction(REFRESH).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,id);
-        view.setOnClickPendingIntent(R.id.widget_refresh,PendingIntent.getBroadcast(c,id,refresh,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
         AppWidgetManager.getInstance(c).updateAppWidget(id,view);
     }
     @Override public void onUpdate(Context c,AppWidgetManager m,int[] ids){for(int id:ids){display(c,id,null,"Đang tải ảnh…",null);schedule(c,id,false);schedule(c,id,true);}}
-    @Override public void onReceive(Context c,Intent intent){super.onReceive(c,intent);if(REFRESH.equals(intent.getAction())){int id=intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,-1);if(prefs(c).getInt("id_"+id,-1)>0){display(c,id,null,"Đang tải ảnh…",null);schedule(c,id,false);}}}
     @Override public void onDeleted(Context c,int[] ids){JobScheduler jobs=(JobScheduler)c.getSystemService(Context.JOB_SCHEDULER_SERVICE);SharedPreferences.Editor edit=prefs(c).edit();for(int id:ids){jobs.cancel(100000+id*2);jobs.cancel(100001+id*2);edit.remove("id_"+id).remove("name_"+id).remove("origin_"+id);}edit.apply();}
 }
