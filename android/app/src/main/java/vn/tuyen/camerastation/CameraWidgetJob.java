@@ -22,7 +22,7 @@ public final class CameraWidgetJob extends JobService {
                 String origin=CameraWidgetProvider.prefs(this).getString("origin_"+widget,"");
                 if(camera<=0)return;
                 Bitmap bitmap=CameraWidgetData.image(this,camera,origin);
-                CameraWidgetProvider.display(this,widget,bitmap,null,"Cập nhật "+DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date()));
+                CameraWidgetProvider.display(this,widget,bitmap,null,DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date()));
             } catch(Exception e){CameraWidgetProvider.display(this,widget,null,e.getMessage()==null?"Không tải được ảnh":e.getMessage(),null);}
             finally {jobFinished(params,false);}
         });

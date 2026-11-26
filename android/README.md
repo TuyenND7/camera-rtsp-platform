@@ -99,3 +99,9 @@ Kết thúc phiên phát triển, dừng Vite và gỡ chuyển tiếp USB:
 ```bash
 adb -s <SERIAL_LENOVO> reverse --remove tcp:18173
 ```
+
+## Widget camera trên màn hình chính
+
+Trên Glass Launcher 4.5 trở lên, thêm widget **Camera Station** và chọn **Hiển thị tất cả camera**. Một widget hiển thị lưới các camera đã thêm vào máy chủ, tự kiểm tra danh sách sau mỗi 30 giây; camera mất kết nối vẫn có ô riêng. Chạm vào ô để mở camera trong app; nút vòng tròn tải lại widget. Có thể kéo góc dưới để đổi kích thước. Không cần thêm widget riêng cho từng camera.
+
+Video dùng luồng HLS Live sẵn có, tắt tiếng, có độ trễ vài giây và dừng khi launcher không còn hiển thị. Đăng nhập Camera Station trong Glass Launcher nếu widget yêu cầu. Hai app phải được ký cùng chứng chỉ để launcher đọc cấu hình widget; khi không có quyền tương ứng, widget trở về ảnh tĩnh. Các launcher Android thông thường chỉ hỗ trợ ảnh tĩnh của camera đầu tiên, cập nhật định kỳ khoảng 15 phút, không phát video trực tiếp. Khi đổi máy chủ trong app, hãy thêm lại widget.

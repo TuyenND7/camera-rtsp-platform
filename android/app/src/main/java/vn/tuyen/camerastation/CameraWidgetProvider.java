@@ -26,13 +26,13 @@ public final class CameraWidgetProvider extends AppWidgetProvider {
         ((JobScheduler)c.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(builder.build());
     }
     static void display(Context c,int id,Bitmap bitmap,String message,String updated){
-        SharedPreferences p=prefs(c);int camera=p.getInt("id_"+id,-1);if(camera<=0)return;
+        SharedPreferences p=prefs(c);int camera=p.getInt("id_"+id,-1);
         RemoteViews view=new RemoteViews(c.getPackageName(),R.layout.camera_widget);
-        view.setTextViewText(R.id.widget_name,p.getString("name_"+id,"Camera"));
+        String name=p.getString("name_"+id,"Camera");
+        view.setTextViewText(R.id.widget_name,updated==null?name:name+" · "+updated);
         view.setTextViewText(R.id.widget_message,message==null?"":message);
         view.setViewVisibility(R.id.widget_message,message==null?View.GONE:View.VISIBLE);
         view.setImageViewBitmap(R.id.widget_image,bitmap);
-        view.setTextViewText(R.id.widget_time,updated==null?"Chạm để mở Live":updated);
         Intent open=new Intent(c,MainActivity.class).setAction("vn.tuyen.camerastation.WIDGET_OPEN."+id).putExtra("camera_widget_id",camera).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP);
         view.setOnClickPendingIntent(R.id.widget_root,PendingIntent.getActivity(c,id,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
         Intent refresh=new Intent(c,CameraWidgetProvider.class).setAction(REFRESH).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,id);
