@@ -1,5 +1,14 @@
 # Camera Station cho Android
 
+## Widget trên launcher (0.4.0)
+
+1. Đăng nhập Camera Station trên thiết bị, rồi trở về màn hình chính.
+2. Trên Glass Launcher, chọn **Widget + → Camera Station**. Trên launcher Android khác, nhấn giữ màn hình chính → **Widget** → **Camera Station**.
+3. Chọn camera trong danh sách. Có thể thêm nhiều widget, mỗi widget chọn riêng một camera; kéo/đổi kích thước theo khả năng của launcher.
+4. Widget hiển thị ảnh từ đoạn Live đã có trên máy chủ. Chạm ảnh để mở Live đúng camera; chạm nút làm mới để tải ảnh mới. Widget tự yêu cầu cập nhật khoảng 15 phút, Android có thể trì hoãn để tiết kiệm pin. Đây là ảnh tĩnh, không phải video liên tục; nhãn **Cập nhật** là lúc tải ảnh về, có thể chậm hơn hình thực tế vài giây.
+
+Widget dùng phiên đăng nhập của app và lấy dữ liệu qua địa chỉ máy chủ đã cấu hình; không mở phiên RTSP trực tiếp. Nếu camera offline, máy chủ đổi địa chỉ, phiên hết hạn hoặc mạng mất, widget hiện lý do và cần làm mới/đăng nhập lại. Hình có thể còn trên màn hình đến lượt cập nhật tiếp theo; lưu ý khi chia sẻ thiết bị. Khi đổi máy chủ, gỡ và thêm lại widget để chọn đúng camera. Widget cần máy chủ đang chạy và có kết nối mạng phù hợp.
+
 App Android mở web Camera Station trọn màn hình, không có thanh tiêu đề riêng. Từ bản 0.2.2, thanh trạng thái và thanh điều hướng Android tự ẩn ngay khi mở app và khi quay lại app; vuốt từ cạnh màn hình để hiện tạm các nút hệ thống. Thoát chế độ phóng to video vẫn giữ app toàn màn hình. Bàn phím và vùng khuyết màn hình vẫn được chừa chỗ. Giao diện vẫn được tải từ máy chủ: cập nhật web rồi tải lại trang là thấy UI mới, không phải build lại APK.
 
 - Android 8.0 trở lên, hỗ trợ tablet dọc/ngang.

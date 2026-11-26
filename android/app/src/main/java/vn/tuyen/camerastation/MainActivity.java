@@ -72,7 +72,7 @@ public final class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(0, this::navigateBack);
         }
-        if (serverChanged || state == null || webView.restoreState(state) == null) webView.loadUrl(serverUrl);
+        if (!openWidgetCamera(getIntent()) && (serverChanged || state == null || webView.restoreState(state) == null)) webView.loadUrl(serverUrl);
         if (ACTION_SERVER.equals(getIntent().getAction())) root.post(this::showServerDialog);
     }
 
@@ -80,8 +80,19 @@ public final class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        if (openWidgetCamera(intent)) return;
         if (ACTION_SERVER.equals(intent.getAction())) root.post(this::showServerDialog);
         else if (ACTION_RELOAD.equals(intent.getAction())) reload();
+    }
+
+    private boolean openWidgetCamera(Intent intent) {
+        int cameraId = intent == null ? -1 : intent.getIntExtra("camera_widget_id", -1);
+        if (cameraId <= 0 || webView == null || serverUrl == null) return false;
+        Uri server = Uri.parse(serverUrl);
+        Uri destination = server.buildUpon().path("/live").clearQuery().appendQueryParameter("camera", String.valueOf(cameraId)).fragment(null).build();
+        webView.loadUrl(destination.toString());
+        intent.removeExtra("camera_widget_id");
+        return true;
     }
 
     private void createViews() {
