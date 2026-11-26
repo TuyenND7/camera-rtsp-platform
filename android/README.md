@@ -102,6 +102,6 @@ adb -s <SERIAL_LENOVO> reverse --remove tcp:18173
 
 ## Widget camera trên màn hình chính
 
-Trên Glass Launcher 4.6 trở lên, thêm widget **Camera Station** và chọn **Hiển thị tất cả camera**. Một widget hiển thị camera đã thêm vào máy chủ, tự kiểm tra danh sách sau mỗi 30 giây; camera mất kết nối vẫn có ô riêng. Nhấn biểu tượng cài đặt trên widget để chọn camera và chế độ lưới hoặc danh sách cuộn. Chạm vào ô để mở camera trong app. Có thể kéo góc dưới để đổi kích thước. Không cần thêm widget riêng cho từng camera.
+Trên Glass Launcher 4.7 trở lên, thêm widget **Camera Station** và chọn **Hiển thị tất cả camera**. Một widget hiển thị camera đã thêm vào máy chủ, tự kiểm tra danh sách sau mỗi 30 giây; camera mất kết nối vẫn có ô riêng. Chạm vào widget để hiện nút cài đặt và gỡ; sau 5 giây không chạm, các nút tự ẩn. Nhấn cài đặt để chọn camera và chế độ lưới hoặc danh sách cuộn. Chạm tiếp ô camera để mở trong app. Có thể kéo góc dưới để đổi kích thước. Không cần thêm widget riêng cho từng camera.
 
 Video dùng luồng HLS Live sẵn có, tắt tiếng, có độ trễ vài giây và dừng khi launcher không còn hiển thị. Đăng nhập Camera Station trong Glass Launcher nếu widget yêu cầu. Hai app phải được ký cùng chứng chỉ để launcher đọc cấu hình widget; khi không có quyền tương ứng, widget trở về ảnh tĩnh. Các launcher Android thông thường chỉ hỗ trợ ảnh tĩnh của camera đầu tiên, cập nhật định kỳ khoảng 15 phút, không phát video trực tiếp. Khi đổi máy chủ trong app, hãy thêm lại widget.
