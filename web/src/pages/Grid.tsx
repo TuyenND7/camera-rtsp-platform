@@ -35,6 +35,26 @@ export default function Grid() {
   const [pickerSlot, setPickerSlot] = useState<number | null>(null);
   const [err, setErr] = useState('');
   const livePage = useRef<HTMLElement>(null);
+  const [narrow, setNarrow] = useState(false);
+  const [narrowLayoutOverride, setNarrowLayoutOverride] = useState(false);
+  const wasNarrow = useRef(false);
+  useEffect(() => {
+    const page = livePage.current;
+    if (!page) return;
+    const update = (width: number) => {
+      const next = width <= 640;
+      if (wasNarrow.current !== next) { wasNarrow.current = next; setNarrow(next); setNarrowLayoutOverride(false); }
+    };
+    update(page.getBoundingClientRect().width);
+    if (typeof ResizeObserver === 'undefined') {
+      const resize = () => update(page.getBoundingClientRect().width);
+      window.addEventListener('resize', resize);
+      return () => window.removeEventListener('resize', resize);
+    }
+    const observer = new ResizeObserver(entries => { if (entries[0]) update(entries[0].contentRect.width); });
+    observer.observe(page);
+    return () => observer.disconnect();
+  }, []);
   const [nativeFullscreen, setNativeFullscreen] = useState(false), [expandedView, setExpandedView] = useState(false);
   const fullscreen = nativeFullscreen || expandedView;
   useEffect(() => {
@@ -97,12 +117,18 @@ export default function Grid() {
     if (layout === 'list' && slots.length < 16 && (!items.length || cameras.some(camera => !slots.includes(camera.id)))) items.push(null);
     return items;
   }, [cameraById, cameras, layout, slots]);
+  const autoList = narrow && !narrowLayoutOverride && layout !== 1 && layout !== 'list';
+  const renderedSlots = useMemo(() => {
+    const firstEmpty = visible.findIndex(camera => !camera);
+    return visible.map((camera, index) => ({ camera, index })).filter(({ camera, index }) => !autoList || camera || index === firstEmpty);
+  }, [autoList, visible]);
   const selected = useMemo(() => new Set(visible.flatMap(camera => camera ? [camera.id] : [])), [visible]);
   const cameraTalk = useCameraTalk(cameras, selected, false);
   const talkActive = cameraTalk.phase !== 'idle';
 
   function changeLayout(size: LiveLayout) {
     setLayout(size);
+    if (narrow) setNarrowLayoutOverride(true);
     rememberLiveLayout(size);
     setSlots(current => size === 'list' ? current.filter(id => id !== null) : Array.from({ length: size }, (_, index) => current[index] ?? null));
     setPickerOpen(false);
@@ -130,7 +156,7 @@ export default function Grid() {
     <LiveAiProvider cameraIds={visible.flatMap(camera => camera?.ai_enabled && camera.enabled && camera.status === 'online' ? [camera.id] : [])}><section ref={livePage} className={`mi-live-page${fullscreen ? ' is-fullscreen' : ''}`}>
       <PageHeader title="Live view" className="mi-live-heading" titleActions={<div className="mi-live-selectors">
           <button type="button" className="mi-camera-picker-button" onClick={() => openPicker()} aria-label={`Chọn camera Live view, đang chọn ${selected.size} camera`}><Icon name="video" size={18} />{selected.size}<Icon name="chevronDown" size={15} /></button>
-          <LiveLayoutPicker value={layout} onChange={changeLayout} />
+          <LiveLayoutPicker value={autoList ? 'list' : layout} onChange={changeLayout} />
           <button type="button" className="mi-live-fullscreen-button" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen} aria-label={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'} title={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'}><Icon name={fullscreen ? 'minimize' : 'maximize'} size={20} /></button>
           <button type="button" className="mi-live-screen-button" onClick={() => void device.sleep().catch(() => undefined)} aria-label="Tắt hiển thị, chạm đúp để mở" title="Tắt hiển thị, chạm đúp để mở"><Icon name="moon" size={19} /></button>
         </div>} center={<LiveClock />} actions={<div className="mi-live-actions">
@@ -142,10 +168,10 @@ export default function Grid() {
       {err && <div className="notice error">Không tải được camera: {err}</div>}
       {!err && layout === 1 && visible[0] && <FocusView cameraTalk={cameraTalk} talkActive={talkActive} camera={visible[0]} cameras={cameras.filter(camera => camera.enabled)} onChoose={id => chooseCamera(id, 0)} onClose={() => closeSlot(0)} onSettings={() => { cameraTalk.stop(); setSettingsCameraId(visible[0]!.id); }} />}
       {!err && (layout !== 1 || !visible[0]) && <>
-        <div className={`mi-camera-grid layout-${layout}`}>
-          {visible.map((camera, index) => camera
+        <div className={`mi-camera-grid layout-${autoList ? 'list' : layout}`} data-auto-layout={autoList ? 'list' : undefined}>
+          {renderedSlots.map(({ camera, index }) => camera
             ? <CameraTile key={`slot-${index}`} cameraTalk={cameraTalk} talkActive={talkActive} camera={camera} onClose={() => closeSlot(index)} onSettings={() => { cameraTalk.stop(); setSettingsCameraId(camera.id); }} />
-            : <button key={`slot-${index}`} type="button" className="empty-camera-tile" onClick={() => openPicker(index)} aria-label={`Chọn camera cho ô ${index + 1}`}><Icon name="plus" size={26} /><span>{layout === 'list' ? 'Thêm camera' : 'Chọn camera'}</span>{layout !== 'list' && <small>Thêm vào ô {index + 1}</small>}</button>)}
+            : <button key={`slot-${index}`} type="button" className="empty-camera-tile" onClick={() => openPicker(index)} aria-label={`Chọn camera cho ô ${index + 1}`}><Icon name="plus" size={26} /><span>{layout === 'list' || autoList ? 'Thêm camera' : 'Chọn camera'}</span>{layout !== 'list' && !autoList && <small>Thêm vào ô {index + 1}</small>}</button>)}
         </div>
       </>}
       {settingsCameraId !== null && cameraById.has(settingsCameraId) && <CameraSettingsDialog key={settingsCameraId} camera={cameraById.get(settingsCameraId)!} onClose={() => setSettingsCameraId(null)} />}

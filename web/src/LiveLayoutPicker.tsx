@@ -14,7 +14,7 @@ export function initialLiveLayout(): LiveLayout {
     const size = Number(saved);
     if (sizes.includes(size as LayoutSize)) return size as LayoutSize;
   } catch { /* Fall back to the current viewing device. */ }
-  return window.matchMedia('(max-width: 600px)').matches ? 'list' : 4;
+  return 4;
 }
 export function rememberLiveLayout(value: LiveLayout) {
   try { localStorage.setItem(storageKey, String(value)); } catch { /* Layout still works without storage. */ }

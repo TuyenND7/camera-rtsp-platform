@@ -31,6 +31,8 @@ NVR sub-stream ──> AI worker (YOLO) ─────> event + snapshot
 
 ## Giao diện Camera Station
 
+Khi thu hẹp cửa sổ, Live tự chuyển sang danh sách một cột và điều chỉnh chữ, biểu tượng theo vùng xem; khi mở rộng, bố cục trước đó được khôi phục. Có thể chọn bố cục thủ công trong menu, và cỡ chữ vẫn theo Cài đặt.
+
 Web admin dùng giao diện sáng, tiếng Việt, font Be Vietnam Pro được đóng gói cục bộ để không phụ thuộc dịch vụ font bên ngoài.
 Logo và icon ứng dụng được tạo bằng Imagegen, dùng cùng một biểu tượng ở sidebar, trang đăng nhập và favicon. Bản gốc nằm trong `design/camera-logo-master.png`, prompt trong `design/camera-logo-prompt.txt`; các PNG đã thu nhỏ và giữ alpha nằm trong `web/public/brand/`.
 Bộ 40 icon điều khiển dùng atlas Imagegen nét regular cân bằng (~1,8–2 px ở cỡ 24 px), nhẹ hơn bản medium khoảng 20–25%, giữ màu `currentColor` của giao diện và micro dạng fill. PNG nguyên bản nằm ở `web/public/brand/camera-icons-balanced.png`, prompt đầy đủ ở `web/public/brand/camera-icons-balanced.prompt.txt`; tọa độ glyph được đo alpha trong `web/src/regularIconAtlas.ts` mà không sửa pixel ảnh gốc.

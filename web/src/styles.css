@@ -1487,3 +1487,23 @@ body:has(.live-shell) { min-width: 0; }
   :root[data-text-size="200"] .simple-shell.live-shell .mi-live-selectors { flex: 1 1 100%; min-width: 0; max-width: 100%; flex-wrap: wrap; margin-left: 0; }
   :root[data-text-size="200"] .simple-shell.live-shell .mi-live-selectors > * { max-width: 100%; }
 }
+
+
+/* Reflow the live toolbar with its actual content width, including floating windows. */
+@container live-wall (max-width: 640px) {
+  .mi-live-page > * { --icon-scale: clamp(.9, calc(var(--text-scale, 1) * .9), 1.25); }
+  .simple-shell.live-shell .mi-live-heading h1 { font-size: calc(17px * var(--text-scale, 1)); line-height: 1.2; }
+  .simple-shell.live-shell .mi-live-clock strong { font-size: calc(18px * var(--text-scale, 1)); }
+  .simple-shell.live-shell .mi-live-clock > span { font-size: calc(10px * var(--text-scale, 1)); }
+  .simple-shell.live-shell .mi-live-selectors { gap: 4px; }
+  .live-shell .mi-live-focus { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .live-shell .mi-device-panel { max-height: min(28dvh, 220px); }
+  .simple-shell.live-shell .mi-camera-picker-button, .simple-shell.live-shell .mi-layout-picker { min-height: 40px; padding: 4px 6px; font-size: calc(11px * var(--text-scale, 1)); }
+  .simple-shell.live-shell .mi-live-fullscreen-button, .simple-shell.live-shell .mi-live-screen-button { min-width: 40px; min-height: 40px; }
+  .simple-shell.live-shell .mi-live-heading .sidebar-visibility-toggle { min-width: 40px; min-height: 40px; }
+}
+@container live-wall (max-width: 420px) {
+  .simple-shell.live-shell .mi-live-heading h1 { font-size: calc(15px * var(--text-scale, 1)); }
+  .simple-shell.live-shell .mi-live-clock strong { font-size: calc(16px * var(--text-scale, 1)); }
+  .simple-shell.live-shell .mi-camera-picker-button, .simple-shell.live-shell .mi-layout-picker { padding-inline: 4px; gap: 3px; }
+}
