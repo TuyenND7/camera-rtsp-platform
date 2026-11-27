@@ -1565,3 +1565,17 @@ body:has(.live-shell) { min-width: 0; }
   .simple-shell.live-shell .mi-live-heading .emergency-controls.compact .emergency-actions > button { width: 30px; min-width: 30px; }
   .simple-shell.live-shell .mi-live-heading .mi-live-clock strong { font-size: clamp(13px, calc(14px * var(--text-scale, 1)), 18px); }
 }
+
+/* Preserve the one-line toolbar when a split-screen pane becomes very narrow. */
+@container live-wall (max-width: 300px) {
+  .mi-live-page > * { --icon-scale: clamp(.85, calc(var(--text-scale, 1) * .85), 1.1); }
+  .simple-shell.live-shell .mi-live-heading .sidebar-visibility-toggle,
+  .simple-shell.live-shell .mi-live-heading .mi-camera-picker-button,
+  .simple-shell.live-shell .mi-live-heading .mi-layout-picker,
+  .simple-shell.live-shell .mi-live-heading .mi-live-fullscreen-button,
+  .simple-shell.live-shell .mi-live-heading .mi-live-screen-button { width: 23px; min-width: 23px; }
+  .simple-shell.live-shell .mi-live-heading .emergency-controls.compact .emergency-selector,
+  .simple-shell.live-shell .mi-live-heading .emergency-controls.compact .emergency-actions > button { width: 24px; min-width: 24px; }
+  .simple-shell.live-shell .mi-live-heading .mi-live-clock strong { font-size: clamp(12px, calc(13px * var(--text-scale, 1)), 16px); }
+  .simple-shell.live-shell .mi-live-heading .mi-live-clock > span { font-size: clamp(8px, calc(8px * var(--text-scale, 1)), 10px); }
+}
