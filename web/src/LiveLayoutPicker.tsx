@@ -37,7 +37,7 @@ export default function LiveLayoutPicker({ value, onChange }: { value: LiveLayou
   }}>
     <button ref={trigger} type="button" className="mi-layout-picker" aria-label="Chọn bố cục Live view" aria-haspopup="menu" aria-expanded={open} title={`Bố cục ${label(value)}`} onClick={() => setOpen(value => !value)} onKeyDown={event => {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setOpen(true); }
-    }}><Icon name={value === 'list' ? 'menu' : 'layout'} size={18} /><span>{label(value)}</span><Icon name="chevronDown" size={14} /></button>
+    }}><Icon name={value === 'list' ? 'menu' : 'layout'} size={18} /><span className="mi-layout-label">{label(value)}</span><Icon name="chevronDown" size={14} /></button>
     {open && <div ref={menu} className="live-layout-menu" role="menu" aria-label="Bố cục camera" onKeyDown={event => {
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
       const buttons = Array.from(event.currentTarget.querySelectorAll('button'));

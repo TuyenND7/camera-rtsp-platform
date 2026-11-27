@@ -9,5 +9,6 @@ export default function LiveClock() {
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(timer);
   }, []);
-  return <time className="mi-live-clock" dateTime={now.toISOString()} title="Giờ Việt Nam (UTC+7)"><strong>{time.format(now)}</strong><span>{date.format(now)}</span></time>;
+  const formattedTime = time.format(now), formattedDate = date.format(now);
+  return <time className="mi-live-clock" dateTime={now.toISOString()} title={`Giờ Việt Nam: ${formattedTime} · ${formattedDate}`} aria-label={`${formattedTime}, ${formattedDate}`}><strong>{formattedTime.slice(0, 5)}<span className="mi-live-clock-seconds">{formattedTime.slice(5)}</span></strong><span>{formattedDate.slice(0, 5)}<span className="mi-live-clock-year">{formattedDate.slice(5)}</span></span></time>;
 }

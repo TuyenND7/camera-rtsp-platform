@@ -155,7 +155,7 @@ export default function Grid() {
   return (
     <LiveAiProvider cameraIds={visible.flatMap(camera => camera?.ai_enabled && camera.enabled && camera.status === 'online' ? [camera.id] : [])}><section ref={livePage} className={`mi-live-page${fullscreen ? ' is-fullscreen' : ''}`}>
       <PageHeader title="Live view" className="mi-live-heading" titleActions={<div className="mi-live-selectors">
-          <button type="button" className="mi-camera-picker-button" onClick={() => openPicker()} aria-label={`Chọn camera Live view, đang chọn ${selected.size} camera`}><Icon name="video" size={18} />{selected.size}<Icon name="chevronDown" size={15} /></button>
+          <button type="button" className="mi-camera-picker-button" onClick={() => openPicker()} aria-label={`Chọn camera Live view, đang chọn ${selected.size} camera`}><Icon name="video" size={18} /><span className="mi-camera-picker-count">{selected.size}</span><Icon name="chevronDown" size={15} /></button>
           <LiveLayoutPicker value={autoList ? 'list' : layout} onChange={changeLayout} />
           <button type="button" className="mi-live-fullscreen-button" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen} aria-label={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'} title={fullscreen ? 'Thu nhỏ Live view' : 'Toàn màn hình Live view'}><Icon name={fullscreen ? 'minimize' : 'maximize'} size={20} /></button>
           <button type="button" className="mi-live-screen-button" onClick={() => void device.sleep().catch(() => undefined)} aria-label="Tắt hiển thị, chạm đúp để mở" title="Tắt hiển thị, chạm đúp để mở"><Icon name="moon" size={19} /></button>
