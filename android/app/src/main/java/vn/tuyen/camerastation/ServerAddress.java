@@ -5,7 +5,8 @@ import java.net.URISyntaxException;
 import java.util.Locale;
 
 final class ServerAddress {
-    static final String DEFAULT_URL = "https://camera.taild8cb98.ts.net:8443/live";
+    static final String DEFAULT_URL = "https://camera.tail290520.ts.net:8443/live";
+    static final String OLD_PUBLIC_ORIGIN = "https://camera.taild8cb98.ts.net:8443";
 
     private ServerAddress() {}
 
@@ -28,6 +29,19 @@ final class ServerAddress {
             URI target = URI.create(DEFAULT_URL);
             return new URI(target.getScheme(), null, target.getHost(), target.getPort(),
                 uri.getPath(), uri.getQuery(), null).toASCIIString();
+        } catch (URISyntaxException exception) { return DEFAULT_URL; }
+    }
+
+    static String migratePublicAccount(String saved, boolean migrated) {
+        if (saved == null) return DEFAULT_URL;
+        if (migrated) return saved;
+        String normalized = normalize(saved);
+        if (normalized == null) return saved;
+        URI uri = URI.create(normalized);
+        if (!"https".equals(uri.getScheme()) || !"camera.taild8cb98.ts.net".equalsIgnoreCase(uri.getHost()) || uri.getPort() != 8443) return saved;
+        try {
+            URI target = URI.create(DEFAULT_URL);
+            return new URI(target.getScheme(), null, target.getHost(), target.getPort(), uri.getPath(), uri.getQuery(), null).toASCIIString();
         } catch (URISyntaxException exception) { return DEFAULT_URL; }
     }
 

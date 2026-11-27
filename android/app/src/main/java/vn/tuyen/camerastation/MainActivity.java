@@ -62,8 +62,9 @@ public final class MainActivity extends Activity {
         SharedPreferences preferences = getPreferences(MODE_PRIVATE);
         String savedUrl = preferences.getString("server_url", null);
         serverUrl = ServerAddress.initialUrl(savedUrl, preferences.getBoolean("public_server_migrated", false));
+        serverUrl = ServerAddress.migratePublicAccount(serverUrl, preferences.getBoolean("public_account_migrated", false));
         boolean serverChanged = savedUrl != null && !serverUrl.equals(savedUrl);
-        preferences.edit().putString("server_url", serverUrl).putBoolean("public_server_migrated", true).apply();
+        preferences.edit().putString("server_url", serverUrl).putBoolean("public_server_migrated", true).putBoolean("public_account_migrated", true).apply();
         createViews();
         enterImmersiveMode();
         configureWebView();

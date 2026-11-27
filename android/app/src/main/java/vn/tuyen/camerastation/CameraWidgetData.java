@@ -19,8 +19,9 @@ import java.nio.charset.StandardCharsets;
 final class CameraWidgetData {
     static final int MAX_SEGMENT = 16 * 1024 * 1024;
     static String origin(Context context) throws Exception {
-        String saved = context.getSharedPreferences("MainActivity", Context.MODE_PRIVATE).getString("server_url", ServerAddress.DEFAULT_URL);
-        String normalized = ServerAddress.normalize(saved);
+        android.content.SharedPreferences settings = context.getSharedPreferences("MainActivity", Context.MODE_PRIVATE);
+        String saved = settings.getString("server_url", ServerAddress.DEFAULT_URL);
+        String normalized = ServerAddress.normalize(ServerAddress.migratePublicAccount(saved, settings.getBoolean("public_account_migrated", false)));
         if (normalized == null) throw new Exception("Địa chỉ máy chủ không hợp lệ");
         URI u = new URI(normalized);
         return new URI(u.getScheme(), null, u.getHost(), u.getPort(), null, null, null).toASCIIString();

@@ -10,7 +10,7 @@
     <string name="connection_error">Chưa kết nối được máy chủ</string>
     <string name="connection_help">Kiểm tra kết nối rồi tải lại trang.</string>
     <string name="invalid_url">Nhập địa chỉ HTTP hoặc HTTPS hợp lệ, không kèm tài khoản hay mật khẩu.</string>
-    <string name="server_hint">https://camera.taild8cb98.ts.net:8443/live</string>
+    <string name="server_hint">https://camera.tail290520.ts.net:8443/live</string>
     <string name="tls_error">Chứng chỉ HTTPS chưa hợp lệ hoặc chưa được thiết bị tin cậy.</string>
     <string name="screen_sleep_hint">Chạm đúp để mở màn hình</string>
     <string name="screen_sleep_description">Màn hình tối. Chạm đúp hoặc nhấn Back để mở.</string>

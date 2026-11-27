@@ -20,6 +20,9 @@ public final class CameraWidgetConfigProvider extends ContentProvider {
             if(info==null||!getContext().getPackageName().equals(info.provider.getPackageName()))return result;
             android.content.SharedPreferences prefs=CameraWidgetProvider.prefs(getContext());
             int camera=prefs.getInt("id_"+widget,-1);String origin=prefs.getString("origin_"+widget,"");
+            if(ServerAddress.OLD_PUBLIC_ORIGIN.equalsIgnoreCase(origin)){
+                try {String current=CameraWidgetData.origin(getContext());if(current.equalsIgnoreCase("https://camera.tail290520.ts.net:8443")){origin=current;prefs.edit().putString("origin_"+widget,origin).apply();}}catch(Exception ignored){}
+            }
             if(!origin.isEmpty())result.addRow(new Object[]{camera,prefs.getString("name_"+widget,"Camera"),origin});
         }catch(NumberFormatException ignored){}
         return result;

@@ -125,7 +125,7 @@ Bộ 36 icon nét mảnh được tạo bằng **Imagegen tích hợp**, giữ m
 
 ## App Android cho tablet
 
-Thư mục [`android/`](android/README.md) chứa app **Camera Station** mở web trọn khung, không có thanh tiêu đề riêng, từ bản 0.3.1 mặc định `https://camera.taild8cb98.ts.net:8443/live`, tự chuyển link CAMERA cũ một lần khi nâng cấp. Nhấn giữ biểu tượng app trong launcher để tải lại hoặc đổi máy chủ; hỗ trợ video toàn màn hình. UI tải trực tiếp từ máy chủ nên cập nhật web không cần cài lại APK. Xem hướng dẫn build, cài qua ADB và xem trước UI qua USB trong [android/README.md](android/README.md).
+Thư mục [`android/`](android/README.md) chứa app **Camera Station** mở web trọn khung, không có thanh tiêu đề riêng, từ bản 0.4.5 mặc định `https://camera.tail290520.ts.net:8443/live`, tự chuyển link CAMERA cũ một lần khi nâng cấp. Nhấn giữ biểu tượng app trong launcher để tải lại hoặc đổi máy chủ; hỗ trợ video toàn màn hình. UI tải trực tiếp từ máy chủ nên cập nhật web không cần cài lại APK. Xem hướng dẫn build, cài qua ADB và xem trước UI qua USB trong [android/README.md](android/README.md).
 
 Khi chưa kết nối được máy chủ, chạy `npm run dev:ui` trong `web`, chuyển tiếp cổng 18173 qua ADB và mở `http://127.0.0.1:18173/live` trong app. Chế độ xem trước không cần mật khẩu, dùng API/video mẫu cục bộ để chỉnh Live, Playback, Thiết bị và Sự kiện; không bỏ xác thực ở backend thật và không được dùng để build production.
 
@@ -168,7 +168,7 @@ Từ lúc bật HTTPS, các lệnh cập nhật/khởi chạy phải giữ cả 
 & 'C:\Program Files\Tailscale\tailscale.exe' serve status
 ```
 
-3. Nếu CLI đưa một liên kết để bật Serve, mở liên kết bằng tài khoản quản lý tailnet và bật tính năng. CLI sẽ in địa chỉ `https://<ten-may>.<tailnet>.ts.net/`; dùng đúng địa chỉ này, không thay hostname HTTPS bằng IP. Trên máy CAMERA đã cấu hình: `https://camera.taild8cb98.ts.net/live`.
+3. Nếu CLI đưa một liên kết để bật Serve, mở liên kết bằng tài khoản quản lý tailnet và bật tính năng. CLI sẽ in địa chỉ `https://<ten-may>.<tailnet>.ts.net/`; dùng đúng địa chỉ này, không thay hostname HTTPS bằng IP. Trên tài khoản Tailscale mới, cấu hình Serve riêng nếu cần và dùng URL mà lệnh Serve in ra.
 4. Mở địa chỉ HTTPS trên tablet/điện thoại và đăng nhập web. Trong app Android, nhấn giữ biểu tượng app → **Máy chủ**, thay URL bằng địa chỉ HTTPS vừa nhận. Cài APK 0.2.1 trở lên để có quyền mic và định tuyến audio cho WebView. App chỉ cấp audio cho đúng origin HTTPS đang cấu hình, không cấp camera hay bỏ qua lỗi TLS.
 5. Trong Live, nhấn **mic đỏ** ở góc phải ô camera, cho phép quyền mic nếu hệ thống hỏi, rồi nói. Nhấn lại để kết thúc; im lặng 5 giây tự dừng. Đàm thoại nhóm dùng **Khẩn cấp → chọn camera → Nói**.
 
@@ -188,10 +188,10 @@ Phù hợp để thỉnh thoảng xem từ xa bằng trình duyệt, không cài
 & 'C:\Program Files\Tailscale\tailscale.exe' funnel status
 ```
 
-3. Nếu CLI yêu cầu bật Funnel, mở liên kết do CLI cung cấp bằng tài khoản quản lý tailnet và bật tính năng. `Serve` đã bật không có nghĩa `Funnel` đã được cấp quyền. Chờ CLI báo **Available on the internet**, rồi mở URL nó in ra. Máy CAMERA đã bật tại `https://camera.taild8cb98.ts.net:8443/live`.
+3. Nếu CLI yêu cầu bật Funnel, mở liên kết do CLI cung cấp bằng tài khoản quản lý tailnet và bật tính năng. `Serve` đã bật không có nghĩa `Funnel` đã được cấp quyền. Chờ CLI báo **Available on the internet**, rồi mở URL nó in ra. Máy CAMERA đã bật tại `https://camera.tail290520.ts.net:8443/live`.
 4. Tắt VPN trên thiết bị xem, dùng 4G/5G hoặc mạng khác để kiểm tra: trang đăng nhập mở được; chưa đăng nhập không đọc được camera/live/recording; đăng nhập xong phát được Live và Playback. HTTPS cho phép xin quyền mic. Trong app Android, nếu muốn dùng public thì đổi Máy chủ sang URL trên; tài khoản web vẫn dùng như cũ, đăng nhập lại nếu cần.
 
-Cổng **443** tiếp tục dành cho Serve riêng; chỉ cổng **8443** bật Funnel. Không dùng lệnh `reset` vì có thể xóa cả cấu hình Serve. Không chuyển tiếp public cổng RTSP/ONVIF, PostgreSQL hoặc SSH; Funnel chỉ đưa web/API/media đã có xác thực ra Internet. Backend và nginx vẫn kiểm tra phiên đăng nhập cho mọi segment HLS, recording và ảnh.
+Cổng **8443** bật Funnel; cổng **443** có thể dùng cho Serve riêng nếu được cấu hình. Không dùng lệnh `reset` vì có thể xóa cả cấu hình Serve. Không chuyển tiếp public cổng RTSP/ONVIF, PostgreSQL hoặc SSH; Funnel chỉ đưa web/API/media đã có xác thực ra Internet. Backend và nginx vẫn kiểm tra phiên đăng nhập cho mọi segment HLS, recording và ảnh.
 
 `--bg` giữ cấu hình qua lần khởi động lại Tailscale/máy tính; Windows vẫn cần Tailscale thực sự khởi động và kết nối. Funnel có giới hạn băng thông không điều chỉnh được, vì vậy kiểm tra thực tế khi xem nhiều camera; máy xem nhiều nên ưu tiên LAN/VPN. Link public không làm giảm độ trễ HLS của camera.
 

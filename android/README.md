@@ -1,19 +1,16 @@
 # Camera Station cho Android
 
-## Widget trên launcher (0.4.0)
+## Widget trên launcher
 
-1. Đăng nhập Camera Station trên thiết bị, rồi trở về màn hình chính.
-2. Trên Glass Launcher, chọn **Widget + → Camera Station**. Trên launcher Android khác, nhấn giữ màn hình chính → **Widget** → **Camera Station**.
-3. Chọn camera trong danh sách. Có thể thêm nhiều widget, mỗi widget chọn riêng một camera; kéo/đổi kích thước theo khả năng của launcher.
-4. Widget hiển thị ảnh từ đoạn Live đã có trên máy chủ. Chạm ảnh để mở Live đúng camera; chạm nút làm mới để tải ảnh mới. Widget tự yêu cầu cập nhật khoảng 15 phút, Android có thể trì hoãn để tiết kiệm pin. Đây là ảnh tĩnh, không phải video liên tục; nhãn **Cập nhật** là lúc tải ảnh về, có thể chậm hơn hình thực tế vài giây.
+Trên Glass Launcher, đăng nhập Camera Station rồi chọn **Widget + → Camera Station → Hiển thị tất cả camera**. Chạm widget để hiện nút cài đặt, chọn camera và dạng lưới hoặc danh sách. Hình chạy Live qua HLS và có độ trễ vài giây; widget tạm dừng khi launcher không hiển thị.
 
-Widget dùng phiên đăng nhập của app và lấy dữ liệu qua địa chỉ máy chủ đã cấu hình; không mở phiên RTSP trực tiếp. Nếu camera offline, máy chủ đổi địa chỉ, phiên hết hạn hoặc mạng mất, widget hiện lý do và cần làm mới/đăng nhập lại. Hình có thể còn trên màn hình đến lượt cập nhật tiếp theo; lưu ý khi chia sẻ thiết bị. Khi đổi máy chủ, gỡ và thêm lại widget để chọn đúng camera. Widget cần máy chủ đang chạy và có kết nối mạng phù hợp.
+Trên launcher Android thông thường, widget hiển thị ảnh tĩnh của camera đầu tiên và cập nhật khoảng 15 phút; không phát video liên tục. Khi đổi máy chủ hoặc hết phiên, đăng nhập lại. Widget lấy dữ liệu từ máy chủ và không mở kết nối RTSP trực tiếp.
 
 App Android mở web Camera Station trọn màn hình, không có thanh tiêu đề riêng. Từ bản 0.2.2, thanh trạng thái và thanh điều hướng Android tự ẩn ngay khi mở app và khi quay lại app; vuốt từ cạnh màn hình để hiện tạm các nút hệ thống. Thoát chế độ phóng to video vẫn giữ app toàn màn hình. Bàn phím và vùng khuyết màn hình vẫn được chừa chỗ. Giao diện vẫn được tải từ máy chủ: cập nhật web rồi tải lại trang là thấy UI mới, không phải build lại APK.
 
 - Android 8.0 trở lên, hỗ trợ tablet dọc/ngang.
-- Từ **0.3.1**, mặc định mở public HTTPS: `https://camera.taild8cb98.ts.net:8443/live`; thiết bị xem không cần Tailscale. Máy CAMERA vẫn cần chạy Tailscale/Funnel và có Internet.
-- Khi nâng cấp, app chuyển một lần từ các địa chỉ CAMERA cũ (`camera.local:8081`, IP Windows đã dùng, hoặc link Tailscale riêng cổng 443) sang public, giữ đường dẫn/trang đang chọn. URL tùy chỉnh khác giữ nguyên. Sau lần nâng cấp này, nếu người dùng chọn lại LAN/VPN thì app giữ lựa chọn đó. Cookie và dữ liệu đăng nhập không bị xóa; nếu chuyển hostname cần đăng nhập web lại.
+- Từ **0.4.5**, mặc định mở public HTTPS: `https://camera.tail290520.ts.net:8443/live`; thiết bị xem không cần Tailscale. Máy CAMERA vẫn cần chạy Tailscale/Funnel và có Internet.
+- Khi nâng cấp, app chuyển một lần link public cũ của tài khoản Tailscale trước sang link mới và chuyển một lần từ các địa chỉ CAMERA cũ (`camera.local:8081`, IP Windows đã dùng, hoặc link Tailscale riêng cổng 443) sang public, giữ đường dẫn/trang đang chọn. URL tùy chỉnh khác giữ nguyên. Sau lần nâng cấp này, nếu người dùng chọn lại LAN/VPN thì app giữ lựa chọn đó. Cookie và dữ liệu đăng nhập không bị xóa; nếu chuyển hostname cần đăng nhập web lại.
 - Nhấn giữ biểu tượng **Camera Station** trong launcher → **Máy chủ** để thay URL LAN/VPN hoặc HTTPS. URL được giữ lại khi mở app lần sau.
 - Nhấn giữ biểu tượng app → **Tải lại** để tải lại trang. Từ **0.3.2**, màn hình lỗi chỉ có nút **Tải lại trang** kèm icon Imagegen; không hiển thị URL hoặc nút Địa chỉ máy chủ. Muốn thay địa chỉ, dùng shortcut **Máy chủ** trong launcher. Hỗ trợ nút Back và video toàn màn hình.
 - Trong web, dùng nút menu cạnh tiêu đề để ẩn/hiện điều hướng. App tự mở toàn màn hình; nút phóng to/thu nhỏ cạnh bố cục trên Live view mở riêng vùng xem ra toàn màn hình và dùng được cả khi mở web bằng trình duyệt. Video tự phát, không có thanh pause/tải lại.
@@ -82,7 +79,7 @@ npm run dev -- --host 127.0.0.1 --port 18173 --strictPort
 adb -s <SERIAL_LENOVO> reverse tcp:18173 tcp:18173
 ```
 
-Nhấn giữ biểu tượng **Camera Station** trong launcher → **Máy chủ**, nhập `http://127.0.0.1:18173/login`. Đây là trang đăng nhập từ source trên máy phát triển, có HMR khi sửa `web/src`. Muốn đăng nhập, xem Live/Playback và dữ liệu thật, cấu hình proxy trong `web/vite.config.ts` tới backend/nginx truy cập được; một frontend chạy riêng không thay thế máy chủ camera. Đổi địa chỉ app về `https://camera.taild8cb98.ts.net:8443/live` khi dùng máy chủ thật.
+Nhấn giữ biểu tượng **Camera Station** trong launcher → **Máy chủ**, nhập `http://127.0.0.1:18173/login`. Đây là trang đăng nhập từ source trên máy phát triển, có HMR khi sửa `web/src`. Muốn đăng nhập, xem Live/Playback và dữ liệu thật, cấu hình proxy trong `web/vite.config.ts` tới backend/nginx truy cập được; một frontend chạy riêng không thay thế máy chủ camera. Đổi địa chỉ app về `https://camera.tail290520.ts.net:8443/live` khi dùng máy chủ thật.
 
 ### Xem đầy đủ UI khi không có máy chủ
 
@@ -102,6 +99,6 @@ adb -s <SERIAL_LENOVO> reverse --remove tcp:18173
 
 ## Widget camera trên màn hình chính
 
-Trên Glass Launcher 4.7 trở lên, thêm widget **Camera Station** và chọn **Hiển thị tất cả camera**. Một widget hiển thị camera đã thêm vào máy chủ, tự kiểm tra danh sách sau mỗi 30 giây; camera mất kết nối vẫn có ô riêng. Chạm vào widget để hiện nút cài đặt và gỡ; sau 5 giây không chạm, các nút tự ẩn. Nhấn cài đặt để chọn camera và chế độ lưới hoặc danh sách cuộn. Chạm tiếp ô camera để mở trong app. Có thể kéo góc dưới để đổi kích thước. Không cần thêm widget riêng cho từng camera.
+Trên Glass Launcher 4.30 trở lên, thêm widget **Camera Station** và chọn **Hiển thị tất cả camera**. Một widget hiển thị camera đã thêm vào máy chủ, tự kiểm tra danh sách sau mỗi 30 giây; camera mất kết nối vẫn có ô riêng. Chạm vào widget để hiện nút cài đặt và gỡ; sau 5 giây không chạm, các nút tự ẩn. Nhấn cài đặt để chọn camera và chế độ lưới hoặc danh sách cuộn. Chạm tiếp ô camera để mở trong app. Có thể kéo góc dưới để đổi kích thước. Không cần thêm widget riêng cho từng camera.
 
-Video dùng luồng HLS Live sẵn có, tắt tiếng, có độ trễ vài giây và dừng khi launcher không còn hiển thị. Đăng nhập Camera Station trong Glass Launcher nếu widget yêu cầu. Hai app phải được ký cùng chứng chỉ để launcher đọc cấu hình widget; khi không có quyền tương ứng, widget trở về ảnh tĩnh. Các launcher Android thông thường chỉ hỗ trợ ảnh tĩnh của camera đầu tiên, cập nhật định kỳ khoảng 15 phút, không phát video trực tiếp. Khi đổi máy chủ trong app, hãy thêm lại widget.
+Video dùng luồng HLS Live sẵn có, tắt tiếng, có độ trễ vài giây và dừng khi launcher không còn hiển thị. Đăng nhập Camera Station trong Glass Launcher nếu widget yêu cầu. Hai app phải được ký cùng chứng chỉ để launcher đọc cấu hình widget; khi không có quyền tương ứng, widget trở về ảnh tĩnh. Các launcher Android thông thường chỉ hỗ trợ ảnh tĩnh của camera đầu tiên, cập nhật định kỳ khoảng 15 phút, không phát video trực tiếp. Khi đổi máy chủ tùy chỉnh trong app, có thể cần thêm lại widget; địa chỉ public cũ được chuyển sang public mới khi nâng cấp.
